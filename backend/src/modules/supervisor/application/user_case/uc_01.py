@@ -1,31 +1,35 @@
 from src.modules.supervisor.domain.entities.supervisor import Supervisor
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
 from src.modules.supervisor.application.interfaces.validador_crea import ValidadorCREA
+from src.shared.security.password_hash import PassWordHasher
 
 class CriarSupervisorUseCase:
 
     def __init__(
             self, 
             repository: ISupervisorRepository,
-            validador_crea: ValidadorCREA
+            validador_crea: ValidadorCREA,
+            hasher: PassWordHasher
         ):
         self.repository = repository
         self.validador_crea = validador_crea
+        self.hasher = hasher
 
     def execute(self, supervisor: Supervisor) -> Supervisor:
-        # Validar se já existe supervisor com este identificador
-        crea_existente = self.validador_crea.validar(
-            supervisor.idendificador_profissional, 
-            supervisor.name
-        )
-
-        #validar se o identificador pertence a pessoa
-        if not crea_existente:
-            raise ValueError(f"Identificador profissional inválido")        
-
         # Validar se o email já existe
         email_existente = self.repository.find_by_email(supervisor.email)
         if email_existente:
             raise ValueError(f"Email já cadastrado no sistema")
 
-        return self.repository.save(supervisor)
+        #garantir hash da senha
+        senha_hash = self.hasher.hash(supervisor.password)
+
+        novo_supervisor = Supervisor(
+            name=supervisor.name,
+            email=supervisor.email,
+            password=senha_hash,
+            idendificador_profissional=supervisor.idendificador_profissional,
+            uf=supervisor.uf,
+            cidade=supervisor.cidade
+        )
+        return self.repository.save(novo_supervisor)
