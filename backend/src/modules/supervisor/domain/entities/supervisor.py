@@ -1,8 +1,9 @@
-from sqlalchemy import Column, String, CheckConstraint
+from sqlalchemy import Column, String, CheckConstraint, Enum
 from sqlalchemy.orm import validates
 from sqlalchemy import Column, Integer
 from src.shared.infrastructure.db import Base
-from pydantic import BaseModel
+from src.shared.enums.uf_enum import UFEnum
+from pydantic import BaseModel, field_validator
 from typing import Optional
 
 class SupervisorORM(Base):
@@ -14,7 +15,7 @@ class SupervisorORM(Base):
 
     idendificador_profissional = Column(String(20), unique=True, nullable=False)
 
-    uf = Column(String(2), nullable=False)
+    uf = Column(Enum(UFEnum), nullable=False)
 
     cidade = Column(String(50), nullable=False)
     
@@ -43,3 +44,10 @@ class Supervisor(BaseModel):
     cidade: str
     email: str
     password: str
+
+    @field_validator("uf")
+    @classmethod
+    def validate_uf(cls, v):
+        if not UFEnum.is_valid(v):
+            raise ValueError(f"UF inválida")
+        return v
