@@ -48,6 +48,8 @@ class ValidadorCREAApi(ValidadorCREA):
         itens = data.get("item", [])
         
         for item in itens:
+            print("[INFO]: " + item.get("numero"))
+            print("[INFO]: " + crea)
             if item.get("nome") == nome and crea == item.get("numero"):
                 return True
     

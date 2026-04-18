@@ -16,6 +16,15 @@ class CriarSupervisorUseCase:
         self.hasher = hasher
 
     def execute(self, supervisor: Supervisor) -> Supervisor:
+        #validar CREA
+        crea_existente = self.validador_crea.validar(
+            supervisor.idendificador_profissional,
+            supervisor.name
+        )
+
+        if crea_existente == False:
+            raise ValueError(f"CREA inválido")
+
         # Validar se o email já existe
         email_existente = self.repository.find_by_email(supervisor.email)
         if email_existente:
