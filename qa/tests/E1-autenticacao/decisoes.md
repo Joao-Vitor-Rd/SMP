@@ -28,3 +28,10 @@ inválidos simultaneamente.
 **Status:** Aguardando resposta  
 **Contexto:** Não foi encontrada API pública para validação do CFT.
 Impacta o cenário "Registro profissional inválido ou inativo".
+
+### Dúvida em aberto 2 — Redirecionamento após cadastro
+
+**Data:** 18/04/2026  
+**Status:** Aguardando resposta  
+**Contexto:** UC-01 diz "redireciona para tela de login",
+critério de aceite diz "tela inicial". Qual prevalece?
