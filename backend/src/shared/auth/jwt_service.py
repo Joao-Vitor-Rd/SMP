@@ -16,7 +16,7 @@ class JWTService(TokenService):
 
     def generate(self, user) -> str:
         payload = {
-            "sub": user.id,
+            "sub": str(user.id),
             "role": "supervisor",
             "type": "access",
             "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
@@ -27,7 +27,7 @@ class JWTService(TokenService):
 
     def generate_refresh_token(self, user) -> str:
         payload = {
-            "sub": user.id,
+            "sub": str(user.id),
             "role": "supervisor",
             "type": "refresh",
             "exp": datetime.now(timezone.utc) + timedelta(days=7),
@@ -38,7 +38,7 @@ class JWTService(TokenService):
 
     def decode(self, token: str) -> dict:
         try:
-            return jwt.decode(token, SECRET, ALGORITHM)
+            return jwt.decode(token, SECRET, algorithms=[ALGORITHM])
         except JWTError as e:
             raise JWTError(f"Erro ao decodificar token: {str(e)}")
 

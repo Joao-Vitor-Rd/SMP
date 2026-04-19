@@ -53,6 +53,12 @@ class ColaboradorRepository(IColaboradorRepository):
         ).all()
         return [Colaborador.model_validate(col_orm) for col_orm in cols_orm]
 
+    def find_by_email(self, email: str) -> Optional[Colaborador]:
+        col_orm = self.session.query(ColaboradorORM).filter(
+            ColaboradorORM.email == email
+        ).first()
+        return Colaborador.model_validate(col_orm) if col_orm else None
+
     def update_tentativas(self, colaborador_id: int, tentativas: int):
         col_orm = self.session.query(ColaboradorORM).filter(
             ColaboradorORM.id == colaborador_id
@@ -100,5 +106,16 @@ class ColaboradorRepository(IColaboradorRepository):
         col_orm.limite_acesso = limite_acesso
         self.session.commit()
         self.session.refresh(col_orm)
+
+    def delete(self, colaborador_id: int) -> None:
+        col_orm = self.session.query(ColaboradorORM).filter(
+            ColaboradorORM.id == colaborador_id
+        ).first()
+        
+        if not col_orm:
+            raise ValueError(f"Colaborador com ID {colaborador_id} não encontrado")
+        
+        self.session.delete(col_orm)
+        self.session.commit()
 
 

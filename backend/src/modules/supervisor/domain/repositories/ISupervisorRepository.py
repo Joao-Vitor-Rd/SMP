@@ -18,6 +18,10 @@ class ISupervisorRepository(ABC):
         pass
 
     @abstractmethod
+    def find_by_identificador_profissional(self, supervisor_id: int) -> Optional[Supervisor]:
+        pass
+    
+    @abstractmethod
     def find_all(self) -> List[Supervisor]:
         pass
 

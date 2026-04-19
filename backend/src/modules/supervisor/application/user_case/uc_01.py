@@ -1,7 +1,7 @@
 from src.modules.supervisor.domain.entities.supervisor import Supervisor
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
 from src.modules.supervisor.application.interfaces.validador_crea import ValidadorCREA
-from src.modules.supervisor.application.dtos import CreateSupervisorDTO
+from src.modules.supervisor.application.dtos import CreateSupervisorDTO, SupervisorResponseDTO
 from src.shared.security.password_hash import PassWordHasher
 from src.shared.enums.uf_enum import UFEnum
 
@@ -17,7 +17,7 @@ class CriarSupervisorUseCase:
         self.validador_crea = validador_crea
         self.hasher = hasher
 
-    def execute(self, create_data: CreateSupervisorDTO) -> Supervisor:
+    def execute(self, create_data: CreateSupervisorDTO) -> SupervisorResponseDTO:
         #validar CREA
         crea_existente = self.validador_crea.validar(
             create_data.idendificador_profissional,
@@ -50,4 +50,12 @@ class CriarSupervisorUseCase:
             uf=create_data.uf,
             cidade=create_data.cidade
         )
-        return self.repository.save(novo_supervisor)
+        supervisor_salvo = self.repository.save(novo_supervisor)
+        return SupervisorResponseDTO(
+            id=supervisor_salvo.id,
+            name=supervisor_salvo.name,
+            email=supervisor_salvo.email,
+            idendificador_profissional=supervisor_salvo.idendificador_profissional,
+            uf=supervisor_salvo.uf,
+            cidade=supervisor_salvo.cidade
+        )

@@ -44,6 +44,12 @@ class SupervisorRepository(ISupervisorRepository):
         if sup_orm:
             return Supervisor.model_validate(sup_orm)
         return None
+    
+    def find_by_identificador_profissional(self, idendificador_profissional: int) -> Optional[Supervisor]:
+        sup_orm = self.session.query(SupervisorORM).filter(SupervisorORM.idendificador_profissional == idendificador_profissional).first()
+        if sup_orm:
+            return Supervisor.model_validate(sup_orm)
+        return None
 
     def find_by_email(self, email: str) -> Optional[Supervisor]:
         sup_orm = self.session.query(SupervisorORM).filter(SupervisorORM.email == email).first()

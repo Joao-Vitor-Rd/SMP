@@ -42,7 +42,7 @@ async def criar_supervisor(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao criar supervisor: {str(e)}")
 
-@router.get("/", response_model=list[Supervisor])
+@router.get("/", response_model=list[SupervisorResponseDTO])
 async def listar_supervisores(
     repository = Depends(get_repository)
 ):

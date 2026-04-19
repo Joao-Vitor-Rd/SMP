@@ -14,10 +14,6 @@ class IColaboradorRepository(ABC):
         pass
 
     @abstractmethod
-    def find_by_id_profissional_responsavel(self, id_profissional_responsavel: str) -> List[Colaborador]:
-        pass
-
-    @abstractmethod
     def update_limite_acesso(self, colaborador_id: int, limite_acesso: datetime):
         pass
 
@@ -31,5 +27,13 @@ class IColaboradorRepository(ABC):
 
     @abstractmethod
     def update_tempo_bloqueio(self, supervisor_id: int, tempo_bloqueio: datetime):
+        pass
+
+    @abstractmethod
+    def find_by_email(self, email: str) -> Optional[Colaborador]:
+        pass
+
+    @abstractmethod
+    def delete(self, colaborador_id: int) -> None:
         pass
 

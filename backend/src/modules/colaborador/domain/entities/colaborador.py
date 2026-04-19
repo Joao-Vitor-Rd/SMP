@@ -41,7 +41,7 @@ class ColaboradorORM(Base):
 class Colaborador(BaseModel):
     model_config = {"from_attributes": True}
     
-    id: int
+    id: Optional[int] = None
     nome: str
     id_profissional_responsavel: str
     uf: str
