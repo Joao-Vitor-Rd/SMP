@@ -5,6 +5,9 @@ from src.shared.infrastructure.db import Base
 from src.shared.enums.uf_enum import UFEnum
 from pydantic import BaseModel, field_validator
 from typing import Optional
+from datetime import datetime
+from sqlalchemy import DateTime
+from datetime import datetime, timezone
 
 class SupervisorORM(Base):
     __tablename__ = "supervisor"
@@ -23,16 +26,9 @@ class SupervisorORM(Base):
     
     password = Column(String(255), nullable=False)
 
-    #validação de senha no banco
-    __table_args__ = (
-        CheckConstraint("length(password) >= 8", name="check_password_min_length"),
-    )
+    tentativas_falhas = Column(Integer, default=0, nullable=False)
 
-    @validates("password")
-    def validate_password(self, key, value):
-        if len(value) < 8:
-            raise ValueError("Senha deve ter no mínimo 8 caracteres")
-        return value
+    limite_de_bloqueio = limite_de_bloqueio = Column(DateTime(timezone=True), nullable=True)
     
 class Supervisor(BaseModel):
     model_config = {"from_attributes": True}
@@ -44,6 +40,8 @@ class Supervisor(BaseModel):
     cidade: str
     email: str
     password: str
+    tentativas_falhas: int = 0
+    limite_de_bloqueio: Optional[datetime] = None
 
     @field_validator("uf")
     @classmethod
@@ -51,3 +49,8 @@ class Supervisor(BaseModel):
         if not UFEnum.is_valid(v):
             raise ValueError(f"UF inválida")
         return v
+    
+    def is_locked(self) -> bool:
+        if self.limite_de_bloqueio is None:
+            return False
+        return datetime.now(timezone.utc) < self.limite_de_bloqueio

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
 from src.modules.supervisor.domain.entities.supervisor import Supervisor, SupervisorORM
+from datetime import datetime, timezone
 
 class SupervisorRepository(ISupervisorRepository):
 
@@ -53,3 +54,29 @@ class SupervisorRepository(ISupervisorRepository):
     def find_all(self) -> List[Supervisor]:
         sups_orm = self.session.query(SupervisorORM).all()
         return [Supervisor.model_validate(sup_orm) for sup_orm in sups_orm]
+    
+    def update_tentativas(self, supervisor_id: int, tentativas: int):
+        supervisor_orm = self.session.query(SupervisorORM).filter(
+            SupervisorORM.id == supervisor_id
+        ).first()
+        
+        if not supervisor_orm:
+            raise ValueError(f"Supervisor com ID {supervisor_id} não encontrado")
+        
+        supervisor_orm.tentativas_falhas = tentativas
+        self.session.commit()
+        self.session.refresh(supervisor_orm)
+        
+
+    def update_tempo_bloqueio(self, supervisor_id: int, tempo_bloqueio: datetime):
+        supervisor_orm = self.session.query(SupervisorORM).filter(
+            SupervisorORM.id == supervisor_id
+        ).first()
+        
+        if not supervisor_orm:
+            raise ValueError(f"Supervisor com ID {supervisor_id} não encontrado")
+        
+        supervisor_orm.limite_de_bloqueio = tempo_bloqueio
+        self.session.commit()
+        self.session.refresh(supervisor_orm)
+        
