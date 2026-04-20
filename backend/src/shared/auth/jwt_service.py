@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from jose import jwt, JWTError
 from src.shared.security.token_service import TokenService
+from src.shared.enums.cargo_enum import CargoEnum
 from datetime import datetime, timezone, timedelta
 
 load_dotenv()
@@ -14,10 +15,10 @@ if not SECRET or not ALGORITHM:
 
 class JWTService(TokenService):
 
-    def generate(self, user, lembrar_me: bool = False) -> str:
+    def generate(self, user, cargo: str, lembrar_me: bool = False) -> str:
         payload = {
             "sub": str(user.id),
-            "role": "supervisor",
+            "role": cargo,
             "type": "access",
             "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
             "iat": datetime.now(timezone.utc),
@@ -25,13 +26,13 @@ class JWTService(TokenService):
 
         return jwt.encode(payload, SECRET, algorithm=ALGORITHM)
 
-    def generate_refresh_token(self, user, lembrar_me: bool = False) -> str:
+    def generate_refresh_token(self, user, cargo: str, lembrar_me: bool = False) -> str:
         dias_expiracao = 30 if lembrar_me else 0
         horas_expiracao = 0 if lembrar_me else 8
         
         payload = {
             "sub": str(user.id),
-            "role": "supervisor",
+            "role": cargo,
             "type": "refresh",
             "exp": datetime.now(timezone.utc) + timedelta(days=dias_expiracao, hours=horas_expiracao),
             "iat": datetime.now(timezone.utc),
