@@ -35,8 +35,6 @@ Impacta o cenário "Registro profissional inválido ou inativo".
 **Status:** Aguardando resposta  
 **Contexto:** UC-01 diz "redireciona para tela de login",
 critério de aceite diz "tela inicial". Qual prevalece?
-<<<<<<< HEAD
-=======
 
 ### Dúvida em aberto 3 — Redirecionamento após login
 
@@ -45,5 +43,9 @@ critério de aceite diz "tela inicial". Qual prevalece?
 **Contexto:** Caso de uso diz "redireciona para o Dashboard",
 critério de aceite da US-02 diz "redireciona para aba de Histórico".
 Qual prevalece?
-**Impacto:** Cenário "Login realizado com sucesso" do BDD
-e CT correspondente nos casos de teste.
+
+### Dúvida em aberto 4 — Criação da senha
+
+**Data:** 20/04/2026
+**Status:** Aguardando resposta
+**Contexto:** Quando o usuário clica em esquecer senha, e é redirecionado pra essa tela, quando insere o e-mail cadastrado, como funciona esse fluxo? chega um link no e-mail onde ele abre e tem a opção de mudança de senha?
