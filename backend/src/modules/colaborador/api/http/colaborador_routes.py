@@ -12,7 +12,7 @@ from src.modules.noticacao.infrastructure.SmtpEmailNotificacao import SmtpEmailN
 from src.shared.auth.dependencies import verify_supervisor_role
 from src.shared.validators.email_validator import EmailValidator
 
-router = APIRouter()
+router = APIRouter(tags=["Colaboradores"])
 
 def get_colaborador_repository(session: Annotated[Session, Depends(get_session)]):
     return ColaboradorRepository(session)
@@ -32,7 +32,13 @@ def get_email_sender():
 def get_email_validator():
     return EmailValidator()
 
-@router.post("/", response_model=ColaboradorResponseDTO, status_code=201)
+@router.post(
+    "/",
+    response_model=ColaboradorResponseDTO,
+    status_code=201,
+    summary="Criar novo Colaborador",
+    description="Cria um novo colaborador vinculado a um supervisor, gerando senha automática e enviando por email"
+)
 async def criar_colaborador(
     create_data: CreateColaboradorDTO,
     _: Annotated[dict, Depends(verify_supervisor_role)],

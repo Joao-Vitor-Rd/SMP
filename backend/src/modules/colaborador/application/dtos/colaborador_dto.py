@@ -1,8 +1,10 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
 
 class CreateColaboradorDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
     nome: str
     id_profissional_responsavel: str
     uf: str
@@ -13,8 +15,10 @@ class CreateColaboradorDTO(BaseModel):
 
 
 class ColaboradorResponseDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
     id: int
-    name: str
+    nome: str
     id_profissional_responsavel: str
     uf: str
     cidade: str
