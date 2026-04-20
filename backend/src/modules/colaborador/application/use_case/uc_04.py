@@ -7,6 +7,7 @@ from src.shared.security.password_hash import PassWordHasher
 from src.shared.domain.interfaces.ICriadorSenha import ICriadorSenha
 from src.shared.enums.uf_enum import UFEnum
 from src.shared.domain.interfaces.INotificacaoService import INotificacaoService
+from src.shared.domain.interfaces.i_email_validator import IEmailValidator
 
 class CriarColaboradorUseCase:
 
@@ -16,13 +17,15 @@ class CriarColaboradorUseCase:
             repository_supervisor: ISupervisorRepository,
             criador_senha: ICriadorSenha,
             hasher: PassWordHasher,
-            email_sender: INotificacaoService
+            email_sender: INotificacaoService,
+            email_validator: IEmailValidator
         ):
         self.repository = repository
         self.repository_supervisor = repository_supervisor
         self.criador_senha = criador_senha
         self.hasher = hasher
         self.email_sender = email_sender
+        self.email_validator = email_validator
 
     def execute(self, create_data: CreateColaboradorDTO) -> ColaboradorResponseDTO:
 
@@ -38,6 +41,10 @@ class CriarColaboradorUseCase:
         if not UFEnum.is_valid(create_data.uf):
             raise ValueError(f"UF inválida")
         
+        # Validar formato do email
+        if not self.email_validator.validar_email(create_data.email):
+            raise ValueError(f"Email inválido")
+        
         # Validar se o email já existe
         email_existente = self.repository.find_by_email(create_data.email)
         if email_existente:
@@ -51,7 +58,7 @@ class CriarColaboradorUseCase:
 
         try:
             novo_colaborador = Colaborador(
-                nome=create_data.nome,
+                nome=create_data.nome.title(),
                 id_profissional_responsavel=create_data.id_profissional_responsavel,
                 uf=create_data.uf,
                 cidade=create_data.cidade,

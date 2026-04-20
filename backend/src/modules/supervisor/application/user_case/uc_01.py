@@ -4,6 +4,7 @@ from src.modules.supervisor.application.interfaces.validador_crea import Validad
 from src.modules.supervisor.application.dtos import CreateSupervisorDTO, SupervisorResponseDTO
 from src.shared.security.password_hash import PassWordHasher
 from src.shared.enums.uf_enum import UFEnum
+from src.shared.domain.interfaces.i_email_validator import IEmailValidator
 
 class CriarSupervisorUseCase:
 
@@ -11,11 +12,13 @@ class CriarSupervisorUseCase:
             self, 
             repository: ISupervisorRepository,
             validador_crea: ValidadorCREA,
-            hasher: PassWordHasher
+            hasher: PassWordHasher,
+            email_validator: IEmailValidator
         ):
         self.repository = repository
         self.validador_crea = validador_crea
         self.hasher = hasher
+        self.email_validator = email_validator
 
     def execute(self, create_data: CreateSupervisorDTO) -> SupervisorResponseDTO:
         #validar CREA
@@ -30,6 +33,10 @@ class CriarSupervisorUseCase:
         if not UFEnum.is_valid(create_data.uf):
             raise ValueError(f"UF inválida")
         
+        # Validar formato do email
+        if not self.email_validator.validar_email(create_data.email):
+            raise ValueError(f"Email inválido")
+        
         # Validar se o email já existe
         email_existente = self.repository.find_by_email(create_data.email)
         if email_existente:
@@ -43,7 +50,7 @@ class CriarSupervisorUseCase:
         senha_hash = self.hasher.hash(create_data.password)
 
         novo_supervisor = Supervisor(
-            name=create_data.name,
+            name=create_data.name.title(),
             email=create_data.email,
             password=senha_hash,
             idendificador_profissional=create_data.idendificador_profissional,

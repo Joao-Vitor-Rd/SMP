@@ -10,6 +10,7 @@ from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2P
 from src.shared.infrastructure.secret_criador_senha import SecretCriadorSenha 
 from src.modules.noticacao.infrastructure.SmtpEmailNotificacao import SmtpEmailNotificacaoService
 from src.shared.auth.dependencies import verify_supervisor_role
+from src.shared.validators.email_validator import EmailValidator
 
 router = APIRouter()
 
@@ -28,6 +29,9 @@ def get_criador_senha():
 def get_email_sender():
     return SmtpEmailNotificacaoService()
 
+def get_email_validator():
+    return EmailValidator()
+
 @router.post("/", response_model=ColaboradorResponseDTO, status_code=201)
 async def criar_colaborador(
     create_data: CreateColaboradorDTO,
@@ -36,7 +40,8 @@ async def criar_colaborador(
     supervisor_repo = Depends(get_supervisor_repository),
     hasher = Depends(get_hasher),
     criador_senha = Depends(get_criador_senha),
-    email_sender = Depends(get_email_sender)
+    email_sender = Depends(get_email_sender),
+    email_validator = Depends(get_email_validator)
 ):
     try:
         use_case = CriarColaboradorUseCase(
@@ -44,7 +49,8 @@ async def criar_colaborador(
             repository_supervisor=supervisor_repo,
             criador_senha=criador_senha,
             hasher=hasher,
-            email_sender=email_sender
+            email_sender=email_sender,
+            email_validator=email_validator
         )
         return use_case.execute(create_data)
     except ValueError as e:

@@ -12,6 +12,7 @@ from src.modules.supervisor.infrastructure.repositories.SupervisorRepository imp
 from src.modules.supervisor.infrastructure.gateway.validador_crea_api import ValidadorCREAApi
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
 from src.shared.auth.jwt_service import JWTService
+from src.shared.validators.email_validator import EmailValidator
 
 router = APIRouter()
 
@@ -27,15 +28,19 @@ def get_hasher():
 def get_token_service():
     return JWTService()
 
+def get_email_validator():
+    return EmailValidator()
+
 @router.post("/", response_model=SupervisorResponseDTO, status_code=201)
 async def criar_supervisor(
     create_data: CreateSupervisorDTO,
     repository = Depends(get_repository),
     validador_crea = Depends(get_validador_crea),
-    hasher = Depends(get_hasher)
+    hasher = Depends(get_hasher),
+    email_validator = Depends(get_email_validator)
 ):
     try:
-        use_case = CriarSupervisorUseCase(repository, validador_crea, hasher)
+        use_case = CriarSupervisorUseCase(repository, validador_crea, hasher, email_validator)
         return use_case.execute(create_data)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

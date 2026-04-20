@@ -50,7 +50,7 @@ class ValidadorCREAApi(ValidadorCREA):
         for item in itens:
             print("[INFO]: " + item.get("numero"))
             print("[INFO]: " + crea)
-            if item.get("nome") == nome and crea == item.get("numero"):
+            if str(item.get("nome")).lower() == nome.lower() and crea == item.get("numero"):
                 return True
     
         return False
