@@ -3,6 +3,7 @@ from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISu
 from src.shared.auth.dtos import LoginDTO, LoginResponseDTO
 from src.shared.security.password_hash import PassWordHasher
 from src.shared.security.token_service import TokenService
+from src.shared.enums.cargo_enum import CargoEnum
 from datetime import datetime, timezone, timedelta
 
 
@@ -47,8 +48,8 @@ class LoginSupervisorUseCase:
         self.repository.update_tempo_bloqueio(supervisor.id, None)
         
         # Gerar tokens JWT com base em "Lembrar-me"
-        access_token = self.token_service.generate(supervisor, login_data.lembrar_me)
-        refresh_token = self.token_service.generate_refresh_token(supervisor, login_data.lembrar_me)
+        access_token = self.token_service.generate(supervisor, CargoEnum.SUPERVISOR.value, login_data.lembrar_me)
+        refresh_token = self.token_service.generate_refresh_token(supervisor, CargoEnum.SUPERVISOR.value, login_data.lembrar_me)
         
         # Retornar resposta com tokens
         return LoginResponseDTO(
@@ -59,6 +60,7 @@ class LoginSupervisorUseCase:
                 "id": supervisor.id,
                 "name": supervisor.name,
                 "email": supervisor.email,
+                "role": CargoEnum.SUPERVISOR
             }
         )
 
