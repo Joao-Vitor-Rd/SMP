@@ -14,7 +14,7 @@ from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2P
 from src.shared.auth.jwt_service import JWTService
 from src.shared.validators.email_validator import EmailValidator
 
-router = APIRouter()
+router = APIRouter(tags=["Supervisores"])
 
 def get_repository(session: Annotated[Session, Depends(get_session)]):
     return SupervisorRepository(session)
@@ -31,7 +31,13 @@ def get_token_service():
 def get_email_validator():
     return EmailValidator()
 
-@router.post("/", response_model=SupervisorResponseDTO, status_code=201)
+@router.post(
+    "/",
+    response_model=SupervisorResponseDTO,
+    status_code=201,
+    summary="Criar novo Supervisor",
+    description="Cria um novo supervisor após validar CREA, email e outros dados obrigatórios"
+)
 async def criar_supervisor(
     create_data: CreateSupervisorDTO,
     repository = Depends(get_repository),
@@ -47,7 +53,12 @@ async def criar_supervisor(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao criar supervisor: {str(e)}")
 
-@router.get("/", response_model=list[SupervisorResponseDTO])
+@router.get(
+    "/",
+    response_model=list[SupervisorResponseDTO],
+    summary="Listar Supervisores",
+    description="Retorna a lista de todos os supervisores cadastrados no sistema"
+)
 async def listar_supervisores(
     repository = Depends(get_repository)
 ):
@@ -57,7 +68,13 @@ async def listar_supervisores(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar supervisores: {str(e)}")
 
-@router.post("/login", response_model=LoginResponseDTO, status_code=200)
+@router.post(
+    "/login",
+    response_model=LoginResponseDTO,
+    status_code=200,
+    summary="Autenticar Supervisor",
+    description="Realiza login do supervisor com validação de credenciais e retorna tokens JWT"
+)
 async def login(
     login_data: LoginDTO,
     repository = Depends(get_repository),

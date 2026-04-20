@@ -83,7 +83,7 @@ class CriarColaboradorUseCase:
             
             return ColaboradorResponseDTO(
                 id=colaborador_salvo.id,
-                name=colaborador_salvo.nome,
+                nome=colaborador_salvo.nome,
                 id_profissional_responsavel=colaborador_salvo.id_profissional_responsavel,
                 uf=colaborador_salvo.uf,
                 cidade=colaborador_salvo.cidade,

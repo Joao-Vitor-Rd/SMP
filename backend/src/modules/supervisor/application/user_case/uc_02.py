@@ -28,11 +28,11 @@ class LoginSupervisorUseCase:
         
         # Verifica se está bloqueado
         if supervisor.is_locked():
-            tempo_bloqueio_formatado = supervisor.limite_de_bloqueio.strftime("%d/%m/%Y %H:%M:%S")
+            tempo_bloqueio_formatado = supervisor.limite_de_bloqueio.strftime("%H:%M:%S %d/%m/%Y")
             raise ValueError(f"Você atingiu o limite máximo de erros, tente novamente depois de: {tempo_bloqueio_formatado}")
         
         # Verificar senha
-        if not self.hasher.verify(login_data.password, supervisor.password):
+        if not self.hasher.verify(login_data.senha, supervisor.password):
             
             if supervisor.tentativas_falhas >= 4:
                 tempo_bloqueio = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -46,16 +46,16 @@ class LoginSupervisorUseCase:
         self.repository.update_tentativas(supervisor.id, 0)
         self.repository.update_tempo_bloqueio(supervisor.id, None)
         
-        # Gerar tokens JWT
-        access_token = self.token_service.generate(supervisor)
-        refresh_token = self.token_service.generate_refresh_token(supervisor)
+        # Gerar tokens JWT com base em "Lembrar-me"
+        access_token = self.token_service.generate(supervisor, login_data.lembrar_me)
+        refresh_token = self.token_service.generate_refresh_token(supervisor, login_data.lembrar_me)
         
         # Retornar resposta com tokens
         return LoginResponseDTO(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer",
-            user={
+            token_acesso=access_token,
+            token_atualizacao=refresh_token,
+            tipo_token="bearer",
+            usuario={
                 "id": supervisor.id,
                 "name": supervisor.name,
                 "email": supervisor.email,

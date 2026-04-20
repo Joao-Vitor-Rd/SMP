@@ -23,8 +23,8 @@ class CriarSupervisorUseCase:
     def execute(self, create_data: CreateSupervisorDTO) -> SupervisorResponseDTO:
         #validar CREA
         crea_existente = self.validador_crea.validar(
-            create_data.idendificador_profissional,
-            create_data.name
+            create_data.identificador_profissional,
+            create_data.nome
         )
         if not crea_existente:
             raise ValueError(f"CREA inválido")
@@ -43,26 +43,26 @@ class CriarSupervisorUseCase:
             raise ValueError(f"Email já cadastrado no sistema")
         
         #valida tamanho da senha
-        if len(create_data.password) < 8:
+        if len(create_data.senha) < 8:
              raise ValueError(f"Senha deve conter 8 caracteres")
 
         #garantir hash da senha
-        senha_hash = self.hasher.hash(create_data.password)
+        senha_hash = self.hasher.hash(create_data.senha)
 
         novo_supervisor = Supervisor(
-            name=create_data.name.title(),
+            name=create_data.nome.title(),
             email=create_data.email,
             password=senha_hash,
-            idendificador_profissional=create_data.idendificador_profissional,
+            idendificador_profissional=create_data.identificador_profissional,
             uf=create_data.uf,
             cidade=create_data.cidade
         )
         supervisor_salvo = self.repository.save(novo_supervisor)
         return SupervisorResponseDTO(
             id=supervisor_salvo.id,
-            name=supervisor_salvo.name,
+            nome=supervisor_salvo.name,
             email=supervisor_salvo.email,
-            idendificador_profissional=supervisor_salvo.idendificador_profissional,
+            identificador_profissional=supervisor_salvo.idendificador_profissional,
             uf=supervisor_salvo.uf,
             cidade=supervisor_salvo.cidade
         )

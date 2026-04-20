@@ -12,9 +12,9 @@ class ListarSupervisorUseCase:
         return [
             SupervisorResponseDTO(
                 id=supervisor.id,
-                name=supervisor.name,
+                nome=supervisor.name,
                 email=supervisor.email,
-                idendificador_profissional=supervisor.idendificador_profissional,
+                identificador_profissional=supervisor.idendificador_profissional,
                 uf=supervisor.uf,
                 cidade=supervisor.cidade
             )
