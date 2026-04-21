@@ -66,6 +66,7 @@ class CriarColaboradorUseCase:
                 email=create_data.email,
                 senha=senha_hash,
                 limite_acesso=create_data.limite_acesso,
+                acesso_liberado=True,
             )
             
             colaborador_salvo = self.repository.save(novo_colaborador)
