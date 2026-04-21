@@ -22,6 +22,20 @@ apareciam um por vez ou todos juntos.
 **Decisão:** O sistema deve exibir erro em todos os campos
 inválidos simultaneamente.
 
+### Decisão 3 — Escopo de cadastro independente
+
+**Data:** 20/04/2026
+**Acordado com:** PO
+**Contexto:** Inicialmente a US-01 previa cadastro de
+Engenheiro e Técnico. Com a mudança de escopo, o Técnico
+passa a ser adicionado pelo Engenheiro via painel
+"Adicionar à Equipe".
+**Decisão:** Cadastro independente no sistema é exclusivo
+do Engenheiro. Técnico e Colaborador são criados pelo
+Engenheiro.
+**Impacto:** US-01 refatorada. Cenários de CFT e seletor
+de perfil removidos.
+
 ### Dúvida em aberto 1 — API de validação do CFT
 
 **Data:** 18/04/2026  
@@ -49,3 +63,15 @@ Qual prevalece?
 **Data:** 20/04/2026
 **Status:** Aguardando resposta
 **Contexto:** Quando o usuário clica em esquecer senha, e é redirecionado pra essa tela, quando insere o e-mail cadastrado, como funciona esse fluxo? chega um link no e-mail onde ele abre e tem a opção de mudança de senha?
+
+### Dúvida em aberto 5 — prazo de expiração
+
+O prazo de expiração do Colaborador, tem um mínimo e máximo definido? Ou o Engenheiro define livremente?
+
+### Dúvida em aberto 6 — Notificação de expiração
+
+Quando o acesso do Colaborador expira — o sistema notifica o Engenheiro, o Colaborador ou nenhum dos dois?
+
+### Dúvida em aberto 6 — Botão de Preview E-mail
+
+Não entendi esse botão de Preview E-mail, vale um bdd?
