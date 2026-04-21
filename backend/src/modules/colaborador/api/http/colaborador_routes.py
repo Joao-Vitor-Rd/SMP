@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from src.shared.infrastructure.db import get_session
@@ -11,6 +11,7 @@ from src.shared.infrastructure.secret_criador_senha import SecretCriadorSenha
 from src.modules.noticacao.infrastructure.SmtpEmailNotificacao import SmtpEmailNotificacaoService
 from src.shared.auth.dependencies import verify_supervisor_role
 from src.shared.validators.email_validator import EmailValidator
+from src.shared.validators.telefone_validator import TelefoneValidator
 
 router = APIRouter(tags=["Colaboradores"])
 
@@ -32,6 +33,9 @@ def get_email_sender():
 def get_email_validator():
     return EmailValidator()
 
+def get_telefone_validator():
+    return TelefoneValidator()
+
 @router.post(
     "/",
     response_model=ColaboradorResponseDTO,
@@ -47,7 +51,8 @@ async def criar_colaborador(
     hasher = Depends(get_hasher),
     criador_senha = Depends(get_criador_senha),
     email_sender = Depends(get_email_sender),
-    email_validator = Depends(get_email_validator)
+    email_validator = Depends(get_email_validator),
+    telefone_validator = Depends(get_telefone_validator)
 ):
     try:
         use_case = CriarColaboradorUseCase(
@@ -56,7 +61,8 @@ async def criar_colaborador(
             criador_senha=criador_senha,
             hasher=hasher,
             email_sender=email_sender,
-            email_validator=email_validator
+            email_validator=email_validator,
+            telefone_validator=telefone_validator
         )
         return use_case.execute(create_data)
     except ValueError as e:
@@ -64,3 +70,40 @@ async def criar_colaborador(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao criar colaborador: {str(e)}")
 
+
+@router.get(
+    "/",
+    response_model=List[ColaboradorResponseDTO],
+    status_code=200,
+    summary="Listar todos os Colaboradores",
+    description="Retorna a lista de todos os colaboradores cadastrados no sistema"
+)
+async def listar_colaboradores(
+    _: Annotated[dict, Depends(verify_supervisor_role)],
+    colaborador_repo = Depends(get_colaborador_repository)
+):
+    try:
+        colaboradores = colaborador_repo.find_all()
+        return colaboradores
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar colaboradores: {str(e)}")
+
+
+@router.delete(
+    "/{colaborador_id}",
+    status_code=204,
+    summary="Deletar Colaborador",
+    description="Remove um colaborador do sistema pelo ID"
+)
+async def deletar_colaborador(
+    colaborador_id: int,
+    _: Annotated[dict, Depends(verify_supervisor_role)],
+    colaborador_repo = Depends(get_colaborador_repository)
+):
+    try:
+        colaborador_repo.delete(colaborador_id)
+        return None
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao deletar colaborador: {str(e)}")
