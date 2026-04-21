@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer, Boolean
 from sqlalchemy import ForeignKey
 from sqlalchemy import DateTime
 from src.shared.infrastructure.db import Base
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 
@@ -16,20 +16,28 @@ class ColaboradorORM(Base):
     nome = Column(String(150), nullable=False)
 
     id_profissional_responsavel = Column(
-        String(20),
-        ForeignKey("supervisor.idendificador_profissional"),
+        Integer,
+        ForeignKey("supervisor.id"),
         nullable=False
     )
 
-    uf = Column(Enum(UFEnum), nullable=False)
+    uf = Column(Enum(UFEnum), nullable=True)
 
-    cidade = Column(String(50), nullable=False)
+    cidade = Column(String(50), nullable=True)
     
     email = Column(String(150), unique=True, nullable=False)
 
-    senha = Column(String(255), nullable=False)
+    instituicao_ensino = Column(String(255), nullable=True)
 
-    limite_acesso = Column(DateTime(timezone=True), nullable=False)
+    empresa_ou_orgao = Column(String(255), nullable=True)
+
+    telefone = Column(String(20), nullable=True)
+
+    is_tecnico = Column(Boolean, default=False, nullable=False)
+
+    senha = Column(String(255), nullable=True)
+
+    limite_acesso = Column(DateTime(timezone=True), nullable=True)
 
     acesso_liberado = Column(Boolean, default=False, nullable=False)
 
@@ -43,22 +51,19 @@ class Colaborador(BaseModel):
     
     id: Optional[int] = None
     nome: str
-    id_profissional_responsavel: str
-    uf: str
-    cidade: str
     email: str
-    senha: str
-    limite_acesso: datetime
+    is_tecnico: bool
+    id_profissional_responsavel: int
+    uf: Optional[str] = None
+    cidade: Optional[str] = None
+    instituicao_ensino: Optional[str] = None
+    empresa_ou_orgao: Optional[str] = None
+    telefone: Optional[str] = None
+    senha: Optional[str] = None
+    limite_acesso: Optional[datetime] = None
     acesso_liberado: bool = False
     tentativas_falhas: int = 0
     limite_de_bloqueio: Optional[datetime] = None
-
-    @field_validator("uf")
-    @classmethod
-    def validate_uf(cls, v):
-        if not UFEnum.is_valid(v):
-            raise ValueError(f"UF inválida")
-        return v
     
     def is_locked(self) -> bool:
         if self.limite_de_bloqueio is None:

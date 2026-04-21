@@ -6,12 +6,10 @@ class CreateColaboradorDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     
     nome: str
-    id_profissional_responsavel: str
-    uf: str
-    cidade: str
+    id_profissional_responsavel: int
+    is_tecnico: bool
     email: EmailStr
-    limite_acesso: datetime
-    acesso_liberado: bool = False
+    limite_acesso: Optional[datetime] = None
 
 
 class ColaboradorResponseDTO(BaseModel):
@@ -19,9 +17,8 @@ class ColaboradorResponseDTO(BaseModel):
     
     id: int
     nome: str
-    id_profissional_responsavel: str
-    uf: str
-    cidade: str
-    email: str
-    limite_acesso: datetime
+    id_profissional_responsavel: int
+    is_tecnico: bool
+    email: EmailStr
+    limite_acesso: Optional[datetime] = None
     acesso_liberado: bool = False

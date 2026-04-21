@@ -1,15 +1,9 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
     container_name: smp_postgres
     env_file:
       - ./backend/.env
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-smv}
     ports:
       - "5432:5432"
     volumes:
@@ -37,6 +31,8 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/main.py:/app/main.py
+      - ./backend/alembic.ini:/app/alembic.ini
+      - ./backend/migrations:/app/migrations
     networks:
       - smp_network
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
