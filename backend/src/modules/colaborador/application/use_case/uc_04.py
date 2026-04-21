@@ -10,6 +10,7 @@ from src.shared.enums.uf_enum import UFEnum
 from src.shared.domain.interfaces.INotificacaoService import INotificacaoService
 from src.shared.domain.interfaces.i_email_validator import IEmailValidator
 from src.shared.domain.interfaces.i_telefone_validator import ITelefoneValidator
+from src.shared.domain.interfaces.i_email_unico_validator import IEmailUnicoValidator
 
 class CriarColaboradorUseCase:
 
@@ -21,7 +22,8 @@ class CriarColaboradorUseCase:
             hasher: PassWordHasher,
             email_sender: INotificacaoService,
             email_validator: IEmailValidator,
-            telefone_validator: ITelefoneValidator
+            telefone_validator: ITelefoneValidator,
+            email_unico_validator: IEmailUnicoValidator
         ):
         self.repository = repository
         self.repository_supervisor = repository_supervisor
@@ -30,6 +32,7 @@ class CriarColaboradorUseCase:
         self.email_sender = email_sender
         self.email_validator = email_validator
         self.telefone_validator = telefone_validator
+        self.email_unico_validator = email_unico_validator
 
     def execute(self, create_data: CreateColaboradorDTO) -> ColaboradorResponseDTO:
 
@@ -45,9 +48,8 @@ class CriarColaboradorUseCase:
         if not self.email_validator.validar_email(create_data.email):
             raise ValueError(f"Email inválido")
         
-        # Validar se o email já existe
-        email_existente = self.repository.find_by_email(create_data.email)
-        if email_existente:
+        # Validar se o email já existe (consulta única UNION em ambas tabelas)
+        if self.email_unico_validator.validar_email_unico(create_data.email):
             raise ValueError(f"Email já cadastrado no sistema")
         
         #gerar senha
@@ -64,6 +66,7 @@ class CriarColaboradorUseCase:
                 email=create_data.email,
                 senha=senha_hash,
                 limite_acesso=create_data.limite_acesso,
+                acesso_liberado=True,
             )
             
             colaborador_salvo = self.repository.save(novo_colaborador)
@@ -86,6 +89,7 @@ class CriarColaboradorUseCase:
                 is_tecnico=colaborador_salvo.is_tecnico,
                 email=colaborador_salvo.email,
                 limite_acesso=colaborador_salvo.limite_acesso,
+                acesso_liberado=colaborador_salvo.acesso_liberado,
             )
         except Exception as e:
             print(f"Erro ao criar colaborador: {str(e)}")

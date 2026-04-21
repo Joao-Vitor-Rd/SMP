@@ -50,7 +50,12 @@ class ValidadorCREAApi(ValidadorCREA):
         for item in itens:
             print("[INFO]: " + item.get("numero"))
             print("[INFO]: " + crea)
-            if str(item.get("nome")).lower() == nome.lower() and crea == item.get("numero"):
+            print("[INFO]: " + item.get("nome"))
+            print("[INFO]: " + nome)
+            if self.normalizar(item.get("nome")) == self.normalizar(nome) and crea == item.get("numero"):
                 return True
     
         return False
+
+    def normalizar(self, texto: str) -> str:
+        return " ".join(str(texto).split()).lower()

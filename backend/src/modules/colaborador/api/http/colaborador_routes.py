@@ -12,6 +12,7 @@ from src.modules.noticacao.infrastructure.SmtpEmailNotificacao import SmtpEmailN
 from src.shared.auth.dependencies import verify_supervisor_role
 from src.shared.validators.email_validator import EmailValidator
 from src.shared.validators.telefone_validator import TelefoneValidator
+from src.shared.infrastructure.email_unico_validator import EmailUnicoValidator
 
 router = APIRouter(tags=["Colaboradores"])
 
@@ -36,6 +37,9 @@ def get_email_validator():
 def get_telefone_validator():
     return TelefoneValidator()
 
+def get_email_unico_validator(session: Annotated[Session, Depends(get_session)]):
+    return EmailUnicoValidator(session)
+
 @router.post(
     "/",
     response_model=ColaboradorResponseDTO,
@@ -52,7 +56,8 @@ async def criar_colaborador(
     criador_senha = Depends(get_criador_senha),
     email_sender = Depends(get_email_sender),
     email_validator = Depends(get_email_validator),
-    telefone_validator = Depends(get_telefone_validator)
+    telefone_validator = Depends(get_telefone_validator),
+    email_unico_validator = Depends(get_email_unico_validator)
 ):
     try:
         use_case = CriarColaboradorUseCase(
@@ -62,7 +67,8 @@ async def criar_colaborador(
             hasher=hasher,
             email_sender=email_sender,
             email_validator=email_validator,
-            telefone_validator=telefone_validator
+            telefone_validator=telefone_validator,
+            email_unico_validator=email_unico_validator
         )
         return use_case.execute(create_data)
     except ValueError as e:

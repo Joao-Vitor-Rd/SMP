@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from src.shared.infrastructure.db import create_tables, sync_schema
 from src.modules.supervisor.api.http.supervisor_routes import router as supervisor_router
 from src.modules.colaborador.api.http.colaborador_routes import router as colaborador_router
-from src.shared.auth.routes import router as auth_router
+from src.modules.auth.api.http.auth_routes import router as auth_router
 
 app = FastAPI(
     title="API SMP",

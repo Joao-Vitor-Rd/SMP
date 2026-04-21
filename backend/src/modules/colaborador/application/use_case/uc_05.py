@@ -7,7 +7,7 @@ from src.shared.enums.cargo_enum import CargoEnum
 from datetime import datetime, timezone, timedelta
 
 
-class LoginSupervisorUseCase:
+class LoginColaboradorUseCase:
 
     def __init__(
             self, 
@@ -22,34 +22,34 @@ class LoginSupervisorUseCase:
     def execute(self, login_data: LoginDTO) -> LoginResponseDTO:
 
         # Buscar supervisor pelo email
-        supervisor = self.repository.find_by_email(login_data.email)
+        colaborador = self.repository.find_by_email(login_data.email)
         
-        if not supervisor:
+        if not colaborador:
             raise ValueError("Email ou senha inválidos")
         
         # Verifica se está bloqueado
-        if supervisor.is_locked():
-            tempo_bloqueio_formatado = supervisor.limite_de_bloqueio.strftime("%H:%M:%S %d/%m/%Y")
+        if colaborador.is_locked():
+            tempo_bloqueio_formatado = colaborador.limite_de_bloqueio.strftime("%H:%M:%S %d/%m/%Y")
             raise ValueError(f"Você atingiu o limite máximo de erros, tente novamente depois de: {tempo_bloqueio_formatado}")
         
         # Verificar senha
-        if not self.hasher.verify(login_data.senha, supervisor.password):
+        if not self.hasher.verify(login_data.senha, colaborador.password):
             
-            if supervisor.tentativas_falhas >= 4:
+            if colaborador.tentativas_falhas >= 4:
                 tempo_bloqueio = datetime.now(timezone.utc) + timedelta(minutes=15)
-                self.repository.update_tempo_bloqueio(supervisor.id, tempo_bloqueio)
+                self.repository.update_tempo_bloqueio(colaborador.id, tempo_bloqueio)
                 tempo_bloqueio_formatado = tempo_bloqueio.strftime("%d/%m/%Y %H:%M:%S")
                 raise ValueError(f"Você atingiu o limite máximo de erros, tente novamente depois de: {tempo_bloqueio_formatado}")
             
-            self.repository.update_tentativas(supervisor.id, supervisor.tentativas_falhas + 1)
+            self.repository.update_tentativas(colaborador.id, colaborador.tentativas_falhas + 1)
             raise ValueError("Email ou senha inválidos")
         
-        self.repository.update_tentativas(supervisor.id, 0)
-        self.repository.update_tempo_bloqueio(supervisor.id, None)
+        self.repository.update_tentativas(colaborador.id, 0)
+        self.repository.update_tempo_bloqueio(colaborador.id, None)
         
         # Gerar tokens JWT com base em "Lembrar-me"
-        access_token = self.token_service.generate(supervisor, CargoEnum.SUPERVISOR.value, login_data.lembrar_me)
-        refresh_token = self.token_service.generate_refresh_token(supervisor, CargoEnum.SUPERVISOR.value, login_data.lembrar_me)
+        access_token = self.token_service.generate(colaborador, CargoEnum.COLABORADOR.value, login_data.lembrar_me)
+        refresh_token = self.token_service.generate_refresh_token(colaborador, CargoEnum.COLABORADOR.value, login_data.lembrar_me)
         
         # Retornar resposta com tokens
         return LoginResponseDTO(
@@ -57,10 +57,10 @@ class LoginSupervisorUseCase:
             token_atualizacao=refresh_token,
             tipo_token="bearer",
             usuario={
-                "id": supervisor.id,
-                "name": supervisor.name,
-                "email": supervisor.email,
-                "role": CargoEnum.SUPERVISOR
+                "id": colaborador.id,
+                "nome": colaborador.name,
+                "email": colaborador.email,
+                "role": CargoEnum.COLABORADOR
             }
         )
 
