@@ -35,9 +35,13 @@ class LoginUseCase:
             tempo_bloqueio_formatado = user.limite_de_bloqueio.strftime("%H:%M:%S %d/%m/%Y")
             raise ValueError(f"Você atingiu o limite máximo de erros, tente novamente depois de: {tempo_bloqueio_formatado}")
         
-        # Verificação de acesso do colaborador não tecnico
-        if (cargo == "colaborador" and  datetime.now(timezone.utc) < limite_acesso) or (cargo == "colaborador" and (not acesso_liberado)):
-            raise ValueError(f"Você não possui mais acesso ao sistema, entre em contato com seu supervisor")
+        # Verificação de acesso do colaborador
+        if cargo == "colaborador":
+            if not acesso_liberado:
+                raise ValueError(f"Você não possui mais acesso ao sistema, entre em contato com seu supervisor")
+            
+            if limite_acesso is not None and datetime.now(timezone.utc) > limite_acesso:
+                raise ValueError(f"Você não possui mais acesso ao sistema, entre em contato com seu supervisor")
         
         # Verificar senha
         if not self.hasher.verify(login_data.senha, password_field):
@@ -68,8 +72,7 @@ class LoginUseCase:
                 "id": user.id,
                 "nome": user_info["nome"],
                 "email": user.email,
-                "role": cargo,
-                "tipo": user_type
+                "cargo": cargo
             }
         )
     

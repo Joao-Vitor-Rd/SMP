@@ -89,6 +89,7 @@ class CriarColaboradorUseCase:
                 is_tecnico=colaborador_salvo.is_tecnico,
                 email=colaborador_salvo.email,
                 limite_acesso=colaborador_salvo.limite_acesso,
+                acesso_liberado=colaborador_salvo.acesso_liberado,
             )
         except Exception as e:
             print(f"Erro ao criar colaborador: {str(e)}")
