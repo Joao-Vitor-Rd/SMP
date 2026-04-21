@@ -1,4 +1,4 @@
-from src.shared.auth.dtos.token_dto import (
+from src.modules.auth.application.dtos.login_dto import (
     LoginDTO,
     LoginResponseDTO,
     RefreshTokenDTO,

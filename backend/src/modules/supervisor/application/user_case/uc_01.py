@@ -5,6 +5,7 @@ from src.modules.supervisor.application.dtos import CreateSupervisorDTO, Supervi
 from src.shared.security.password_hash import PassWordHasher
 from src.shared.enums.uf_enum import UFEnum
 from src.shared.domain.interfaces.i_email_validator import IEmailValidator
+from src.shared.domain.interfaces.i_email_unico_validator import IEmailUnicoValidator
 
 class CriarSupervisorUseCase:
 
@@ -13,12 +14,14 @@ class CriarSupervisorUseCase:
             repository: ISupervisorRepository,
             validador_crea: ValidadorCREA,
             hasher: PassWordHasher,
-            email_validator: IEmailValidator
+            email_validator: IEmailValidator,
+            email_unico_validator: IEmailUnicoValidator
         ):
         self.repository = repository
         self.validador_crea = validador_crea
         self.hasher = hasher
         self.email_validator = email_validator
+        self.email_unico_validator = email_unico_validator
 
     def execute(self, create_data: CreateSupervisorDTO) -> SupervisorResponseDTO:
         #validar CREA
@@ -37,9 +40,8 @@ class CriarSupervisorUseCase:
         if not self.email_validator.validar_email(create_data.email):
             raise ValueError(f"Email inválido")
         
-        # Validar se o email já existe
-        email_existente = self.repository.find_by_email(create_data.email)
-        if email_existente:
+        # Validar se o email já existe (consulta única UNION em ambas tabelas)
+        if self.email_unico_validator.validar_email_unico(create_data.email):
             raise ValueError(f"Email já cadastrado no sistema")
         
         #valida tamanho da senha
