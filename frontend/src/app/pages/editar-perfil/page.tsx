@@ -119,7 +119,6 @@ export default function PerfilEngenheiro() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
-      {/* SIDEBAR */}
       <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
         <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
           <Activity size={26} strokeWidth={2.5} />
@@ -230,7 +229,6 @@ export default function PerfilEngenheiro() {
               </div>
             </div>
 
-            {/* FORMULÁRIO COM CONTRASTE AJUSTADO */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <div className="md:col-span-2">
                 <label className="text-[12px] font-bold text-gray-700 flex items-center gap-2 mb-2 uppercase tracking-tight">
@@ -342,7 +340,6 @@ export default function PerfilEngenheiro() {
             </div>
           </section>
 
-          {/* SEÇÃO AZUL (MANTIDA COM CONTRASTE DE TEXTO BRANCO PURO) */}
           <section className="bg-[#0a3d62] rounded-[2.5rem] p-10 text-white shadow-2xl relative">
             <div className="flex items-center gap-4 mb-10">
               <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
