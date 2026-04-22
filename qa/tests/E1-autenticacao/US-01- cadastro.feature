@@ -4,21 +4,21 @@ Feature: Cadastro de engenheiro no sistema
   Para acessar o sistema com credenciais profissionais
 
 Scenario: Cadastro realizado com sucesso
-    Given o Engenheiro está na tela de cadastro
+    Given o engenheiro está na tela de cadastro
     When preenche todos os campos obrigatórios corretamente
     And o CREA corresponde a um profissional válido e ativo
     Then o sistema exibe um feedback de sucesso
     And redireciona para a tela de login
 
 Scenario: Registro CREA inválido ou inativo
-    Given o Engenheiro está na tela de cadastro
+    Given o engenheiro está na tela de cadastro
     When informa um CREA inválido ou inativo
     Then o sistema recusa o cadastro
     And exibe mensagem de registro não encontrado/invalido
 
 Scenario: E-mail não segue o padrão exigido
     Given o engenheiro vai cadastrar seu e-mail
-    When informa um e-mail que atende aos padrãos de formato
+    When informa um e-mail que atende não atende aos padrãos de formato
     Then o sistema exibe mensagem de erro informando que o e-mail é inválido
      
 Scenario: E-mail já cadastrado no sistema
@@ -43,7 +43,7 @@ Scenario: Múltiplos campos obrigatórios inválidos
  
 Scenario: Retornar para a tela de login
     Given que o engenheiro está na tela de cadastro
-    When decide clicar no botão para retornar
+    When acessa a opção de retornar ao login
     Then o sistema o redireciona de volta para a tela de login
     
   
