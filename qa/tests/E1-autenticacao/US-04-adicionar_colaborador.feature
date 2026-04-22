@@ -1,4 +1,4 @@
-Feature: Adicionar membro à equipe
+Feature: Adicionar acesso ao colaborador 
   Como Engenheiro
   Quero adicionar Técnicos e Colaboradores à minha equipe
   Para que possam acessar o sistema sob minha responsabilidade

@@ -11,23 +11,23 @@ Scenario: Login realizado com sucesso
 Scenario: Login com opção lembrar-me ativada
     Given o usuário está na tela de login
     When informa credenciais válidas e seleciona "Lembrar-me"
-    Then o sistema mantém a sessão ativa além do período padrão
+    Then o sistema mantém a sessão ativa até o fechamento do navegador
+
+Scenario: Sessão expira após inatividade
+    Given o usuário está logado sem "Lembrar-me" ativado
+    When a sessão fica inativa por 8 horas por padrão
+    Then o sistema encerra a sessão automaticamente  
 
 Scenario: Credenciais inválidas
     Given o usuário está na tela de login
     When informa e-mail ou senha incorretos
     Then o sistema exibe mensagem de credenciais inválidas  
 
-Scenario: Sessão expira após inatividade
-    Given o usuário está logado sem "Lembrar-me" ativado
-    When a sessão fica inativa por 8 horas por padrão
-    Then o sistema encerra a sessão automaticamente    
-
 Scenario: Bloqueio após tentativas incorretas
     Given o usuário está na tela de login
     When realiza 5 tentativas consecutivas com credenciais inválidas
     Then o sistema bloqueia o acesso por 15 minutos
-    And exibe mensagem informando o bloqueio    
+    And exibe mensagem informando a quantidade de tentativas restantes 
 
 Scenario: Acesso à recuperação de senha
     Given o usuário está na tela de login
