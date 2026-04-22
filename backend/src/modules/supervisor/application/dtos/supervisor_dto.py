@@ -23,3 +23,5 @@ class SupervisorResponseDTO(BaseModel):
     uf: str
     cidade: str
     email: str
+    telefone: Optional[str] = None
+    empresa: Optional[str] = None

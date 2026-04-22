@@ -8,6 +8,8 @@ from src.modules.auth.application.use_cases.refresh_token_use_case import Refres
 from src.modules.auth.infrastructure.repositories.generic_user_repository import GenericUserRepository
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
 from src.shared.auth.jwt_service import JWTService
+from src.shared.auth.dependencies import verify_supervisor_role
+from src.modules.supervisor.application.dtos.supervisor_dto import SupervisorResponseDTO
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
@@ -64,3 +66,37 @@ async def refresh_token(
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao renovar token: {str(e)}")
+
+
+@router.get(
+    "/me",
+    response_model=SupervisorResponseDTO,
+    status_code=200,
+    summary="Obter dados do supervisor logado",
+    description="Retorna os dados do supervisor logado com base no token JWT"
+)
+async def get_logged_supervisor(
+    payload: Annotated[dict, Depends(verify_supervisor_role)],
+    repository = Depends(get_repository),
+):
+    try:
+        user_id_raw = payload.get("sub")
+        if not user_id_raw:
+            raise HTTPException(status_code=401, detail="Token inválido")
+
+        user_id = int(str(user_id_raw))
+        supervisor = repository.find_by_id(user_id)
+        if not supervisor:
+            raise HTTPException(status_code=404, detail="Supervisor não encontrado")
+        return SupervisorResponseDTO(
+            id=supervisor.id,
+            nome=supervisor.nome,
+            identificador_profissional=supervisor.identificador_profissional,
+            uf=supervisor.uf,
+            cidade=supervisor.cidade,
+            email=supervisor.email,
+            telefone=supervisor.telefone,
+            empresa=supervisor.empresa
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter dados do supervisor logado: {str(e)}")

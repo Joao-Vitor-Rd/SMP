@@ -1,5 +1,6 @@
 import os
 import smtplib
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -12,7 +13,9 @@ class SmtpEmailNotificacaoService(INotificacaoService):
         self, 
         senha_usuario: str, 
         nome_usuario: str,
-        email_usuario: str
+        email_usuario: str,
+        is_tecnico: bool,
+        limite_acesso: datetime | None = None
     ):
         try:
             smtp_server = os.getenv("SMTP_SERVER")
@@ -23,23 +26,56 @@ class SmtpEmailNotificacaoService(INotificacaoService):
 
             # Criar mensagem
             msg = MIMEMultipart("alternative")
-            msg["Subject"] = "Bem-vindo ao RoadSense IA | Seus dados de acesso"
+            cargo = "Técnico" if is_tecnico else "Colaborador"
+            msg["Subject"] = f"RoadSense AI | Acesso de {cargo}"
             msg["From"] = from_email
             msg["To"] = email_usuario
 
-            # Corpo do email em HTML
+            acesso_msg = (
+                f"Seu acesso como Técnico foi liberado e não possui data de expiração configurada."
+                if is_tecnico
+                else f"Seu acesso como Colaborador está configurado para expirar em: {limite_acesso.strftime('%d/%m/%Y') if limite_acesso else '__/__/____'}."
+            )
+
             corpo_html = f"""
             <html>
-                <body>
-                    <h2>Bem-vindo ao RoadSense IA!</h2>
-                    <p>Olá <strong>{nome_usuario}</strong>,</p>
-                    <p>Sua conta foi criada com sucesso. Aqui estão seus dados de acesso:</p>
-                    <p>
-                        <strong>Email:</strong> {email_usuario}<br>
-                        <strong>Senha:</strong> {senha_usuario}
-                    </p>
-                    <p>Recomendamos que você altere sua senha no primeiro acesso.</p>
-                    <p>Atenciosamente,<br>Equipe RoadSense IA</p>
+                <body style="margin:0; padding:0; background-color:#f3f4f6; font-family:Arial, Helvetica, sans-serif; color:#1f2937;">
+                    <div style="max-width:640px; margin:0 auto; padding:32px 16px;">
+                        <div style="background:#ffffff; border-radius:24px; box-shadow:0 10px 30px rgba(15, 23, 42, 0.08); overflow:hidden; border:1px solid #e5e7eb;">
+                            <div style="padding:18px 28px; color:#9ca3af; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">
+                                Preview: Convite para {cargo.lower()}
+                            </div>
+
+                            <div style="padding:28px;">
+                                <div style="text-align:left;">
+                                    <p style="margin:0 0 18px 0; font-size:18px; line-height:1.4; color:#374151;">
+                                        Olá, <strong>{nome_usuario}.</strong>
+                                    </p>
+
+                                    <p style="margin:0 0 18px 0; font-size:15px; line-height:1.7; color:#374151;">
+                                        Sua conta no sistema <strong>RoadSense AI</strong> foi criada com sucesso.
+                                    </p>
+
+                                    <div style="margin:22px 0; padding:16px 18px; border-radius:12px; border:1px solid #dbeafe; background:#f8fbff; color:#355c9d; font-size:14px; line-height:1.6;">
+                                        <strong>!</strong> {acesso_msg}
+                                    </div>
+
+                                    <div style="margin:0 0 18px 0; padding:18px; border-radius:12px; border:1px solid #e5e7eb; background:#fafafa; font-size:14px; line-height:1.7; color:#374151;">
+                                        <div><strong>E-mail:</strong> <span style="font-family:Courier New, monospace;">{email_usuario}</span></div>
+                                        <div><strong>Senha:</strong> <span style="font-family:Courier New, monospace;">{senha_usuario}</span></div>
+                                    </div>
+
+                                    <p style="margin:0 0 22px 0; font-size:12px; color:#6b7280; font-style:italic;">
+                                        Recomendamos a alteração da senha no primeiro acesso.
+                                    </p>
+
+                                    <div style="border-top:1px solid #eceff3; padding-top:18px; font-size:15px; font-weight:600; color:#374151;">
+                                        Atenciosamente, Equipe RoadSense AI.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </body>
             </html>
             """

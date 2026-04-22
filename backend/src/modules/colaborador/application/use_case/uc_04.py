@@ -75,7 +75,9 @@ class CriarColaboradorUseCase:
                 self.email_sender.enviar_notificacao(
                     senha_usuario=senha,
                     nome_usuario=novo_colaborador.nome,
-                    email_usuario=novo_colaborador.email
+                    email_usuario=novo_colaborador.email,
+                    is_tecnico=novo_colaborador.is_tecnico,
+                    limite_acesso=novo_colaborador.limite_acesso
                 )
             except Exception as email_error:
                 self.repository.delete(colaborador_salvo.id)
