@@ -23,6 +23,7 @@ class SmtpEmailNotificacaoService(INotificacaoService):
             smtp_user = os.getenv("SMTP_USER")
             smtp_password = os.getenv("SMTP_PASSWORD")
             from_email = os.getenv("FROM_EMAIL")
+            app_url = os.getenv("APP_URL", "http://localhost:3000")
 
             # Criar mensagem
             msg = MIMEMultipart("alternative")
@@ -35,6 +36,12 @@ class SmtpEmailNotificacaoService(INotificacaoService):
                 f"Seu acesso como Técnico foi liberado e não possui data de expiração configurada."
                 if is_tecnico
                 else f"Seu acesso como Colaborador está configurado para expirar em: {limite_acesso.strftime('%d/%m/%Y') if limite_acesso else '__/__/____'}."
+            )
+
+            status_msg = (
+                "Status: Ativo."
+                if is_tecnico
+                else f"Status: Ativo até {limite_acesso.strftime('%d/%m/%Y') if limite_acesso else '__/__/____'}."
             )
 
             corpo_html = f"""
@@ -56,17 +63,19 @@ class SmtpEmailNotificacaoService(INotificacaoService):
                                         Sua conta no sistema <strong>RoadSense AI</strong> foi criada com sucesso.
                                     </p>
 
+                                    <div style="margin:0 0 18px 0; padding:18px; border-radius:12px; border:1px solid #dbeafe; background:#f8fbff; font-size:14px; line-height:1.7; color:#374151;">
+                                        <div><strong>URL do sistema:</strong> <a href="{app_url}" style="color:#1d4ed8; text-decoration:none;">{app_url}</a></div>
+                                        <div><strong>E-mail de acesso:</strong> <span style="font-family:Courier New, monospace;">{email_usuario}</span></div>
+                                        <div><strong>Senha gerada:</strong> <span style="font-family:Courier New, monospace;">{senha_usuario}</span></div>
+                                        <div><strong>{status_msg}</strong></div>
+                                    </div>
+
                                     <div style="margin:22px 0; padding:16px 18px; border-radius:12px; border:1px solid #dbeafe; background:#f8fbff; color:#355c9d; font-size:14px; line-height:1.6;">
                                         <strong>!</strong> {acesso_msg}
                                     </div>
 
-                                    <div style="margin:0 0 18px 0; padding:18px; border-radius:12px; border:1px solid #e5e7eb; background:#fafafa; font-size:14px; line-height:1.7; color:#374151;">
-                                        <div><strong>E-mail:</strong> <span style="font-family:Courier New, monospace;">{email_usuario}</span></div>
-                                        <div><strong>Senha:</strong> <span style="font-family:Courier New, monospace;">{senha_usuario}</span></div>
-                                    </div>
-
                                     <p style="margin:0 0 22px 0; font-size:12px; color:#6b7280; font-style:italic;">
-                                        Recomendamos a alteração da senha no primeiro acesso.
+                                        Atualize seu perfil imediatamente após o primeiro login e troque a senha assim que entrar no sistema.
                                     </p>
 
                                     <div style="border-top:1px solid #eceff3; padding-top:18px; font-size:15px; font-weight:600; color:#374151;">

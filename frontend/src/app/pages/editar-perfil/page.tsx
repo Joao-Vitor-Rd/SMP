@@ -420,7 +420,7 @@ export default function PerfilEngenheiro() {
               className="mt-8 bg-white text-[#0a3d62] w-full py-4 rounded-full font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg hover:bg-gray-100 transition-all disabled:opacity-70"
             >
               <SendHorizonal size={16} strokeWidth={2.5} />
-              {enviandoConvite ? 'ENVIANDO...' : 'FINALIZAR CADASTRO'}
+              {enviandoConvite ? 'ENVIANDO...' : 'ADICIONAR COLABORADOR'}
             </button>
           </section>
         </div>
