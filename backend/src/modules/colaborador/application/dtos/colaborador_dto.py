@@ -9,6 +9,7 @@ class CreateColaboradorDTO(BaseModel):
     id_profissional_responsavel: int
     is_tecnico: bool
     email: EmailStr
+    cft: Optional[str] = None
     limite_acesso: Optional[datetime] = None
 
 
@@ -20,6 +21,7 @@ class ColaboradorResponseDTO(BaseModel):
     id_profissional_responsavel: int
     is_tecnico: bool
     email: EmailStr
+    cft: Optional[str] = None
     limite_acesso: Optional[datetime] = None
     acesso_liberado: bool = False
     status: str = "Ativo"

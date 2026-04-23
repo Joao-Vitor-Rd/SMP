@@ -27,6 +27,8 @@ class ColaboradorORM(Base):
     
     email = Column(String(150), unique=True, nullable=False)
 
+    cft = Column(String(30), nullable=True)
+
     instituicao_ensino = Column(String(255), nullable=True)
 
     empresa_ou_orgao = Column(String(255), nullable=True)
@@ -54,6 +56,7 @@ class Colaborador(BaseModel):
     email: str
     is_tecnico: bool
     id_profissional_responsavel: int
+    cft: Optional[str] = None
     uf: Optional[str] = None
     cidade: Optional[str] = None
     instituicao_ensino: Optional[str] = None

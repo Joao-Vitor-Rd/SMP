@@ -15,6 +15,7 @@ class SmtpEmailNotificacaoService(INotificacaoService):
         nome_usuario: str,
         email_usuario: str,
         is_tecnico: bool,
+        cft: str | None = None,
         limite_acesso: datetime | None = None
     ):
         try:
@@ -36,6 +37,12 @@ class SmtpEmailNotificacaoService(INotificacaoService):
                 f"Seu acesso como Técnico foi liberado e não possui data de expiração configurada."
                 if is_tecnico
                 else f"Seu acesso como Colaborador está configurado para expirar em: {limite_acesso.strftime('%d/%m/%Y') if limite_acesso else '__/__/____'}."
+            )
+
+            cft_msg = (
+                f"<div><strong>CFT / CPF:</strong> <span style=\"font-family:Courier New, monospace;\">{cft or 'Não informado'}</span></div>"
+                if is_tecnico
+                else ""
             )
 
             status_msg = (
@@ -67,6 +74,7 @@ class SmtpEmailNotificacaoService(INotificacaoService):
                                         <div><strong>URL do sistema:</strong> <a href="{app_url}" style="color:#1d4ed8; text-decoration:none;">{app_url}</a></div>
                                         <div><strong>E-mail de acesso:</strong> <span style="font-family:Courier New, monospace;">{email_usuario}</span></div>
                                         <div><strong>Senha gerada:</strong> <span style="font-family:Courier New, monospace;">{senha_usuario}</span></div>
+                                        {cft_msg}
                                         <div><strong>{status_msg}</strong></div>
                                     </div>
 

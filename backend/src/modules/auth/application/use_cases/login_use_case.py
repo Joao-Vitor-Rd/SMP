@@ -72,6 +72,9 @@ class LoginUseCase:
                 "id": user.id,
                 "nome": user_info["nome"],
                 "email": user.email,
+                "identificador_profissional": user_info.get("identificador_profissional"),
+                "crea": user_info.get("identificador_profissional"),
+                "cft": user_info.get("cft"),
                 "cargo": cargo
             }
         )
