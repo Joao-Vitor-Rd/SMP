@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-const SuccessPopup = dynamic(() => import("../../components/SuccessPopup"), { ssr: false });
+const SuccessPopup = dynamic(() => import("../../../components/SuccessPopup"), { ssr: false });
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, Activity } from "lucide-react";
 
@@ -55,7 +55,7 @@ export default function LoginPage() {
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
-        router.push("/dashboard");
+        router.push("/pages/editar-perfil");
       }, 2000);
     } catch {
       setErro("Não foi possível conectar ao servidor. Verifique sua conexão.");

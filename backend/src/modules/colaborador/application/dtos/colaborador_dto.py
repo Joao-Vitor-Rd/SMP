@@ -22,3 +22,4 @@ class ColaboradorResponseDTO(BaseModel):
     email: EmailStr
     limite_acesso: Optional[datetime] = None
     acesso_liberado: bool = False
+    status: str = "Ativo"

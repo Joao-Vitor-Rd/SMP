@@ -51,6 +51,9 @@ class CriarColaboradorUseCase:
         # Validar se o email já existe (consulta única UNION em ambas tabelas)
         if self.email_unico_validator.validar_email_unico(create_data.email):
             raise ValueError(f"Email já cadastrado no sistema")
+
+        if not create_data.is_tecnico and create_data.limite_acesso is None:
+            raise ValueError("A data de expiração do acesso é obrigatória para colaborador")
         
         #gerar senha
         senha = self.criador_senha.gerar_senha()
@@ -75,7 +78,9 @@ class CriarColaboradorUseCase:
                 self.email_sender.enviar_notificacao(
                     senha_usuario=senha,
                     nome_usuario=novo_colaborador.nome,
-                    email_usuario=novo_colaborador.email
+                    email_usuario=novo_colaborador.email,
+                    is_tecnico=novo_colaborador.is_tecnico,
+                    limite_acesso=novo_colaborador.limite_acesso
                 )
             except Exception as email_error:
                 self.repository.delete(colaborador_salvo.id)
@@ -90,6 +95,7 @@ class CriarColaboradorUseCase:
                 email=colaborador_salvo.email,
                 limite_acesso=colaborador_salvo.limite_acesso,
                 acesso_liberado=colaborador_salvo.acesso_liberado,
+                status="Ativo",
             )
         except Exception as e:
             print(f"Erro ao criar colaborador: {str(e)}")
