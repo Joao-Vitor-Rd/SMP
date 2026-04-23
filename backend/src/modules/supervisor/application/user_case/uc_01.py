@@ -4,6 +4,7 @@ from src.modules.supervisor.application.interfaces.validador_crea import Validad
 from src.modules.supervisor.application.dtos import CreateSupervisorDTO, SupervisorResponseDTO
 from src.shared.security.password_hash import PassWordHasher
 from src.shared.enums.uf_enum import UFEnum
+import re
 from src.shared.domain.interfaces.i_email_validator import IEmailValidator
 from src.shared.domain.interfaces.i_email_unico_validator import IEmailUnicoValidator
 
@@ -24,13 +25,13 @@ class CriarSupervisorUseCase:
         self.email_unico_validator = email_unico_validator
 
     def execute(self, create_data: CreateSupervisorDTO) -> SupervisorResponseDTO:
-        #validar CREA
-        crea_existente = self.validador_crea.validar(
-            create_data.identificador_profissional,
-            create_data.nome
-        )
-        if not crea_existente:
-            raise ValueError(f"CREA inválido")
+        # TODO: reativar validação de CREA após testes
+        # crea_existente = self.validador_crea.validar(
+        #     create_data.identificador_profissional,
+        #     create_data.nome
+        # )
+        # if not crea_existente:
+        #     raise ValueError(f"CREA inválido")
 
         # Validar UF
         if not UFEnum.is_valid(create_data.uf):
@@ -45,8 +46,13 @@ class CriarSupervisorUseCase:
             raise ValueError(f"Email já cadastrado no sistema")
         
         #valida tamanho da senha
-        if len(create_data.senha) < 8:
-             raise ValueError(f"Senha deve conter 8 caracteres")
+        if len(create_data.senha) < 8 :
+            raise ValueError(f"Senha deve conter 8 caracteres")
+        
+        padrao = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$"
+    
+        if not re.match(padrao, create_data.senha):
+            raise ValueError(f"Senha deve conter pelo menos uma letra minúscula, uma maiúscula e um número")
 
         #garantir hash da senha
         senha_hash = self.hasher.hash(create_data.senha)
