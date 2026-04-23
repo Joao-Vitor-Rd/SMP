@@ -40,8 +40,17 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
+      console.log("Resposta do servidor:", data);
+      console.log("Usuário recebido:", data.usuario);
+      
       localStorage.setItem("token_acesso", data.token_acesso);
       localStorage.setItem("token_atualizacao", data.token_atualizacao);
+      if (data.usuario) {
+        localStorage.setItem("usuario", JSON.stringify(data.usuario));
+        console.log("Usuário salvo no localStorage:", localStorage.getItem("usuario"));
+      } else {
+        console.warn("Usuário não recebido na resposta!");
+      }
 
       setShowSuccess(true);
       setTimeout(() => {
