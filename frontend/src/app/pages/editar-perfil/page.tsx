@@ -47,24 +47,34 @@ export default function PerfilEngenheiro() {
   const [enviandoConvite, setEnviandoConvite] = useState(false);
 
   useEffect(() => {
-    async function fetchUserData() {
+    function fetchUserData() {
       try {
-        const response = await axios.get('/auth/me', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        });
-        const data = response.data ?? {};
-        setPerfil({
-          id: data.id ?? 0,
-          nomeCompleto: data.nome ?? '',
-          crea: data.identificador_profissional ?? '',
-          email: data.email ?? '',
-          empresa: data.empresa ?? '',
-          telefone: data.telefone ?? '',
-          uf: data.uf ?? '',
-          cidade: data.cidade ?? '',
-        });
+        console.log('=== BUSCANDO DADOS DO USUÁRIO ===');
+        
+        // Pega dados do usuário do localStorage (salvos no login)
+        const usuarioJson = localStorage.getItem('usuario');
+        console.log('Dados brutos do localStorage:', usuarioJson);
+        
+        if (usuarioJson) {
+          const usuario = JSON.parse(usuarioJson);
+          console.log('Usuário parseado:', usuario);
+          console.log('ID do supervisor:', usuario.id);
+          
+          setPerfil({
+            id: usuario.id ?? 0,
+            nomeCompleto: usuario.nome ?? '',
+            crea: usuario.crea ?? usuario.identificador_profissional ?? '',
+            email: usuario.email ?? '',
+            empresa: usuario.empresa ?? '',
+            telefone: usuario.telefone ?? '',
+            uf: usuario.uf ?? '',
+            cidade: usuario.cidade ?? '',
+          });
+          
+          console.log('Perfil atualizado com ID:', usuario.id);
+        } else {
+          console.warn('Nenhum usuário encontrado no localStorage');
+        }
       } catch (error) {
         console.error('Erro ao buscar dados do supervisor logado:', error);
       }
@@ -74,6 +84,12 @@ export default function PerfilEngenheiro() {
   }, []);
 
   async function handleFinalizarCadastro() {
+    console.log('=== INICIANDO CADASTRO DE COLABORADOR ===');
+    console.log('Perfil atual:', perfil);
+    console.log('ID do perfil:', perfil.id);
+    console.log('Tipo de equipe:', tipoEquipe);
+    console.log('Convite:', convite);
+    
     if (!convite.nome.trim() || !convite.email.trim()) {
       window.alert('Preencha o nome e o e-mail do acesso.');
       return;
@@ -85,7 +101,8 @@ export default function PerfilEngenheiro() {
     }
 
     if (!perfil.id) {
-      window.alert('Não foi possível identificar o supervisor logado.');
+      console.error('ERRO: perfil.id é', perfil.id);
+      window.alert('Não foi possível identificar o supervisor logado. Tente fazer login novamente.');
       return;
     }
 
@@ -94,23 +111,31 @@ export default function PerfilEngenheiro() {
 
       const payload = {
         nome: convite.nome.trim(),
-        id_profissional_responsavel: perfil.id,
+        id_profissional_responsavel: parseInt(String(perfil.id), 10),
         is_tecnico: tipoEquipe === 'TECNICO',
         email: convite.email.trim(),
         limite_acesso: tipoEquipe === 'COLABORADOR' ? `${convite.limiteAcesso}T00:00:00` : null,
       };
 
-      await axios.post('/colaboradores', payload, {
+      console.log('Payload a enviar:', payload);
+      console.log('Token de acesso:', localStorage.getItem('token_acesso')?.substring(0, 20) + '...');
+      
+      const response = await axios.post('http://localhost:8000/api/colaboradores', payload, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('token_acesso')}`,
         },
       });
-
+      
+      console.log('Resposta do servidor:', response.data);
       window.alert('Cadastro realizado e e-mail enviado com sucesso.');
       setConvite({ nome: '', email: '', limiteAcesso: '' });
       setTipoEquipe('TECNICO');
     } catch (error) {
-      console.error('Erro ao criar colaborador:', error);
+      console.error('Erro completo ao criar colaborador:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Status:', error.response?.status);
+        console.error('Dados do erro:', error.response?.data);
+      }
       window.alert('Não foi possível finalizar o cadastro.');
     } finally {
       setEnviandoConvite(false);
