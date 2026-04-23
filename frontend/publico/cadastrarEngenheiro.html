@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoadSense AI - Criar Conta</title>
+  <link rel="stylesheet" href="/workspaces/SMP/frontend/publico/css/cadastro.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="container">
+    <header class="header">
+      <div class="logo-icon">
+        <i data-lucide="activity"></i>
+      </div>
+      <div class="logo-text">
+        <h1>RoadSense AI</h1>
+        <p>Análise inteligente de pavimentos</p>
+      </div>
+    </header>
+
+    <h2 class="title">Criar conta</h2>
+
+    <form id="formCadastro">
+      <div class="input-wrapper">
+        <i data-lucide="user"></i>
+        <input type="text" id="nome" placeholder="Nome Completo" required>
+      </div>
+
+      <div class="input-wrapper">
+        <i data-lucide="shield-check"></i>
+        <input type="text" id="crea" placeholder="Registro CREA (Ex: SP-123456)" required>
+      </div>
+
+      <div class="row">
+        <div class="input-wrapper input-cidade">
+          <i data-lucide="map-pin"></i>
+          <input type="text" id="cidade" placeholder="Cidade" required>
+        </div>
+        
+        <div class="input-wrapper input-uf">
+          <select id="uf" required>
+            <option value="" disabled selected>UF</option>
+            <option value="AC">AC</option>
+            <option value="AL">AL</option>
+            <option value="AP">AP</option>
+            <option value="AM">AM</option>
+            <option value="BA">BA</option>
+            <option value="CE">CE</option>
+            <option value="DF">DF</option>
+            <option value="ES">ES</option>
+            <option value="GO">GO</option>
+            <option value="MA">MA</option>
+            <option value="MT">MT</option>
+            <option value="MS">MS</option>
+            <option value="MG">MG</option>
+            <option value="PA">PA</option>
+            <option value="PB">PB</option>
+            <option value="PR">PR</option>
+            <option value="PE">PE</option>
+            <option value="PI">PI</option>
+            <option value="RJ">RJ</option>
+            <option value="RN">RN</option>
+            <option value="RS">RS</option>
+            <option value="RO">RO</option>
+            <option value="RR">RR</option>
+            <option value="SC">SC</option>
+            <option value="SP">SP</option>
+            <option value="SE">SE</option>
+            <option value="TO">TO</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="input-wrapper">
+        <i data-lucide="mail"></i>
+        <input type="email" id="email" placeholder="E-mail" required>
+      </div>
+
+      <div class="input-wrapper">
+        <i data-lucide="lock"></i>
+        <input type="password" id="senha" placeholder="Senha" required>
+      </div>
+
+      <div class="input-wrapper">
+        <i data-lucide="lock"></i>
+        <input type="password" id="confirmarSenha" placeholder="Confirmar Senha" required>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btnSubmit">Concluir Cadastro</button>
+    </form>
+
+    <p class="login-link">Já tem conta? <a href="#">Acesse aqui</a></p>
+  </div>
+
+  <script src="/workspaces/SMP/frontend/publico/scripts/cadastro.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
