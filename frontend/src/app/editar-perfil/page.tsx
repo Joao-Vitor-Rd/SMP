@@ -26,55 +26,124 @@ import {
   UserPlus,
 } from 'lucide-react';
 
+type CargoUsuario = 'supervisor' | 'tecnico' | 'colaborador' | '';
+
+type PerfilState = {
+  id: number;
+  nomeCompleto: string;
+  crea: string;
+  cft: string;
+  email: string;
+  empresa: string;
+  telefone: string;
+  uf: string;
+  cidade: string;
+  cargo: CargoUsuario;
+};
+
+function formatarCargo(cargo: CargoUsuario) {
+  if (cargo === 'supervisor') return 'Engenheiro';
+  if (cargo === 'tecnico') return 'Técnico';
+  if (cargo === 'colaborador') return 'Colaborador';
+  return 'Engenheiro';
+}
+
 export default function PerfilEngenheiro() {
-  const [perfil, setPerfil] = useState({
+  const [perfil, setPerfil] = useState<PerfilState>({
     id: 0,
     nomeCompleto: '',
     crea: '',
+    cft: '',
     email: '',
     empresa: '',
     telefone: '',
     uf: '',
     cidade: '',
+    cargo: '',
   });
   const [showPopUp, setShowPopUp] = useState(false);
   const [tipoEquipe, setTipoEquipe] = useState<'TECNICO' | 'COLABORADOR'>('TECNICO');
   const [convite, setConvite] = useState({
     nome: '',
     email: '',
+    cft: '',
     limiteAcesso: '',
   });
   const [enviandoConvite, setEnviandoConvite] = useState(false);
 
   useEffect(() => {
-    function fetchUserData() {
+    async function fetchUserData() {
       try {
-        console.log('=== BUSCANDO DADOS DO USUÁRIO ===');
-        
-        // Pega dados do usuário do localStorage (salvos no login)
         const usuarioJson = localStorage.getItem('usuario');
-        console.log('Dados brutos do localStorage:', usuarioJson);
-        
-        if (usuarioJson) {
-          const usuario = JSON.parse(usuarioJson);
-          console.log('Usuário parseado:', usuario);
-          console.log('ID do supervisor:', usuario.id);
-          
-          setPerfil({
-            id: usuario.id ?? 0,
-            nomeCompleto: usuario.nome ?? '',
-            crea: usuario.crea ?? usuario.identificador_profissional ?? '',
-            email: usuario.email ?? '',
-            empresa: usuario.empresa ?? '',
-            telefone: usuario.telefone ?? '',
-            uf: usuario.uf ?? '',
-            cidade: usuario.cidade ?? '',
-          });
-          
-          console.log('Perfil atualizado com ID:', usuario.id);
-        } else {
+        const usuario = usuarioJson ? JSON.parse(usuarioJson) : null;
+        const cargo = (usuario?.cargo ?? '') as CargoUsuario;
+
+        if (!usuario) {
           console.warn('Nenhum usuário encontrado no localStorage');
+          return;
         }
+
+        setPerfil((current) => ({
+          ...current,
+          id: usuario.id ?? 0,
+          nomeCompleto: usuario.nome ?? current.nomeCompleto,
+          email: usuario.email ?? current.email,
+          crea: usuario.crea ?? usuario.identificador_profissional ?? current.crea,
+          cft: usuario.cft ?? usuario.cpf ?? current.cft,
+          empresa: usuario.empresa ?? current.empresa,
+          telefone: usuario.telefone ?? current.telefone,
+          uf: usuario.uf ?? current.uf,
+          cidade: usuario.cidade ?? current.cidade,
+          cargo,
+        }));
+
+        if (cargo !== 'supervisor') {
+          return;
+        }
+
+        const tokenAcesso = localStorage.getItem('token_acesso');
+        if (!tokenAcesso) {
+          console.warn('Token de acesso não encontrado no localStorage');
+          return;
+        }
+
+        const resposta = await axios.get('http://localhost:8000/auth/me', {
+          headers: {
+            Authorization: `Bearer ${tokenAcesso}`,
+          },
+        });
+
+        const supervisor = resposta.data;
+
+        setPerfil((current) => ({
+          ...current,
+          id: supervisor.id ?? current.id,
+          nomeCompleto: supervisor.nome ?? current.nomeCompleto,
+          crea: supervisor.identificador_profissional ?? current.crea,
+          email: supervisor.email ?? current.email,
+          empresa: supervisor.empresa ?? current.empresa,
+          telefone: supervisor.telefone ?? current.telefone,
+          uf: supervisor.uf ?? current.uf,
+          cidade: supervisor.cidade ?? current.cidade,
+          cargo: cargo || 'supervisor',
+        }));
+
+        localStorage.setItem(
+          'usuario',
+          JSON.stringify({
+            ...usuario,
+            id: supervisor.id ?? usuario.id,
+            nome: supervisor.nome ?? usuario.nome,
+            email: supervisor.email ?? usuario.email,
+            crea: supervisor.identificador_profissional ?? usuario.crea ?? usuario.identificador_profissional,
+            identificador_profissional: supervisor.identificador_profissional ?? usuario.identificador_profissional,
+            empresa: supervisor.empresa ?? usuario.empresa,
+            telefone: supervisor.telefone ?? usuario.telefone,
+            uf: supervisor.uf ?? usuario.uf,
+            cidade: supervisor.cidade ?? usuario.cidade,
+            cargo: cargo || 'supervisor',
+          })
+        );
       } catch (error) {
         console.error('Erro ao buscar dados do supervisor logado:', error);
       }
@@ -114,6 +183,7 @@ export default function PerfilEngenheiro() {
         id_profissional_responsavel: parseInt(String(perfil.id), 10),
         is_tecnico: tipoEquipe === 'TECNICO',
         email: convite.email.trim(),
+        cft: tipoEquipe === 'TECNICO' ? convite.cft.trim() : null,
         limite_acesso: tipoEquipe === 'COLABORADOR' ? `${convite.limiteAcesso}T00:00:00` : null,
       };
 
@@ -128,7 +198,7 @@ export default function PerfilEngenheiro() {
       
       console.log('Resposta do servidor:', response.data);
       window.alert('Cadastro realizado e e-mail enviado com sucesso.');
-      setConvite({ nome: '', email: '', limiteAcesso: '' });
+      setConvite({ nome: '', email: '', cft: '', limiteAcesso: '' });
       setTipoEquipe('TECNICO');
     } catch (error) {
       console.error('Erro completo ao criar colaborador:', error);
@@ -186,7 +256,7 @@ export default function PerfilEngenheiro() {
             >
               <div className="text-right">
                 <p className="font-bold text-sm text-gray-900">{perfil.nomeCompleto || 'Engenheiro(a)'}</p>
-                <p className="text-xs text-gray-500 font-medium">{perfil.email || 'Engenheiro'}</p>
+                <p className="text-xs text-gray-500 font-medium">{formatarCargo(perfil.cargo)}</p>
               </div>
               <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm">
                 <User size={20} />
@@ -233,10 +303,16 @@ export default function PerfilEngenheiro() {
                 <h3 className="text-[22px] font-bold text-gray-900 leading-tight">
                   {perfil.nomeCompleto || 'Engenheiro(a)'}
                 </h3>
-                <p className="text-sm text-gray-600 font-medium">Engenheiro</p>
-                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
-                  CREA: {perfil.crea || 'SP-123456'}
-                </p>
+                <p className="text-sm text-gray-600 font-medium">{formatarCargo(perfil.cargo)}</p>
+                {perfil.cargo === 'tecnico' ? (
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
+                    CFT / CPF: {perfil.cft || 'Não informado'}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
+                    CREA: {perfil.crea || 'Não informado'}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -272,14 +348,25 @@ export default function PerfilEngenheiro() {
                 <label className="text-[12px] font-bold text-gray-700 flex items-center gap-2 mb-2 uppercase tracking-tight">
                   <ShieldCheck size={14} className="text-gray-500" /> CREA
                 </label>
-                <input
-                  type="text"
-                  title="CREA"
-                  aria-label="CREA"
-                  value={perfil.crea}
-                  readOnly
-                  className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3.5 text-sm text-gray-600 font-medium cursor-not-allowed italic shadow-inner"
-                />
+                {perfil.cargo === 'tecnico' ? (
+                  <input
+                    type="text"
+                    title="CFT / CPF"
+                    aria-label="CFT / CPF"
+                    value={perfil.cft}
+                    readOnly
+                    className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3.5 text-sm text-gray-600 font-medium cursor-not-allowed italic shadow-inner"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    title="CREA"
+                    aria-label="CREA"
+                    value={perfil.crea}
+                    readOnly
+                    className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3.5 text-sm text-gray-600 font-medium cursor-not-allowed italic shadow-inner"
+                  />
+                )}
               </div>
 
               <div>
@@ -417,6 +504,21 @@ export default function PerfilEngenheiro() {
                   className="w-full p-3.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white font-medium placeholder:text-blue-200/50 outline-none focus:border-white/40 transition-all"
                 />
               </div>
+
+              {tipoEquipe === 'TECNICO' && (
+                <div>
+                  <label className="text-[12px] font-bold text-blue-50 flex items-center gap-2 mb-2 uppercase tracking-tight">
+                    <ShieldCheck size={14} className="text-blue-300" /> CFT / CPF
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="CPF do técnico"
+                    value={convite.cft}
+                    onChange={(event) => setConvite((current) => ({ ...current, cft: event.target.value }))}
+                    className="w-full p-3.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white font-medium placeholder:text-blue-200/50 outline-none focus:border-white/40 transition-all"
+                  />
+                </div>
+              )}
 
               {tipoEquipe === 'COLABORADOR' && (
                 <div>

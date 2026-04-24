@@ -26,6 +26,7 @@ class GenericUserRepository(IUserRepository):
                 "email": supervisor.email,
                 "password": supervisor.password,
                 "nome": supervisor.name,
+                "identificador_profissional": supervisor.idendificador_profissional,
                 "limite_acesso": None,
                 "acesso_liberado": True,
             }
@@ -44,6 +45,7 @@ class GenericUserRepository(IUserRepository):
                 "email": colaborador.email,
                 "password": colaborador.senha,
                 "nome": colaborador.nome,
+                "cft": colaborador.cft,
                 "limite_acesso": colaborador.limite_acesso,
                 "acesso_liberado": colaborador.acesso_liberado,
             }

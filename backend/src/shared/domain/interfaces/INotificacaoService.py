@@ -10,6 +10,7 @@ class INotificacaoService(ABC):
         nome_usuario: str,
         email_usuario: str,
         is_tecnico: bool,
+        cft: Optional[str] = None,
         limite_acesso: Optional[datetime] = None
     ):
         pass

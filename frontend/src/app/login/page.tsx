@@ -55,7 +55,7 @@ export default function LoginPage() {
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
-        router.push("/pages/editar-perfil");
+        router.push("/editar-perfil");
       }, 2000);
     } catch {
       setErro("Não foi possível conectar ao servidor. Verifique sua conexão.");
@@ -80,15 +80,15 @@ export default function LoginPage() {
               </svg>
             </div>
             <div>
-              <h1 className="font-bold text-[24px] leading-8 text-[#101828]" style={{ fontFamily: 'Inter, sans-serif' }}>RoadSense AI</h1>
-              <p className="font-normal text-[14px] leading-5 text-[#4A5565]" style={{ fontFamily: 'Inter, sans-serif' }}>Análise Inteligente de Pavimentos</p>
+              <h1 className="font-bold text-[24px] leading-8 text-[#101828]">RoadSense AI</h1>
+              <p className="font-normal text-[14px] leading-5 text-[#4A5565]">Análise Inteligente de Pavimentos</p>
             </div>
           </div>
         </div>
 
         <div className="mb-8">
-          <h2 className="font-bold text-[24px] leading-8 text-[#101828] mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Bem-vindo</h2>
-          <p className="font-normal text-[16px] leading-6 text-[#4A5565]" style={{ fontFamily: 'Inter, sans-serif' }}>Entre com suas credenciais</p>
+          <h2 className="font-bold text-[24px] leading-8 text-[#101828] mb-1">Bem-vindo</h2>
+          <p className="font-normal text-[16px] leading-6 text-[#4A5565]">Entre com suas credenciais</p>
         </div>
 
         {/* Erro */}
@@ -163,7 +163,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={carregando}
-            className="w-full bg-gradient-to-r from-[#165D7A] to-[#1A2B3D] hover:from-[#1A2B3D] hover:to-[#165D7A] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg text-base transition-all duration-150 shadow-lg mt-4 cursor-pointer"
+            className="w-full bg-linear-to-r from-[#165D7A] to-[#1A2B3D] hover:from-[#1A2B3D] hover:to-[#165D7A] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg text-base transition-all duration-150 shadow-lg mt-4 cursor-pointer"
           >
             {carregando ? "Entrando..." : "Entrar"}
           </button>

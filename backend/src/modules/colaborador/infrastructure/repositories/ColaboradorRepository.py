@@ -15,6 +15,7 @@ class ColaboradorRepository(IColaboradorRepository):
         col_orm = ColaboradorORM(
             nome=colaborador.nome,
             id_profissional_responsavel=colaborador.id_profissional_responsavel,
+            cft=colaborador.cft,
             uf=colaborador.uf,
             cidade=colaborador.cidade,
             instituicao_ensino=colaborador.instituicao_ensino,
