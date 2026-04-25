@@ -71,7 +71,7 @@ class CriarSupervisorUseCase:
             password=senha_hash,
             idendificador_profissional=create_data.identificador_profissional,
             uf=create_data.uf,
-            cidade=cidade_formatada
+            cidade=cidade_formatada.title()
         )
         supervisor_salvo = self.repository.save(novo_supervisor)
         return SupervisorResponseDTO(
