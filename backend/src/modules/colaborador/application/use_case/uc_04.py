@@ -11,6 +11,7 @@ from src.shared.domain.interfaces.INotificacaoService import INotificacaoService
 from src.shared.domain.interfaces.i_email_validator import IEmailValidator
 from src.shared.domain.interfaces.i_telefone_validator import ITelefoneValidator
 from src.shared.domain.interfaces.i_email_unico_validator import IEmailUnicoValidator
+from src.shared.domain.interfaces.i_string_sem_numeros_validator import IStringSemNumeroValidador
 
 class CriarColaboradorUseCase:
 
@@ -23,7 +24,8 @@ class CriarColaboradorUseCase:
             email_sender: INotificacaoService,
             email_validator: IEmailValidator,
             telefone_validator: ITelefoneValidator,
-            email_unico_validator: IEmailUnicoValidator
+            email_unico_validator: IEmailUnicoValidator,
+            string_sem_numero_validator: IStringSemNumeroValidador
         ):
         self.repository = repository
         self.repository_supervisor = repository_supervisor
@@ -33,12 +35,19 @@ class CriarColaboradorUseCase:
         self.email_validator = email_validator
         self.telefone_validator = telefone_validator
         self.email_unico_validator = email_unico_validator
+        self.string_sem_numero_validator = string_sem_numero_validator
 
     def execute(self, create_data: CreateColaboradorDTO) -> ColaboradorResponseDTO:
 
         supervisor_existente = self.repository_supervisor.find_by_id(
             create_data.id_profissional_responsavel
         )
+
+        #valida nome e formata nome
+        nome_formatado = self.string_sem_numero_validator.formatar_string_sem_numero(create_data.nome).title()
+
+        if not self.string_sem_numero_validator.validar_string_sem_numero(nome_formatado):
+            raise ValueError(f"Nome deve incluir apenas letras")
 
         #valida identificador do supervisor
         if supervisor_existente == None:
@@ -63,7 +72,7 @@ class CriarColaboradorUseCase:
         
         try:
             novo_colaborador = Colaborador(
-                nome=create_data.nome.title(),
+                nome=nome_formatado,
                 id_profissional_responsavel=create_data.id_profissional_responsavel,
                 is_tecnico=create_data.is_tecnico,
                 email=create_data.email,
