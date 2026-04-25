@@ -13,6 +13,7 @@ from src.shared.auth.dependencies import verify_supervisor_role
 from src.shared.validators.email_validator import EmailValidator
 from src.shared.validators.telefone_validator import TelefoneValidator
 from src.shared.infrastructure.email_unico_validator import EmailUnicoValidator
+from src.shared.validators.string_sem_numero_validator import StringSemNumeroValidator
 
 router = APIRouter(tags=["Colaboradores"])
 
@@ -33,6 +34,9 @@ def get_email_sender():
 
 def get_email_validator():
     return EmailValidator()
+
+def get_string_validator():
+    return StringSemNumeroValidator()
 
 def get_telefone_validator():
     return TelefoneValidator()
@@ -57,7 +61,8 @@ async def criar_colaborador(
     email_sender = Depends(get_email_sender),
     email_validator = Depends(get_email_validator),
     telefone_validator = Depends(get_telefone_validator),
-    email_unico_validator = Depends(get_email_unico_validator)
+    email_unico_validator = Depends(get_email_unico_validator),
+    string_validator = Depends(get_string_validator)
 ):
     try:
         use_case = CriarColaboradorUseCase(
@@ -68,7 +73,8 @@ async def criar_colaborador(
             email_sender=email_sender,
             email_validator=email_validator,
             telefone_validator=telefone_validator,
-            email_unico_validator=email_unico_validator
+            email_unico_validator=email_unico_validator,
+            string_sem_numero_validator=string_validator
         )
         return use_case.execute(create_data)
     except ValueError as e:

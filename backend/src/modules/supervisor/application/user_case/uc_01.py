@@ -36,6 +36,11 @@ class CriarSupervisorUseCase:
         # if not crea_existente:
         #     raise ValueError(f"CREA inválido")
 
+        nome_formatado = self.string_sem_numero_validator.formatar_string_sem_numero(create_data.nome).title()
+
+        if not self.string_sem_numero_validator.validar_string_sem_numero(nome_formatado):
+            raise ValueError(f"Nome deve incluir apenas letras")
+
         # Validar UF
         if not UFEnum.is_valid(create_data.uf):
             raise ValueError(f"UF inválida")
@@ -48,7 +53,7 @@ class CriarSupervisorUseCase:
         if self.email_unico_validator.validar_email_unico(create_data.email):
             raise ValueError(f"Email já cadastrado no sistema")
 
-        cidade_formatada = self.string_sem_numero_validator.formatar_string_sem_numero(create_data.cidade)
+        cidade_formatada = self.string_sem_numero_validator.formatar_string_sem_numero(create_data.cidade).title()
 
         if not self.string_sem_numero_validator.validar_string_sem_numero(cidade_formatada):
             raise ValueError(f"Cidade deve incluir apenas letras")
@@ -66,12 +71,12 @@ class CriarSupervisorUseCase:
         senha_hash = self.hasher.hash(create_data.senha)
 
         novo_supervisor = Supervisor(
-            name=create_data.nome.title(),
+            name=nome_formatado,
             email=create_data.email,
             password=senha_hash,
             idendificador_profissional=create_data.identificador_profissional,
             uf=create_data.uf,
-            cidade=cidade_formatada.title()
+            cidade=cidade_formatada
         )
         supervisor_salvo = self.repository.save(novo_supervisor)
         return SupervisorResponseDTO(
