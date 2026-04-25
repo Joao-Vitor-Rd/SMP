@@ -22,6 +22,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.venv
+backend/.venv
 .DS_Store
 .vscode
 .idea
