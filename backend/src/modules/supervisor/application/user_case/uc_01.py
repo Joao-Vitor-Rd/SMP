@@ -7,6 +7,7 @@ from src.shared.enums.uf_enum import UFEnum
 import re
 from src.shared.domain.interfaces.i_email_validator import IEmailValidator
 from src.shared.domain.interfaces.i_email_unico_validator import IEmailUnicoValidator
+from src.shared.domain.interfaces.i_string_sem_numeros_validator import IStringSemNumeroValidador
 
 class CriarSupervisorUseCase:
 
@@ -16,13 +17,15 @@ class CriarSupervisorUseCase:
             validador_crea: ValidadorCREA,
             hasher: PassWordHasher,
             email_validator: IEmailValidator,
-            email_unico_validator: IEmailUnicoValidator
+            email_unico_validator: IEmailUnicoValidator,
+            string_sem_numero_validator: IStringSemNumeroValidador
         ):
         self.repository = repository
         self.validador_crea = validador_crea
         self.hasher = hasher
         self.email_validator = email_validator
         self.email_unico_validator = email_unico_validator
+        self.string_sem_numero_validator = string_sem_numero_validator
 
     def execute(self, create_data: CreateSupervisorDTO) -> SupervisorResponseDTO:
         # TODO: reativar validação de CREA após testes
@@ -44,6 +47,11 @@ class CriarSupervisorUseCase:
         # Validar se o email já existe (consulta única UNION em ambas tabelas)
         if self.email_unico_validator.validar_email_unico(create_data.email):
             raise ValueError(f"Email já cadastrado no sistema")
+
+        cidade_formatada = self.string_sem_numero_validator.formatar_string_sem_numero(create_data.cidade)
+
+        if not self.string_sem_numero_validator.validar_string_sem_numero(cidade_formatada):
+            raise ValueError(f"Cidade deve incluir apenas letras")
         
         #valida tamanho da senha
         if len(create_data.senha) < 8 :
@@ -63,7 +71,7 @@ class CriarSupervisorUseCase:
             password=senha_hash,
             idendificador_profissional=create_data.identificador_profissional,
             uf=create_data.uf,
-            cidade=create_data.cidade
+            cidade=cidade_formatada.title()
         )
         supervisor_salvo = self.repository.save(novo_supervisor)
         return SupervisorResponseDTO(
