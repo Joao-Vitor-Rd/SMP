@@ -48,49 +48,6 @@ function formatarCargo(cargo: CargoUsuario) {
   return 'Engenheiro';
 }
 
-function emailEhValido(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function extrairMensagemErroApi(error: unknown) {
-  if (!axios.isAxiosError(error)) {
-    return 'Não foi possível finalizar o cadastro.';
-  }
-
-  const data = error.response?.data as
-    | { detail?: unknown; message?: unknown; error?: unknown }
-    | string
-    | undefined;
-
-  const detalhe = typeof data === 'string'
-    ? data
-    : data?.detail ?? data?.message ?? data?.error;
-
-  const mensagem = Array.isArray(detalhe)
-    ? detalhe
-        .map((item) => (typeof item === 'string' ? item : item?.msg ?? item?.message ?? ''))
-        .filter(Boolean)
-        .join(' ')
-    : typeof detalhe === 'string'
-      ? detalhe
-      : '';
-
-  if (/e-?mail.*já.*cadastrad/i.test(mensagem) || /já.*cadastrad.*e-?mail/i.test(mensagem)) {
-    return 'E-mail já cadastrado. Utilize outro e-mail.';
-  }
-
-  if (mensagem.trim()) {
-    return mensagem;
-  }
-
-  return 'Não foi possível finalizar o cadastro.';
-}
-
-type FeedbackPopupState = {
-  message: string;
-  type: 'success' | 'error';
-} | null;
-
 export default function PerfilEngenheiro() {
   const [perfil, setPerfil] = useState<PerfilState>({
     id: 0,
@@ -113,27 +70,6 @@ export default function PerfilEngenheiro() {
     limiteAcesso: '',
   });
   const [enviandoConvite, setEnviandoConvite] = useState(false);
-  const [feedbackPopup, setFeedbackPopup] = useState<FeedbackPopupState>(null);
-
-  function mostrarFeedback(message: string, type: 'success' | 'error') {
-    setFeedbackPopup({ message, type });
-  }
-
-  function fecharFeedback() {
-    setFeedbackPopup(null);
-  }
-
-  function dataEhValidaParaColaborador(dataIso: string) {
-    if (!dataIso) {
-      return false;
-    }
-
-    const dataSelecionada = new Date(`${dataIso}T00:00:00`);
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
-    return dataSelecionada >= hoje;
-  }
 
   useEffect(() => {
     async function fetchUserData() {
@@ -171,7 +107,11 @@ export default function PerfilEngenheiro() {
           return;
         }
 
-        const resposta = await authApi.get('/auth/me');
+        const resposta = await axios.get('http://localhost:8000/auth/me', {
+          headers: {
+            Authorization: `Bearer ${tokenAcesso}`,
+          },
+        });
 
         const supervisor = resposta.data;
 
@@ -205,10 +145,6 @@ export default function PerfilEngenheiro() {
           })
         );
       } catch (error) {
-        if (error instanceof SessionExpiredError) {
-          return;
-        }
-
         console.error('Erro ao buscar dados do supervisor logado:', error);
       }
     }
@@ -224,30 +160,18 @@ export default function PerfilEngenheiro() {
     console.log('Convite:', convite);
     
     if (!convite.nome.trim() || !convite.email.trim()) {
-      mostrarFeedback('Preencha o nome e o e-mail do acesso.', 'error');
-      return;
-    }
-
-    const emailInformado = convite.email.trim();
-
-    if (!emailEhValido(emailInformado)) {
-      mostrarFeedback('E-mail inválido. Informe um e-mail válido.', 'error');
+      window.alert('Preencha o nome e o e-mail do acesso.');
       return;
     }
 
     if (tipoEquipe === 'COLABORADOR' && !convite.limiteAcesso) {
-      mostrarFeedback('Informe a data de expiração do acesso para o colaborador.', 'error');
-      return;
-    }
-
-    if (tipoEquipe === 'COLABORADOR' && !dataEhValidaParaColaborador(convite.limiteAcesso)) {
-      mostrarFeedback('A data de expiração do acesso não pode estar no passado.', 'error');
+      window.alert('Informe a data de expiração do acesso para o colaborador.');
       return;
     }
 
     if (!perfil.id) {
       console.error('ERRO: perfil.id é', perfil.id);
-      mostrarFeedback('Não foi possível identificar o supervisor logado. Tente fazer login novamente.', 'error');
+      window.alert('Não foi possível identificar o supervisor logado. Tente fazer login novamente.');
       return;
     }
 
@@ -258,7 +182,7 @@ export default function PerfilEngenheiro() {
         nome: convite.nome.trim(),
         id_profissional_responsavel: parseInt(String(perfil.id), 10),
         is_tecnico: tipoEquipe === 'TECNICO',
-        email: emailInformado,
+        email: convite.email.trim(),
         cft: tipoEquipe === 'TECNICO' ? convite.cft.trim() : null,
         limite_acesso: tipoEquipe === 'COLABORADOR' ? `${convite.limiteAcesso}T00:00:00` : null,
       };
@@ -266,23 +190,23 @@ export default function PerfilEngenheiro() {
       console.log('Payload a enviar:', payload);
       console.log('Token de acesso:', localStorage.getItem('token_acesso')?.substring(0, 20) + '...');
       
-      const response = await authApi.post('/api/colaboradores', payload);
+      const response = await axios.post('http://localhost:8000/api/colaboradores', payload, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token_acesso')}`,
+        },
+      });
       
       console.log('Resposta do servidor:', response.data);
-      mostrarFeedback('Cadastro realizado e e-mail enviado com sucesso.', 'success');
+      window.alert('Cadastro realizado e e-mail enviado com sucesso.');
       setConvite({ nome: '', email: '', cft: '', limiteAcesso: '' });
       setTipoEquipe('TECNICO');
     } catch (error) {
-      if (error instanceof SessionExpiredError) {
-        return;
-      }
-
       console.error('Erro completo ao criar colaborador:', error);
       if (axios.isAxiosError(error)) {
         console.error('Status:', error.response?.status);
         console.error('Dados do erro:', error.response?.data);
       }
-      mostrarFeedback(extrairMensagemErroApi(error), 'error');
+      window.alert('Não foi possível finalizar o cadastro.');
     } finally {
       setEnviandoConvite(false);
     }
@@ -290,33 +214,6 @@ export default function PerfilEngenheiro() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
-      {feedbackPopup && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-8">
-          <div className="absolute inset-0 bg-black/30" onClick={fecharFeedback} />
-          <div
-            className={`relative w-full max-w-md rounded-2xl border shadow-2xl px-5 py-4 flex items-start gap-3 ${feedbackPopup.type === 'success'
-              ? 'bg-[#E6FFF0] border-[#B7F5D8] text-[#15803D]'
-              : 'bg-[#FFF1F2] border-[#FECACA] text-[#B91C1C]'
-            }`}
-            role="alert"
-            aria-live="assertive"
-          >
-            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${feedbackPopup.type === 'success' ? 'bg-[#22C55E]' : 'bg-[#EF4444]'}`}>
-              {feedbackPopup.type === 'success' ? '✓' : '!'}
-            </div>
-            <div className="flex-1 pt-0.5 font-semibold text-sm sm:text-base">{feedbackPopup.message}</div>
-            <button
-              type="button"
-              onClick={fecharFeedback}
-              className="ml-2 rounded-full px-2 py-1 text-sm font-bold hover:bg-black/5"
-              aria-label="Fechar mensagem"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
-
       <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
         <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
           <Activity size={26} strokeWidth={2.5} />
@@ -600,9 +497,7 @@ export default function PerfilEngenheiro() {
                   <Mail size={14} className="text-blue-300" /> E-mail de Acesso
                 </label>
                 <input
-                  type="text"
-                  inputMode="email"
-                  autoComplete="email"
+                  type="email"
                   placeholder="email@exemplo.com"
                   value={convite.email}
                   onChange={(event) => setConvite((current) => ({ ...current, email: event.target.value }))}
