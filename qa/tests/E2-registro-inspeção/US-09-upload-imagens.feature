@@ -3,12 +3,20 @@ Feature: Upload de imagens de pavimento para análise
   Quero fazer upload de múltiplas imagens do pavimento
   Para submetê-las à análise por IA e georreferenciamento
 
-  Scenario: Upload realizado com arquivos válidos
-    Given o usuário está na tela de upload de imagens
-    When seleciona um ou mais arquivos nos formatos JPG, PNG ou TIFF dentro do limite de tamanho
-    Then o sistema aceita os arquivos
-    And exibe o progresso individual de envio para cada arquivo
-    And ao concluir todos os uploads dispara automaticamente o processamento de extração de metadados
+Scenario: Upload realizado com arquivos válidos
+  Given o usuário está na tela de upload de imagens
+  When seleciona um ou mais arquivos nos formatos JPG, PNG ou TIFF dentro do limite de tamanho permitido
+  Then o sistema aceita e inicia o envio dos arquivos
+
+Scenario: Acompanhamento do progresso de envio
+  Given o usuário iniciou o upload de múltiplos arquivos
+  When o envio está em andamento
+  Then o sistema exibe uma barra de progresso individual para cada arquivo
+
+Scenario: Disparo automático do processamento após upload concluído
+  Given todos os arquivos foram enviados com sucesso
+  When o upload é concluído
+  Then o sistema dispara automaticamente a extração de metadados
 
   Scenario: Upload via drag-and-drop
     Given o usuário está na tela de upload de imagens
