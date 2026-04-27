@@ -184,7 +184,11 @@ export default function PerfilEngenheiro() {
         is_tecnico: tipoEquipe === 'TECNICO',
         email: convite.email.trim(),
         cft: tipoEquipe === 'TECNICO' ? convite.cft.trim() : null,
-        limite_acesso: tipoEquipe === 'COLABORADOR' ? `${convite.limiteAcesso}T00:00:00` : null,
+        limite_acesso: tipoEquipe === 'COLABORADOR' && convite.limiteAcesso
+          ? new Date(
+              `${convite.limiteAcesso}T23:59:59`
+            ).toISOString()
+          : null,
       };
 
       console.log('Payload a enviar:', payload);
