@@ -61,11 +61,29 @@ class CriarColaboradorUseCase:
         if self.email_unico_validator.validar_email_unico(create_data.email):
             raise ValueError(f"Email já cadastrado no sistema")
 
-        if not create_data.is_tecnico and create_data.limite_acesso is None:
-            raise ValueError("A data de expiração do acesso é obrigatória para colaborador")
-        
+        limite = create_data.limite_acesso
+
+        if create_data.is_tecnico:
+            limite = None
+        else:
+            print(limite, datetime.now(timezone.utc) )
+            if limite is None:
+                raise ValueError("A data de expiração do acesso é obrigatória para colaborador")
+            if limite.tzinfo is None:
+                limite = limite.replace(tzinfo=timezone.utc)
+            print(limite, datetime.now(timezone.utc) )
+            agora = datetime.now(timezone.utc)
+
+            if limite < agora:
+                raise ValueError("A data de acesso deve ser igual ou posterior ao momento atual.")
+
+        create_data.limite_acesso = limite
+
         #gerar senha
         senha = self.criador_senha.gerar_senha()
+
+        if create_data.is_tecnico:
+            create_data.limite_acesso = None
 
         #garantir hash da senha
         senha_hash = self.hasher.hash(senha)
