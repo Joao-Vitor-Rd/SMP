@@ -54,8 +54,11 @@ class CriarColaboradorUseCase:
             raise ValueError(f"Supervisor com identificador: {create_data.id_profissional_responsavel} não cadastrado no sistema")
         
         # Validar formato do email
-        if not self.email_validator.validar_email(create_data.email):
+        email_formatado = create_data.email.strip().lower()
+        if not self.email_validator.validar_email(email_formatado):
             raise ValueError(f"Email inválido")
+        
+        create_data.email = email_formatado
         
         # Validar se o email já existe (consulta única UNION em ambas tabelas)
         if self.email_unico_validator.validar_email_unico(create_data.email):
