@@ -15,7 +15,8 @@ class LimitadorRedis(LimitadorDeTentativas):
     async def registrar_tentativa(self, identificador: str) -> int:
         chave = f"brute_force:{identificador}"
         novo_valor = await self.redis.incr(chave)
-        if novo_valor == 1:
+        # Definir TTL somente quando atingir o limite (lock-on-threshold)
+        if novo_valor == self.limite:
             await self.redis.expire(chave, self.expiracao)
         return novo_valor
 
