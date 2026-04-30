@@ -24,27 +24,29 @@ class AtualizarSupervisorUseCase:
             raise ValueError("Supervisor não encontrado")
 
         nome_formatado = self.string_sem_numero_validator.formatar_string_sem_numero(update_data.nome).title()
-
         if not self.string_sem_numero_validator.validar_string_sem_numero(nome_formatado):
             raise ValueError("Nome deve incluir apenas letras")
-
-        cidade_formatada = self.string_sem_numero_validator.formatar_string_sem_numero(update_data.cidade).title()
-
-        if not self.string_sem_numero_validator.validar_string_sem_numero(cidade_formatada):
-            raise ValueError("Cidade deve incluir apenas letras")
 
         if not UFEnum.is_valid(update_data.uf):
             raise ValueError("UF inválida")
 
-        empresa_ou_orgao = update_data.empresa_ou_orgao.strip() if update_data.empresa_ou_orgao else None
+        cidade_formatada = self.string_sem_numero_validator.formatar_string_sem_numero(update_data.cidade).title()
+        if not self.string_sem_numero_validator.validar_string_sem_numero(cidade_formatada):
+            raise ValueError("Cidade deve incluir apenas letras")
 
-        telefone = None
-        if update_data.telefone:
-            telefone = update_data.telefone.strip()
-            if telefone and not self.telefone_validator.validar_telefone(telefone):
-                raise ValueError("Telefone inválido")
-            if telefone:
-                telefone = self.telefone_validator.formatar_telefone(telefone)
+        empresa_ou_orgao = supervisor_atual.empresa_ou_orgao
+        if update_data.empresa_ou_orgao is not None:
+            empresa_ou_orgao = update_data.empresa_ou_orgao.strip() or None
+
+        telefone = supervisor_atual.telefone
+        if update_data.telefone is not None:
+            telefone_limpo = update_data.telefone.strip()
+            if telefone_limpo:
+                if not self.telefone_validator.validar_telefone(telefone_limpo):
+                    raise ValueError("Telefone inválido")
+                telefone = self.telefone_validator.formatar_telefone(telefone_limpo)
+            else:
+                telefone = None
 
         supervisor_atual.name = nome_formatado
         supervisor_atual.uf = update_data.uf

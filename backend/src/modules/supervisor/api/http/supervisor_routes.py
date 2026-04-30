@@ -86,6 +86,39 @@ async def listar_supervisores(
 
 
 @router.put(
+    "/me",
+    response_model=SupervisorResponseDTO,
+    summary="Atualizar meu perfil",
+    description="Atualiza apenas o perfil do supervisor autenticado usando o sub do JWT"
+)
+async def atualizar_meu_perfil(
+    update_data: UpdateSupervisorDTO,
+    payload: Annotated[dict, Depends(verify_supervisor_role)],
+    repository = Depends(get_repository),
+    string_validator = Depends(get_string_validator),
+    telefone_validator = Depends(get_telefone_validator),
+):
+    try:
+        user_id_raw = payload.get("sub")
+        if not user_id_raw:
+            raise HTTPException(status_code=401, detail="Token inválido")
+
+        supervisor_id = int(str(user_id_raw))
+        use_case = AtualizarSupervisorUseCase(
+            repository,
+            string_validator,
+            telefone_validator,
+        )
+        return use_case.execute(supervisor_id, update_data)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar supervisor: {str(e)}")
+
+
+@router.put(
     "/{supervisor_id}",
     response_model=SupervisorResponseDTO,
     summary="Atualizar Supervisor",
