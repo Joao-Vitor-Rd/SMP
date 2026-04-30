@@ -10,6 +10,10 @@ class IColaboradorRepository(ABC):
         pass
 
     @abstractmethod
+    def find_by_id(self, colaborador_id: int) -> Optional[Colaborador]:
+        pass
+
+    @abstractmethod
     def find_all(self) -> List[Colaborador]:
         pass
 
@@ -27,6 +31,10 @@ class IColaboradorRepository(ABC):
 
     @abstractmethod
     def update_tempo_bloqueio(self, supervisor_id: int, tempo_bloqueio: datetime):
+        pass
+
+    @abstractmethod
+    def update_colaborador(self, colaborador: Colaborador) -> Colaborador:
         pass
 
     @abstractmethod

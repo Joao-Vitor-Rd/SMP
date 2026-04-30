@@ -2,16 +2,18 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from src.shared.infrastructure.db import get_session
-from src.modules.supervisor.domain.entities.supervisor import Supervisor
 from src.modules.supervisor.application.user_case.uc_01 import CriarSupervisorUseCase
+from src.modules.supervisor.application.user_case.uc_08 import AtualizarSupervisorUseCase
 from src.modules.supervisor.application.user_case.ListarSupervisorUseCase import ListarSupervisorUseCase
-from src.modules.supervisor.application.dtos import CreateSupervisorDTO, SupervisorResponseDTO
+from src.modules.supervisor.application.dtos import CreateSupervisorDTO, SupervisorResponseDTO, UpdateSupervisorDTO
 from src.modules.supervisor.infrastructure.repositories.SupervisorRepository import SupervisorRepository
 from src.modules.supervisor.infrastructure.gateway.validador_crea_api import ValidadorCREAApi
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
+from src.shared.auth.dependencies import verify_supervisor_role
 from src.shared.validators.email_validator import EmailValidator
 from src.shared.infrastructure.email_unico_validator import EmailUnicoValidator
 from src.shared.validators.string_sem_numero_validator import StringSemNumeroValidator
+from src.shared.validators.telefone_validator import TelefoneValidator
 
 router = APIRouter(tags=["Supervisores"])
 
@@ -29,6 +31,9 @@ def get_email_validator():
 
 def get_string_validator():
     return StringSemNumeroValidator()
+
+def get_telefone_validator():
+    return TelefoneValidator()
 
 def get_email_unico_validator(session: Annotated[Session, Depends(get_session)]):
     return EmailUnicoValidator(session)
@@ -78,4 +83,31 @@ async def listar_supervisores(
         return use_case.execute()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar supervisores: {str(e)}")
+
+
+@router.put(
+    "/{supervisor_id}",
+    response_model=SupervisorResponseDTO,
+    summary="Atualizar Supervisor",
+    description="Atualiza os dados de perfil do supervisor com validações de nome, UF, cidade e telefone"
+)
+async def atualizar_supervisor(
+    supervisor_id: int,
+    update_data: UpdateSupervisorDTO,
+    _: Annotated[dict, Depends(verify_supervisor_role)],
+    repository = Depends(get_repository),
+    string_validator = Depends(get_string_validator),
+    telefone_validator = Depends(get_telefone_validator),
+):
+    try:
+        use_case = AtualizarSupervisorUseCase(
+            repository,
+            string_validator,
+            telefone_validator,
+        )
+        return use_case.execute(supervisor_id, update_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar supervisor: {str(e)}")
 
