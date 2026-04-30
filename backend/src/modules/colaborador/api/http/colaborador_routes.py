@@ -3,13 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from src.shared.infrastructure.db import get_session
 from src.modules.colaborador.application.use_case.uc_04 import CriarColaboradorUseCase
-from src.modules.colaborador.application.dtos.colaborador_dto import CreateColaboradorDTO, ColaboradorResponseDTO
+from src.modules.colaborador.application.use_case.uc_05 import AtualizarColaboradorUseCase
+from src.modules.colaborador.application.dtos.colaborador_dto import CreateColaboradorDTO, ColaboradorResponseDTO, UpdateColaboradorDTO
 from src.modules.colaborador.infrastructure.repositories.ColaboradorRepository import ColaboradorRepository
 from src.modules.supervisor.infrastructure.repositories.SupervisorRepository import SupervisorRepository
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
 from src.shared.infrastructure.secret_criador_senha import SecretCriadorSenha 
 from src.modules.noticacao.infrastructure.SmtpEmailNotificacao import SmtpEmailNotificacaoService
-from src.shared.auth.dependencies import verify_supervisor_role
+from src.shared.auth.dependencies import verify_supervisor_role, verify_any_user
 from src.shared.validators.email_validator import EmailValidator
 from src.shared.validators.telefone_validator import TelefoneValidator
 from src.shared.infrastructure.email_unico_validator import EmailUnicoValidator
@@ -119,3 +120,43 @@ async def deletar_colaborador(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao deletar colaborador: {str(e)}")
+
+
+@router.put(
+    "/me",
+    response_model=ColaboradorResponseDTO,
+    status_code=200,
+    summary="Atualizar meu perfil de colaborador",
+    description="Atualiza apenas o perfil do usuário autenticado usando o sub do JWT, sem aceitar id pelo cliente"
+)
+async def atualizar_meu_perfil(
+    update_data: UpdateColaboradorDTO,
+    payload: Annotated[dict, Depends(verify_any_user)],
+    colaborador_repo = Depends(get_colaborador_repository),
+    string_validator = Depends(get_string_validator),
+    telefone_validator = Depends(get_telefone_validator),
+):
+    try:
+        if payload.get("role") not in {"colaborador", "tecnico"}:
+            raise HTTPException(
+                status_code=403,
+                detail="Este endpoint é exclusivo para colaboradores autenticados"
+            )
+
+        user_id_raw = payload.get("sub")
+        if not user_id_raw:
+            raise HTTPException(status_code=401, detail="Token inválido")
+
+        colaborador_id = int(str(user_id_raw))
+        use_case = AtualizarColaboradorUseCase(
+            colaborador_repo,
+            string_validator,
+            telefone_validator,
+        )
+        return use_case.execute(colaborador_id, update_data)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar colaborador: {str(e)}")

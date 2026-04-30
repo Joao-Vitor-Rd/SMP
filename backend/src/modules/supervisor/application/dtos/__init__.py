@@ -1,4 +1,4 @@
-from src.modules.supervisor.application.dtos.supervisor_dto import CreateSupervisorDTO, SupervisorResponseDTO
+from src.modules.supervisor.application.dtos.supervisor_dto import CreateSupervisorDTO, SupervisorResponseDTO, UpdateSupervisorDTO
 
-__all__ = ["CreateSupervisorDTO", "SupervisorResponseDTO"]
+__all__ = ["CreateSupervisorDTO", "SupervisorResponseDTO", "UpdateSupervisorDTO"]
 

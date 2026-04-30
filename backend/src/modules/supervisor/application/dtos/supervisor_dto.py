@@ -14,6 +14,16 @@ class CreateSupervisorDTO(BaseModel):
     senha: str
 
 
+class UpdateSupervisorDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    nome: str
+    uf: str
+    cidade: str
+    empresa_ou_orgao: Optional[str] = None
+    telefone: Optional[str] = None
+
+
 class SupervisorResponseDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     

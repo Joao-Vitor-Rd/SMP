@@ -85,4 +85,35 @@ class SupervisorRepository(ISupervisorRepository):
         supervisor_orm.limite_de_bloqueio = tempo_bloqueio
         self.session.commit()
         self.session.refresh(supervisor_orm)
+
+    def update_supervisor(self, novo_supervisor: Supervisor) -> Supervisor:
+        sup_orm = self.session.get(SupervisorORM, novo_supervisor.id)
+
+        if not sup_orm: 
+            raise ValueError("Supervisor não encontrado")
+        
+        sup_orm.name = novo_supervisor.name
+        sup_orm.cidade = novo_supervisor.cidade
+        sup_orm.empresa_ou_orgao = novo_supervisor.empresa_ou_orgao
+        sup_orm.telefone = novo_supervisor.telefone
+        sup_orm.uf = novo_supervisor.uf
+
+        try:
+            self.session.commit()
+        except IntegrityError as e:
+            self.session.rollback()
+            error_msg = str(e).lower()
+
+            campo = None
+            if "supervisor_email_key" in error_msg:
+                campo = "Email"
+            elif "supervisor_idendificador_profissional_key" in error_msg:
+                campo = "Identificador profissional"
+
+            if campo:
+                raise ValueError(f"{campo} já cadastrado no sistema")
+            raise
+
+        self.session.refresh(sup_orm)
+        return Supervisor.model_validate(sup_orm)
         

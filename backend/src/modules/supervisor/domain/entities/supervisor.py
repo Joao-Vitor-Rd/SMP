@@ -23,6 +23,10 @@ class SupervisorORM(Base):
     cidade = Column(String(50), nullable=False)
     
     email = Column(String(150), unique=True, nullable=False)
+
+    telefone = Column(String(20), nullable=True)
+
+    empresa_ou_orgao = Column(String(255), nullable=True)
     
     password = Column(String(255), nullable=False)
 
@@ -39,6 +43,8 @@ class Supervisor(BaseModel):
     uf: str
     cidade: str
     email: str
+    empresa_ou_orgao: Optional[str] = None
+    telefone: Optional[str] = None
     password: str
     tentativas_falhas: int = 0
     limite_de_bloqueio: Optional[datetime] = None

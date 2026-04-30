@@ -32,3 +32,7 @@ class ISupervisorRepository(ABC):
     @abstractmethod
     def update_tempo_bloqueio(self, supervisor_id: int, tempo_bloqueio: datetime):
         pass
+
+    @abstractmethod
+    def update_supervisor(self, novo_supervisor: Supervisor) -> Supervisor:
+        pass

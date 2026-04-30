@@ -16,7 +16,9 @@ class ListarSupervisorUseCase:
                 email=supervisor.email,
                 identificador_profissional=supervisor.idendificador_profissional,
                 uf=supervisor.uf,
-                cidade=supervisor.cidade
+                cidade=supervisor.cidade,
+                telefone=supervisor.telefone,
+                empresa=supervisor.empresa_ou_orgao
             )
             for supervisor in supervisores
         ]
