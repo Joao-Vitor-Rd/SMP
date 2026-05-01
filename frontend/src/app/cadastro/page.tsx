@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { User, Shield, MapPin, Mail, Lock, Activity } from 'lucide-react';
+import { useState, FormEvent, ChangeEvent } from 'react';
+import { User, Shield, MapPin, Mail, Lock, Route } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 const UF_OPTIONS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -11,6 +12,7 @@ const UF_OPTIONS = [
 ];
 
 export default function CadastroPage() {
+  const router = useRouter(); // Necessário para o redirecionamento automático
   const [formData, setFormData] = useState({
     nome: '',
     crea: '',
@@ -25,7 +27,7 @@ export default function CadastroPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -38,7 +40,6 @@ export default function CadastroPage() {
     setError(null);
     setSuccess(false);
 
-    // Validar senhas
     if (formData.senha !== formData.confirmarSenha) {
       setError('As senhas digitadas não são iguais.');
       return;
@@ -58,37 +59,21 @@ export default function CadastroPage() {
         senha: formData.senha
       };
 
-      console.log('📤 Enviando dados:', supervisorData);
-      console.log('🔗 URL:', API_URL);
-
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(supervisorData)
       });
 
-      console.log('📊 Status:', response.status, response.statusText);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Erro retornado:', errorData);
         throw new Error(errorData.detail || errorData.message || 'Erro ao comunicar com o servidor.');
       }
 
-      const result = await response.json();
-      console.log('✅ Sucesso:', result);
       setSuccess(true);
-      setFormData({
-        nome: '',
-        crea: '',
-        cidade: '',
-        uf: '',
-        email: '',
-        senha: '',
-        confirmarSenha: ''
-      });
+      // Redirecionamento AUTOMÁTICO acontece nesta linha:
+      router.push('/workspaces/SMP/frontend/src/app/login/page.tsx');
     } catch (err) {
-      console.error('🔴 Erro:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
@@ -98,10 +83,9 @@ export default function CadastroPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex justify-center items-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-8">
           <div className="bg-blue-950 text-white p-2.5 rounded-lg flex items-center justify-center">
-            <Activity size={24} />
+            <Route size={24} />
           </div>
           <div>
             <h1 className="text-xl font-bold text-blue-950">RoadSense AI</h1>
@@ -111,7 +95,6 @@ export default function CadastroPage() {
 
         <h2 className="text-2xl font-bold mb-6 text-gray-900">Criar conta</h2>
 
-        {/* Messages */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
             {error}
@@ -120,13 +103,11 @@ export default function CadastroPage() {
 
         {success && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-            ✓ Conta criada com sucesso!
+            ✓ Conta criada com sucesso! Redirecionando...
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Nome */}
           <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
             <User size={20} className="text-gray-400 flex-shrink-0" />
             <input
@@ -141,7 +122,6 @@ export default function CadastroPage() {
             />
           </div>
 
-          {/* CREA */}
           <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
             <Shield size={20} className="text-gray-400 flex-shrink-0" />
             <input
@@ -156,7 +136,6 @@ export default function CadastroPage() {
             />
           </div>
 
-          {/* Cidade e UF */}
           <div className="flex gap-4">
             <div className="flex-1 flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
               <MapPin size={20} className="text-gray-400 flex-shrink-0" />
@@ -187,7 +166,6 @@ export default function CadastroPage() {
             </select>
           </div>
 
-          {/* Email */}
           <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
             <Mail size={20} className="text-gray-400 flex-shrink-0" />
             <input
@@ -202,7 +180,6 @@ export default function CadastroPage() {
             />
           </div>
 
-          {/* Senha */}
           <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
             <Lock size={20} className="text-gray-400 flex-shrink-0" />
             <input
@@ -217,7 +194,6 @@ export default function CadastroPage() {
             />
           </div>
 
-          {/* Confirmar Senha */}
           <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
             <Lock size={20} className="text-gray-400 flex-shrink-0" />
             <input
@@ -232,7 +208,6 @@ export default function CadastroPage() {
             />
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
@@ -242,9 +217,8 @@ export default function CadastroPage() {
           </button>
         </form>
 
-        {/* Login Link */}
         <p className="text-center mt-6 text-sm text-gray-600">
-          Já tem conta? <Link href="/login" className="text-blue-900 font-bold hover:underline">Acesse aqui</Link>
+          Já tem conta? <Link href="/workspaces/SMP/frontend/src/app/login/page.tsx" className="text-blue-900 font-bold hover:underline">Acesse aqui</Link>
         </p>
       </div>
     </div>
