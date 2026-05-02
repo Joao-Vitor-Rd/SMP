@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { usePathname, useRouter } from 'next/navigation';
+import { authApi, SessionExpiredError } from '../../lib/authApi';
 import {
   Activity,
   ArrowLeft,
@@ -91,7 +93,9 @@ type FeedbackPopupState = {
   type: 'success' | 'error';
 } | null;
 
-export default function PerfilEngenheiro() {
+export default function EditarPerfilPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [perfil, setPerfil] = useState<PerfilState>({
     id: 0,
     nomeCompleto: '',
@@ -328,16 +332,35 @@ export default function PerfilEngenheiro() {
         <div className="flex flex-col gap-9 items-center w-full mb-auto">
           {[
             { Icon: Folder, label: 'Arquivos' },
-            { Icon: Upload, label: 'Enviar' },
+            { Icon: Upload, label: 'Enviar', href: '/upload-imagens' },
             { Icon: Maximize, label: 'Expandir' },
             { Icon: FileText, label: 'Documentos' },
             { Icon: Map, label: 'Mapa' },
             { Icon: History, label: 'Histórico' },
-          ].map(({ Icon, label }) => (
-            <button key={label} type="button" title={label} aria-label={label} className="text-gray-400 hover:text-white transition-colors">
-              <Icon size={22} strokeWidth={1.5} />
+          ].map(({ Icon, label, href }) => {
+            const isActive = Boolean(href && pathname === href);
+
+            return (
+            <button
+              key={label}
+              type="button"
+              title={label}
+              aria-label={label}
+              onClick={() => {
+                if (href) {
+                  router.push(href);
+                }
+              }}
+              className={`transition-all duration-200 p-2 rounded-xl ${
+                isActive
+                  ? 'bg-[#0a5483] text-white shadow-[0_8px_24px_rgba(10,84,131,0.35)]'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+              }`}
+            >
+              <Icon size={22} strokeWidth={isActive ? 2.5 : 1.5} />
             </button>
-          ))}
+          );
+          })}
         </div>
         <div className="relative group cursor-pointer pb-4">
           <button type="button" title="Notificações" className="text-gray-400 group-hover:text-white transition-colors">
@@ -377,7 +400,10 @@ export default function PerfilEngenheiro() {
                   <p className="text-[11px] text-gray-500 italic font-medium">{perfil.email}</p>
                 </div>
                 <button 
-                  onClick={() => setShowPopUp(false)}
+                  onClick={() => {
+                    setShowPopUp(false);
+                    router.push('/editar-perfil');
+                  }}
                   className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 text-sm text-gray-700 transition-colors group"
                 >
                   <Settings size={16} className="text-gray-400 group-hover:text-blue-600" />
