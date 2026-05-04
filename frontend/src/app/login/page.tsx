@@ -4,7 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 const SuccessPopup = dynamic(() => import("../../../components/SuccessPopup"), { ssr: false });
 import { useRouter } from "next/navigation";
-import { Mail, Lock, Eye, EyeOff, Activity } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
