@@ -1,37 +1,63 @@
-'use client';
+"use client";
 
-import { useState, FormEvent, ChangeEvent } from 'react';
-import { User, Shield, MapPin, Mail, Lock, Route } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useState, FormEvent, ChangeEvent } from "react";
+import { User, Shield, MapPin, Mail, Lock, Route } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const UF_OPTIONS = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
-  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
-  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
 ];
 
 export default function CadastroPage() {
   const router = useRouter(); // Necessário para o redirecionamento automático
   const [formData, setFormData] = useState({
-    nome: '',
-    crea: '',
-    cidade: '',
-    uf: '',
-    email: '',
-    senha: '',
-    confirmarSenha: ''
+    nome: "",
+    crea: "",
+    cidade: "",
+    uf: "",
+    email: "",
+    senha: "",
+    confirmarSenha: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     const { id, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [id]: value
+      [id]: value,
     }));
   };
 
@@ -41,40 +67,44 @@ export default function CadastroPage() {
     setSuccess(false);
 
     if (formData.senha !== formData.confirmarSenha) {
-      setError('As senhas digitadas não são iguais.');
+      setError("As senhas digitadas não são iguais.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const API_URL = `${window.location.hostname === 'localhost' ? 'http://localhost:8000' : window.location.origin}/api/supervisores`;
-      
+      const API_URL = `${window.location.hostname === "localhost" ? "http://localhost:8000" : window.location.origin}/api/supervisores`;
+
       const supervisorData = {
         nome: formData.nome,
         identificador_profissional: formData.crea,
         cidade: formData.cidade,
         uf: formData.uf,
         email: formData.email,
-        senha: formData.senha
+        senha: formData.senha,
       };
 
       const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(supervisorData)
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(supervisorData),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || 'Erro ao comunicar com o servidor.');
+        throw new Error(
+          errorData.detail ||
+            errorData.message ||
+            "Erro ao comunicar com o servidor.",
+        );
       }
 
       setSuccess(true);
-      // Redirecionamento AUTOMÁTICO acontece nesta linha:
-      router.push('/workspaces/SMP/frontend/src/app/login/page.tsx');
+      // Redireciona para a rota pública do app, não para o caminho do arquivo.
+      router.push("/login");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
       setLoading(false);
     }
@@ -89,7 +119,9 @@ export default function CadastroPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-blue-950">RoadSense AI</h1>
-            <p className="text-xs text-gray-600">Análise inteligente de pavimentos</p>
+            <p className="text-xs text-gray-600">
+              Análise inteligente de pavimentos
+            </p>
           </div>
         </div>
 
@@ -160,8 +192,10 @@ export default function CadastroPage() {
               className="w-20 bg-white border border-gray-300 rounded-lg px-3 text-sm text-gray-700 outline-none disabled:bg-gray-100"
             >
               <option value="">UF</option>
-              {UF_OPTIONS.map(uf => (
-                <option key={uf} value={uf}>{uf}</option>
+              {UF_OPTIONS.map((uf) => (
+                <option key={uf} value={uf}>
+                  {uf}
+                </option>
               ))}
             </select>
           </div>
@@ -213,12 +247,18 @@ export default function CadastroPage() {
             disabled={loading}
             className="w-full bg-blue-900 hover:bg-blue-800 disabled:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg mt-6 transition-colors"
           >
-            {loading ? 'Processando...' : 'Concluir Cadastro'}
+            {loading ? "Processando..." : "Concluir Cadastro"}
           </button>
         </form>
 
         <p className="text-center mt-6 text-sm text-gray-600">
-          Já tem conta? <Link href="/workspaces/SMP/frontend/src/app/login/page.tsx" className="text-blue-900 font-bold hover:underline">Acesse aqui</Link>
+          Já tem conta?{" "}
+          <Link
+            href="/login"
+            className="text-blue-900 font-bold hover:underline"
+          >
+            Acesse aqui
+          </Link>
         </p>
       </div>
     </div>
