@@ -9,6 +9,9 @@ from src.modules.supervisor.api.http.supervisor_routes import router as supervis
 from src.modules.colaborador.api.http.colaborador_routes import router as colaborador_router
 from src.modules.auth.api.http.auth_routes import router as auth_router
 from src.modules.upload.api.http.upload_routes import router as upload_router
+from src.modules.fotos.api.http.fotos_routes import router as fotos_router
+from src.modules.fotos.infrastructure.services.minio_client import ensure_bucket_exists
+import os
 
 app = FastAPI(
     title="API SMP",
@@ -45,6 +48,10 @@ async def startup_event():
         # Testar conexão
         await redis_client.ping()
         print("✓ Conexão com Redis estabelecida com sucesso")
+
+        bucket_name = os.getenv("MINIO_BUCKET", "smp-fotos")
+        ensure_bucket_exists(bucket_name)
+        print(f"✓ Bucket MinIO garantido com sucesso: {bucket_name}")
     except Exception as e:
         print(f"✗ Erro ao conectar com Redis: {str(e)}")
         raise
