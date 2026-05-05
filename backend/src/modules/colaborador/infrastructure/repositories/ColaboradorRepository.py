@@ -38,6 +38,8 @@ class ColaboradorRepository(IColaboradorRepository):
             campo = None
             if "colaborador_email_key" in error_msg.lower():
                 campo = "Email"
+            elif "colaborador_cft_key" in error_msg.lower():
+                campo = "CFT/CPF"
             elif "colaborador_id_profissional_responsavel_fkey" in error_msg.lower():
                 campo = "ID profissional responsável"
             
@@ -68,6 +70,12 @@ class ColaboradorRepository(IColaboradorRepository):
     def find_by_email(self, email: str) -> Optional[Colaborador]:
         col_orm = self.session.query(ColaboradorORM).filter(
             ColaboradorORM.email == email
+        ).first()
+        return Colaborador.model_validate(col_orm) if col_orm else None
+
+    def find_by_cft(self, cft: str) -> Optional[Colaborador]:
+        col_orm = self.session.query(ColaboradorORM).filter(
+            ColaboradorORM.cft == cft
         ).first()
         return Colaborador.model_validate(col_orm) if col_orm else None
 

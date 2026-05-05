@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+import re
 from src.modules.colaborador.domain.entities.colaborador import Colaborador
 from src.modules.colaborador.domain.repositories.IColaboradorRepository import IColaboradorRepository
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
@@ -59,6 +60,21 @@ class CriarColaboradorUseCase:
             raise ValueError(f"Email inválido")
         
         create_data.email = email_formatado
+
+        if create_data.is_tecnico:
+            if not create_data.cft or not create_data.cft.strip():
+                raise ValueError("CFT/CPF é obrigatório para técnico")
+
+            cft_formatado = create_data.cft.strip()
+            if not re.fullmatch(r"\d+", cft_formatado):
+                raise ValueError("CFT/CPF deve conter apenas números")
+
+            if self.repository.find_by_cft(cft_formatado):
+                raise ValueError("CFT/CPF já cadastrado no sistema")
+
+            create_data.cft = cft_formatado
+        else:
+            create_data.cft = None
         
         # Validar se o email já existe (consulta única UNION em ambas tabelas)
         if self.email_unico_validator.validar_email_unico(create_data.email):
