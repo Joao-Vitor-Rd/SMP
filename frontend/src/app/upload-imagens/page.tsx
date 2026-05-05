@@ -1,7 +1,8 @@
 "use client";
 
+import axios from "axios";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Activity,
@@ -19,7 +20,7 @@ import {
   Upload,
   User,
 } from "lucide-react";
-import { clearAuthSession } from "../../lib/authApi";
+import { authApi, clearAuthSession } from "../../lib/authApi";
 
 type QueueStatus = "pending" | "uploading" | "completed" | "rejected";
 
@@ -115,6 +116,20 @@ function isSameFile(a: File, b: File) {
   return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
 }
 
+function getProgressWidthClass(progress: number) {
+  if (progress <= 0) return "w-0";
+  if (progress <= 10) return "w-[10%]";
+  if (progress <= 20) return "w-[20%]";
+  if (progress <= 30) return "w-[30%]";
+  if (progress <= 40) return "w-[40%]";
+  if (progress <= 50) return "w-[50%]";
+  if (progress <= 60) return "w-[60%]";
+  if (progress <= 70) return "w-[70%]";
+  if (progress <= 80) return "w-[80%]";
+  if (progress <= 90) return "w-[90%]";
+  return "w-full";
+}
+
 export default function UploadImagensPage() {
   const router = useRouter();
   const pathname = usePathname(); // Captura a rota atual com precisão
@@ -125,25 +140,102 @@ export default function UploadImagensPage() {
   const [cargoUsuario] = useState(initialUserState.cargo);
   const [isDragging, setIsDragging] = useState(false);
   const [items, setItems] = useState<UploadItem[]>([]);
+  const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
+  const itemsRef = useRef<UploadItem[]>([]);
 
   const totalSelectedSize = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0), [items]);
 
   useEffect(() => {
-    return () => {
-      items.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    };
+    itemsRef.current = items;
   }, [items]);
+
+  useEffect(() => {
+    return () => {
+      itemsRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    };
+  }, []);
 
   function cleanupItem(item: UploadItem) {
     URL.revokeObjectURL(item.previewUrl);
   }
 
-  function clearQueue() {
+  const clearQueue = useCallback(() => {
     setItems((current) => {
       current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       return [];
     });
-  }
+  }, []);
+
+  const updateQueueItem = useCallback((itemId: string, updater: (current: UploadItem) => UploadItem) => {
+    setItems((current) => current.map((item) => (item.id === itemId ? updater(item) : item)));
+  }, []);
+
+  const uploadQueueItem = useCallback(async (item: UploadItem) => {
+    const formData = new FormData();
+    formData.append("file", item.file);
+
+    updateQueueItem(item.id, (current) => ({
+      ...current,
+      status: "uploading",
+      progress: 0,
+      message: "Enviando para o backend...",
+    }));
+
+    try {
+      const response = await authApi.post("/api/uploads/images", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        onUploadProgress: (progressEvent) => {
+          if (!progressEvent.total) {
+            return;
+          }
+
+          const progress = Math.min(100, Math.round((progressEvent.loaded * 100) / progressEvent.total));
+          updateQueueItem(item.id, (current) => ({
+            ...current,
+            status: "uploading",
+            progress,
+            message: `Enviando para o backend... ${progress}%`,
+          }));
+        },
+      });
+
+      const arquivoEnviado = response.data as { filename?: string; url?: string };
+
+      updateQueueItem(item.id, (current) => ({
+        ...current,
+        status: "completed",
+        progress: 100,
+        message: arquivoEnviado?.filename
+          ? `Enviado com sucesso: ${arquivoEnviado.filename}`
+          : "Enviado com sucesso",
+      }));
+    } catch (error) {
+      const mensagemErro = axios.isAxiosError(error)
+        ? (error.response?.data as { detail?: string } | undefined)?.detail ?? "Falha ao enviar imagem."
+        : "Falha ao enviar imagem.";
+
+      updateQueueItem(item.id, (current) => ({
+        ...current,
+        status: "rejected",
+        progress: 0,
+        message: mensagemErro,
+      }));
+    }
+  }, [updateQueueItem]);
+
+  useEffect(() => {
+    items
+      .filter((item) => item.status === "pending" && !uploadsEmAndamentoRef.current.has(item.id))
+      .forEach((item) => {
+        uploadsEmAndamentoRef.current.add(item.id);
+
+        void uploadQueueItem(item).finally(() => {
+          uploadsEmAndamentoRef.current.delete(item.id);
+        });
+      });
+  }, [items, uploadQueueItem]);
 
   function addFiles(fileList: FileList | File[]) {
     const incoming = Array.from(fileList);
@@ -335,7 +427,7 @@ export default function UploadImagensPage() {
               </div>
               <h3 className="text-lg font-bold text-gray-800">Arraste as imagens da via aqui</h3>
               <p className="mt-2 text-sm text-gray-500 max-w-2xl mx-auto">
-                Formatos aceitos: JPG, PNG e TIFF. Também é possível selecionar múltiplos arquivos de uma vez. Cada imagem precisa ter até 50 MB.
+                Formatos aceitos: JPG, PNG e TIFF (Máx. 50MB por arquivo)
               </p>
               <button
                 type="button"
@@ -391,7 +483,6 @@ export default function UploadImagensPage() {
                       const isUploading = item.status === 'uploading';
                       const isCompleted = item.status === 'completed';
                       const isRejected = item.status === 'rejected';
-                      const progressWidth = isCompleted ? 'w-full' : isUploading ? 'w-3/4' : isRejected ? 'w-full' : 'w-0';
 
                       return (
                         <div
@@ -420,7 +511,9 @@ export default function UploadImagensPage() {
                               </p>
 
                               <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-                                <div className={`h-full rounded-full transition-all ${isRejected ? 'bg-red-400 w-full' : isCompleted ? 'bg-emerald-500 w-full' : 'bg-[#0a5483] ' + progressWidth}`} />
+                                <div
+                                  className={`h-full rounded-full transition-all ${isRejected ? 'bg-red-400 w-full' : isCompleted ? 'bg-emerald-500 w-full' : `bg-[#0a5483] ${getProgressWidthClass(item.progress)}`}`}
+                                />
                               </div>
 
                               <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">

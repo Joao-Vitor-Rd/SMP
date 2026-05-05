@@ -179,6 +179,15 @@ export default function EditarPerfilPage() {
     return dataSelecionada >= hoje;
   }
 
+  function limparFormularioConvite() {
+    setConvite({
+      nome: '',
+      email: '',
+      cft: '',
+      limiteAcesso: '',
+    });
+  }
+
   useEffect(() => {
     async function fetchUserData() {
       try {
@@ -647,13 +656,19 @@ export default function EditarPerfilPage() {
 
             <div className="bg-[#082a44] p-1.5 rounded-2xl flex mb-10 max-w-[320px] border border-white/5">
               <button
-                onClick={() => setTipoEquipe('TECNICO')}
+                onClick={() => {
+                  setTipoEquipe('TECNICO');
+                  limparFormularioConvite();
+                }}
                 className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${tipoEquipe === 'TECNICO' ? 'bg-white text-[#0a3d62]' : 'text-blue-200 hover:text-white'}`}
               >
                 TÉCNICO
               </button>
               <button
-                onClick={() => setTipoEquipe('COLABORADOR')}
+                onClick={() => {
+                  setTipoEquipe('COLABORADOR');
+                  limparFormularioConvite();
+                }}
                 className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${tipoEquipe === 'COLABORADOR' ? 'bg-white text-[#0a3d62]' : 'text-blue-200 hover:text-white'}`}
               >
                 COLABORADOR
