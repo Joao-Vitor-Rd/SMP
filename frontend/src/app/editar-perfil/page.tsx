@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import axios, { AxiosHeaders } from 'axios';
 import {
   Activity,
