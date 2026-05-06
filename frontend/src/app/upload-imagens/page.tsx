@@ -130,6 +130,8 @@ function getProgressWidthClass(progress: number) {
   return "w-full";
 }
 
+const FOTO_UPLOAD_ENDPOINT = "/api/fotos/upload-multiplas";
+
 export default function UploadImagensPage() {
   const router = useRouter();
   const pathname = usePathname(); // Captura a rota atual com precisão
@@ -172,7 +174,7 @@ export default function UploadImagensPage() {
 
   const uploadQueueItem = useCallback(async (item: UploadItem) => {
     const formData = new FormData();
-    formData.append("file", item.file);
+    formData.append("files", item.file);
 
     updateQueueItem(item.id, (current) => ({
       ...current,
@@ -182,7 +184,7 @@ export default function UploadImagensPage() {
     }));
 
     try {
-      const response = await authApi.post("/api/uploads/images", formData, {
+      const response = await authApi.post(FOTO_UPLOAD_ENDPOINT, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -201,15 +203,31 @@ export default function UploadImagensPage() {
         },
       });
 
-      const arquivoEnviado = response.data as { filename?: string; url?: string };
+      const resultadoUpload = response.data as {
+        success?: Array<{ id?: number; caminho_arquivo?: string }>;
+        failed?: Array<{ filename?: string; reason?: string }>;
+      };
+
+      const fotoEnviada = resultadoUpload.success?.[0];
+      const falhaUpload = resultadoUpload.failed?.[0];
+
+      if (fotoEnviada) {
+        updateQueueItem(item.id, (current) => ({
+          ...current,
+          status: "completed",
+          progress: 100,
+          message: fotoEnviada.caminho_arquivo
+            ? `Enviado com sucesso: ${fotoEnviada.caminho_arquivo}`
+            : "Enviado com sucesso",
+        }));
+        return;
+      }
 
       updateQueueItem(item.id, (current) => ({
         ...current,
-        status: "completed",
-        progress: 100,
-        message: arquivoEnviado?.filename
-          ? `Enviado com sucesso: ${arquivoEnviado.filename}`
-          : "Enviado com sucesso",
+        status: "rejected",
+        progress: 0,
+        message: falhaUpload?.reason ?? "Falha ao enviar imagem.",
       }));
     } catch (error) {
       const mensagemErro = axios.isAxiosError(error)
