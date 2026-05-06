@@ -2,6 +2,7 @@ from io import BytesIO
 
 from src.modules.fotos.domain.repositories.i_foto_storage import IFotoStorage
 
+
 class MinioAdapter(IFotoStorage):
     def __init__(self, client, bucket_name: str):
         self.client = client
@@ -25,3 +26,9 @@ class MinioAdapter(IFotoStorage):
             return True
         except Exception:
             return False
+
+    def get_presigned_url(self, caminho_arquivo: str, expira_em_segundos: int = 900) -> str:
+        """Retorna URL pública do arquivo no MinIO (bucket público)"""
+        # Como é desenvolvimento/teste, retornar URL pública simples
+        # O caminho_arquivo já vem como "bucket/arquivo.jpg"
+        return f"http://localhost:9000/{caminho_arquivo}"
