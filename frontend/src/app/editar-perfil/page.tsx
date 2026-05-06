@@ -186,6 +186,7 @@ export default function EditarPerfilPage() {
   });
   const [showPopUp, setShowPopUp] = useState(false);
   const [tipoEquipe, setTipoEquipe] = useState<'TECNICO' | 'COLABORADOR'>('TECNICO');
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [convite, setConvite] = useState({
     nome: '',
     email: '',
@@ -226,6 +227,85 @@ export default function EditarPerfilPage() {
       cft: '',
       limiteAcesso: '',
     });
+  }
+
+  async function handleSalvarPerfil() {
+    const nome = perfil.nomeCompleto.trim();
+    const uf = perfil.uf.trim().toUpperCase();
+    const cidade = perfil.cidade.trim();
+    const empresaOuOrgao = perfil.empresa.trim();
+    const telefone = perfil.telefone.trim();
+
+    if (!nome || !uf || !cidade) {
+      mostrarFeedback('Preencha nome, UF e cidade para salvar o perfil.', 'error', 'Campos obrigatórios');
+      return;
+    }
+
+    const usuarioJson = localStorage.getItem('usuario');
+    const usuario = usuarioJson ? JSON.parse(usuarioJson) : null;
+    const cargo = (perfil.cargo || usuario?.cargo || '') as CargoUsuario;
+
+    if (!cargo) {
+      mostrarFeedback('Não foi possível identificar o tipo de usuário para salvar o perfil.', 'error', 'Sessão inválida');
+      return;
+    }
+
+    const rotaAtualizacao = cargo === 'supervisor' ? '/api/supervisores/me' : '/api/colaboradores/me';
+
+    try {
+      setSalvandoPerfil(true);
+
+      const response = await authApi.put(rotaAtualizacao, {
+        nome,
+        uf,
+        cidade,
+        empresa_ou_orgao: empresaOuOrgao || null,
+        telefone: telefone || null,
+      });
+
+      const perfilAtualizado = response.data;
+
+      setPerfil((current) => ({
+        ...current,
+        id: perfilAtualizado.id ?? current.id,
+        nomeCompleto: perfilAtualizado.nome ?? nome,
+        uf: perfilAtualizado.uf ?? uf,
+        cidade: perfilAtualizado.cidade ?? cidade,
+        telefone: perfilAtualizado.telefone ?? telefone,
+        empresa: perfilAtualizado.empresa ?? perfilAtualizado.empresa_ou_orgao ?? empresaOuOrgao,
+      }));
+
+      localStorage.setItem(
+        'usuario',
+        JSON.stringify({
+          ...usuario,
+          id: perfilAtualizado.id ?? usuario?.id ?? perfil.id,
+          nome: perfilAtualizado.nome ?? nome,
+          email: perfilAtualizado.email ?? usuario?.email ?? perfil.email,
+          crea: perfilAtualizado.identificador_profissional ?? usuario?.crea ?? usuario?.identificador_profissional,
+          identificador_profissional: perfilAtualizado.identificador_profissional ?? usuario?.identificador_profissional ?? usuario?.crea,
+          cft: perfilAtualizado.cft ?? usuario?.cft ?? usuario?.cpf,
+          cpf: perfilAtualizado.cpf ?? usuario?.cpf ?? usuario?.cft,
+          empresa: perfilAtualizado.empresa ?? perfilAtualizado.empresa_ou_orgao ?? usuario?.empresa ?? usuario?.empresa_ou_orgao,
+          empresa_ou_orgao: perfilAtualizado.empresa_ou_orgao ?? perfilAtualizado.empresa ?? usuario?.empresa_ou_orgao ?? usuario?.empresa,
+          telefone: perfilAtualizado.telefone ?? telefone,
+          uf: perfilAtualizado.uf ?? uf,
+          cidade: perfilAtualizado.cidade ?? cidade,
+          cargo,
+        })
+      );
+
+      mostrarFeedback('Perfil atualizado com sucesso.', 'success', 'Alterações salvas');
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        return;
+      }
+
+      const feedbackErro = obterFeedbackErro(extrairMensagemErroApi(error));
+      mostrarFeedback(feedbackErro.message, 'error', feedbackErro.title);
+    } finally {
+      setSalvandoPerfil(false);
+    }
   }
 
   useEffect(() => {
@@ -676,8 +756,13 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="flex gap-4 mt-12">
-              <button className="bg-[#003e68] text-white px-10 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-[#002d4d] transition-all flex items-center gap-2">
-                <Save size={16} /> Salvar Alterações
+              <button
+                type="button"
+                onClick={handleSalvarPerfil}
+                disabled={salvandoPerfil}
+                className="bg-[#003e68] text-white px-10 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-[#002d4d] transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                <Save size={16} /> {salvandoPerfil ? 'Salvando...' : 'Salvar Alterações'}
               </button>
               <button className="bg-gray-100 text-gray-700 px-10 py-3 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all border border-gray-300">Cancelar</button>
             </div>

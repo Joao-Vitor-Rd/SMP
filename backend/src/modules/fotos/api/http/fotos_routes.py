@@ -85,10 +85,10 @@ async def upload_multiplas_imagens(
 
     resultado = await use_case.execute(arquivos)
 
-    if resultado.success and resultado.failed:
-        status_code = status.HTTP_207_MULTI_STATUS
-    elif resultado.success:
+    if resultado.success and not resultado.failed:
         status_code = status.HTTP_201_CREATED
+    elif resultado.success or resultado.failed:
+        status_code = status.HTTP_207_MULTI_STATUS
     else:
         status_code = status.HTTP_400_BAD_REQUEST
 
