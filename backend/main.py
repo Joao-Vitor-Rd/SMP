@@ -69,6 +69,7 @@ app.include_router(auth_router)
 app.include_router(supervisor_router, prefix="/api/supervisores", tags=["Supervisores"])
 app.include_router(colaborador_router, prefix="/api/colaboradores", tags=["Colaboradores"])
 app.include_router(upload_router, prefix="/api/uploads", tags=["Uploads"])
+app.include_router(fotos_router, prefix="/api/fotos", tags=["Fotos"])
 
 UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
