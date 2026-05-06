@@ -27,7 +27,7 @@ class ColaboradorORM(Base):
     
     email = Column(String(150), unique=True, nullable=False)
 
-    cft = Column(String(30), nullable=True)
+    cft = Column(String(30), unique=True, nullable=True)
 
     instituicao_ensino = Column(String(255), nullable=True)
 

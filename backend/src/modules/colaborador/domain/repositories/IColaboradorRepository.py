@@ -42,6 +42,10 @@ class IColaboradorRepository(ABC):
         pass
 
     @abstractmethod
+    def find_by_cft(self, cft: str) -> Optional[Colaborador]:
+        pass
+
+    @abstractmethod
     def delete(self, colaborador_id: int) -> None:
         pass
 

@@ -129,9 +129,45 @@ function extrairMensagemErroApi(error: unknown) {
 }
 
 type FeedbackPopupState = {
+  title: string;
   message: string;
   type: 'success' | 'error';
 } | null;
+
+function obterFeedbackErro(message: string) {
+  if (/cft\/?cpf.*obrigat|vazio|informe o cft/i.test(message)) {
+    return {
+      title: 'CFT/CPF obrigatório',
+      message: 'Informe o CFT/CPF do técnico antes de finalizar o cadastro.',
+    };
+  }
+
+  if (/cft\/?cpf.*apenas números|somente números|caracteres inválidos|inválido/i.test(message)) {
+    return {
+      title: 'CFT/CPF inválido',
+      message: 'O CFT/CPF deve conter apenas números.',
+    };
+  }
+
+  if (/cft\/?cpf.*já cadastrado|cft\/?cpf.*em uso|duplicad/i.test(message)) {
+    return {
+      title: 'CFT/CPF duplicado',
+      message: 'Este CFT/CPF já está em uso no sistema. Use outro identificador.',
+    };
+  }
+
+  if (/e-?mail.*já.*cadastrad/i.test(message) || /já.*cadastrad.*e-?mail/i.test(message)) {
+    return {
+      title: 'E-mail duplicado',
+      message: 'O e-mail informado já está cadastrado. Utilize outro e-mail.',
+    };
+  }
+
+  return {
+    title: 'Erro ao cadastrar',
+    message,
+  };
+}
 
 export default function EditarPerfilPage() {
   const router = useRouter();
@@ -159,8 +195,12 @@ export default function EditarPerfilPage() {
   const [enviandoConvite, setEnviandoConvite] = useState(false);
   const [feedbackPopup, setFeedbackPopup] = useState<FeedbackPopupState>(null);
 
-  function mostrarFeedback(message: string, type: 'success' | 'error') {
-    setFeedbackPopup({ message, type });
+  function mostrarFeedback(message: string, type: 'success' | 'error', title?: string) {
+    setFeedbackPopup({
+      title: title ?? (type === 'success' ? 'Concluído' : 'Atenção'),
+      message,
+      type,
+    });
   }
 
   function fecharFeedback() {
@@ -177,6 +217,15 @@ export default function EditarPerfilPage() {
     hoje.setHours(0, 0, 0, 0);
 
     return dataSelecionada >= hoje;
+  }
+
+  function limparFormularioConvite() {
+    setConvite({
+      nome: '',
+      email: '',
+      cft: '',
+      limiteAcesso: '',
+    });
   }
 
   useEffect(() => {
@@ -268,30 +317,35 @@ export default function EditarPerfilPage() {
     console.log('Convite:', convite);
     
     if (!convite.nome.trim() || !convite.email.trim()) {
-      mostrarFeedback('Preencha o nome e o e-mail do acesso.', 'error');
+      mostrarFeedback('Preencha os campos obrigatórios do acesso.', 'error', 'Campos obrigatórios');
       return;
     }
 
     const emailInformado = convite.email.trim();
 
     if (!emailEhValido(emailInformado)) {
-      mostrarFeedback('E-mail inválido. Informe um e-mail válido.', 'error');
+      mostrarFeedback('E-mail inválido. Informe um e-mail válido.', 'error', 'E-mail inválido');
+      return;
+    }
+
+    if (tipoEquipe === 'TECNICO' && !convite.cft.trim()) {
+      mostrarFeedback('Informe o CFT/CPF do técnico.', 'error', 'CFT/CPF obrigatório');
       return;
     }
 
     if (tipoEquipe === 'COLABORADOR' && !convite.limiteAcesso) {
-      mostrarFeedback('Informe a data de expiração do acesso para o colaborador.', 'error');
+      mostrarFeedback('Informe a data de expiração do acesso para o colaborador.', 'error', 'Data obrigatória');
       return;
     }
 
     if (tipoEquipe === 'COLABORADOR' && !dataEhValidaParaColaborador(convite.limiteAcesso)) {
-      mostrarFeedback('A data de expiração do acesso não pode estar no passado.', 'error');
+      mostrarFeedback('A data de expiração do acesso não pode estar no passado.', 'error', 'Data inválida');
       return;
     }
 
     if (!perfil.id) {
       console.error('ERRO: perfil.id é', perfil.id);
-      mostrarFeedback('Não foi possível identificar o supervisor logado. Tente fazer login novamente.', 'error');
+      mostrarFeedback('Não foi possível identificar o supervisor logado. Tente fazer login novamente.', 'error', 'Sessão inválida');
       return;
     }
 
@@ -317,7 +371,7 @@ export default function EditarPerfilPage() {
       const response = await authApi.post('/api/colaboradores', payload);
       
       console.log('Resposta do servidor:', response.data);
-      mostrarFeedback('Cadastro realizado e e-mail enviado com sucesso.', 'success');
+      mostrarFeedback('Cadastro realizado e e-mail enviado com sucesso.', 'success', 'Cadastro concluído');
       setConvite({ nome: '', email: '', cft: '', limiteAcesso: '' });
       setTipoEquipe('TECNICO');
     } catch (error) {
@@ -330,7 +384,8 @@ export default function EditarPerfilPage() {
         console.error('Status:', error.response?.status);
         console.error('Dados do erro:', error.response?.data);
       }
-      mostrarFeedback(extrairMensagemErroApi(error), 'error');
+      const feedbackErro = obterFeedbackErro(extrairMensagemErroApi(error));
+      mostrarFeedback(feedbackErro.message, 'error', feedbackErro.title);
     } finally {
       setEnviandoConvite(false);
     }
@@ -352,7 +407,10 @@ export default function EditarPerfilPage() {
             <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${feedbackPopup.type === 'success' ? 'bg-[#22C55E]' : 'bg-[#EF4444]'}`}>
               {feedbackPopup.type === 'success' ? '✓' : '!'}
             </div>
-            <div className="flex-1 pt-0.5 font-semibold text-sm sm:text-base">{feedbackPopup.message}</div>
+            <div className="flex-1 pt-0.5">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] opacity-80">{feedbackPopup.title}</p>
+              <p className="mt-1 font-semibold text-sm sm:text-base leading-snug">{feedbackPopup.message}</p>
+            </div>
             <button
               type="button"
               onClick={fecharFeedback}
@@ -638,13 +696,19 @@ export default function EditarPerfilPage() {
 
             <div className="bg-[#082a44] p-1.5 rounded-2xl flex mb-10 max-w-[320px] border border-white/5">
               <button
-                onClick={() => setTipoEquipe('TECNICO')}
+                onClick={() => {
+                  setTipoEquipe('TECNICO');
+                  limparFormularioConvite();
+                }}
                 className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${tipoEquipe === 'TECNICO' ? 'bg-white text-[#0a3d62]' : 'text-blue-200 hover:text-white'}`}
               >
                 TÉCNICO
               </button>
               <button
-                onClick={() => setTipoEquipe('COLABORADOR')}
+                onClick={() => {
+                  setTipoEquipe('COLABORADOR');
+                  limparFormularioConvite();
+                }}
                 className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${tipoEquipe === 'COLABORADOR' ? 'bg-white text-[#0a3d62]' : 'text-blue-200 hover:text-white'}`}
               >
                 COLABORADOR
@@ -687,9 +751,12 @@ export default function EditarPerfilPage() {
                   </label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    required={tipoEquipe === 'TECNICO'}
                     placeholder="CPF do técnico"
                     value={convite.cft}
-                    onChange={(event) => setConvite((current) => ({ ...current, cft: event.target.value }))}
+                    onChange={(event) => setConvite((current) => ({ ...current, cft: event.target.value.replace(/\D/g, '') }))}
                     className="w-full p-3.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white font-medium placeholder:text-blue-200/50 outline-none focus:border-white/40 transition-all"
                   />
                 </div>
