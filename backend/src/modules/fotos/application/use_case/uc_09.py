@@ -79,8 +79,18 @@ class Uc09UploadMultiplasImagensUseCase:
                 # 2. Tentar extrair coordenadas
                 coordenadas = self._extrair_coordenadas(file.content)
                 if coordenadas is None:
-                    # Se não encontrar geolocalização, usar valores padrão (0.0)
-                    coordenadas = CoordenadasExif(latitude=0.0, longitude=0.0)
+                    # Se não encontrar geolocalização, gerar presigned URL e marcar como falha
+                    presigned_url = self.foto_storage.get_presigned_url(
+                        caminho_arquivo=caminho_arquivo
+                    )
+                    failed.append(
+                        FotoUploadFalhaDTO(
+                            filename=file.filename,
+                            reason="Foto sem localização (EXIF GPS não encontrado)",
+                            image_url=presigned_url,
+                        )
+                    )
+                    continue
 
                 # 3. Salvar no banco de dados com coordenadas
                 foto = Foto(
