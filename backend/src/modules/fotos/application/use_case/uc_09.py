@@ -25,6 +25,11 @@ class CoordenadasExif:
 
 
 class Uc09UploadMultiplasImagensUseCase:
+    # Formatos permitidos
+    EXTENSOES_PERMITIDAS = {".jpg", ".jpeg", ".png", ".tiff", ".tif"}
+    # Tamanho máximo: 50 MB
+    TAMANHO_MAXIMO_MB = 50
+    TAMANHO_MAXIMO_BYTES = TAMANHO_MAXIMO_MB * 1024 * 1024
     def __init__(self, foto_repository: IFotoRepository, foto_storage: IFotoStorage):
         self.foto_repository = foto_repository
         self.foto_storage = foto_storage
@@ -46,6 +51,18 @@ class Uc09UploadMultiplasImagensUseCase:
                 )
                 continue
 
+            # Validar formato e tamanho
+            erro_validacao = self._validar_arquivo(file.filename, file.content)
+            if erro_validacao:
+                failed.append(
+                    FotoUploadFalhaDTO(
+                        filename=file.filename,
+                        reason=erro_validacao,
+                        image_url=None,
+                    )
+                )
+                continue
+
             try:
                 # 1. SEMPRE fazer upload da imagem primeiro
                 extensao = os.path.splitext(file.filename)[1].lower()
@@ -62,15 +79,8 @@ class Uc09UploadMultiplasImagensUseCase:
                 # 2. Tentar extrair coordenadas
                 coordenadas = self._extrair_coordenadas(file.content)
                 if coordenadas is None:
-                    # Imagem foi salva, mas sem geolocalização
-                    failed.append(
-                        FotoUploadFalhaDTO(
-                            filename=file.filename,
-                            reason="Geolocalização não encontrada",
-                            image_url=uploaded_image_url,
-                        )
-                    )
-                    continue
+                    # Se não encontrar geolocalização, usar valores padrão (0.0)
+                    coordenadas = CoordenadasExif(latitude=0.0, longitude=0.0)
 
                 # 3. Salvar no banco de dados com coordenadas
                 foto = Foto(
@@ -83,12 +93,18 @@ class Uc09UploadMultiplasImagensUseCase:
                 )
 
                 foto_salva = self.foto_repository.save(foto)
+                
+                # 4. Gerar presigned URL para retorno seguro
+                presigned_url = self.foto_storage.get_presigned_url(
+                    caminho_arquivo=foto_salva.caminho_arquivo
+                )
+                
                 success.append(
                     FotoUploadSucessoDTO(
                         id=foto_salva.id if foto_salva.id is not None else 0,
                         latitude=foto_salva.latitude if foto_salva.latitude is not None else coordenadas.latitude,
                         longitude=foto_salva.longitude if foto_salva.longitude is not None else coordenadas.longitude,
-                        caminho_arquivo=foto_salva.caminho_arquivo,
+                        caminho_arquivo=presigned_url,
                     )
                 )
             except Exception as exc:
@@ -101,6 +117,25 @@ class Uc09UploadMultiplasImagensUseCase:
                 )
 
         return ProcessamentoFotosResponseDTO(success=success, failed=failed)
+
+    def _validar_arquivo(self, filename: str, conteudo: bytes) -> str | None:
+        """
+        Valida o arquivo verificando formato e tamanho.
+        Retorna mensagem de erro se inválido, None se válido.
+        """
+        # Verificar extensão
+        extensao = os.path.splitext(filename)[1].lower()
+        if extensao not in self.EXTENSOES_PERMITIDAS:
+            formatos_permitidos = ", ".join(self.EXTENSOES_PERMITIDAS)
+            return f"Formato inválido. Formatos permitidos: {formatos_permitidos}"
+        
+        # Verificar tamanho
+        tamanho_bytes = len(conteudo)
+        if tamanho_bytes > self.TAMANHO_MAXIMO_BYTES:
+            tamanho_mb = tamanho_bytes / (1024 * 1024)
+            return f"Arquivo muito grande ({tamanho_mb:.2f} MB). Tamanho máximo: {self.TAMANHO_MAXIMO_MB} MB"
+        
+        return None
 
     def _extrair_coordenadas(self, conteudo_arquivo: bytes) -> CoordenadasExif | None:
         try:
