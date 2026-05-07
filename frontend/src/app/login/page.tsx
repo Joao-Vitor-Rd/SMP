@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 const SuccessPopup = dynamic(() => import("../../../components/SuccessPopup"), { ssr: false });
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { getPublicApiBaseUrl } from "../../lib/authApi";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function LoginPage() {
     setCarregando(true);
 
     try {
-      const res = await fetch("http://localhost:8000/auth/login", {
+      const res = await fetch(`${getPublicApiBaseUrl()}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, senha, lembrar_me: lembrarMe }),
@@ -40,16 +41,11 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
-      console.log("Resposta do servidor:", data);
-      console.log("Usuário recebido:", data.usuario);
-      
+
       localStorage.setItem("token_acesso", data.token_acesso);
       localStorage.setItem("token_atualizacao", data.token_atualizacao);
       if (data.usuario) {
         localStorage.setItem("usuario", JSON.stringify(data.usuario));
-        console.log("Usuário salvo no localStorage:", localStorage.getItem("usuario"));
-      } else {
-        console.warn("Usuário não recebido na resposta!");
       }
 
       setShowSuccess(true);

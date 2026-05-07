@@ -1,19 +1,24 @@
 "use client";
 
 import axios from "axios";
+import exifr from "exifr";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Activity,
+  AlertCircle,
   Bell,
   CheckCircle2,
   ChevronRight,
   FileText,
   Folder,
   History,
+  Info,
+  Loader2,
   LogOut,
   Map,
+  MapPin,
   Maximize,
   Settings,
   Trash2,
@@ -24,6 +29,8 @@ import { authApi, clearAuthSession } from "../../lib/authApi";
 
 type QueueStatus = "pending" | "uploading" | "completed" | "rejected";
 
+type LocationException = "sem_gps" | "exif_corrompido";
+
 type UploadItem = {
   id: string;
   file: File;
@@ -31,6 +38,10 @@ type UploadItem = {
   status: QueueStatus;
   progress: number;
   message: string;
+  hasLocation: boolean | null;
+  manualLat: string;
+  manualLng: string;
+  locationException: LocationException | null;
 };
 
 type UserState = {
@@ -39,8 +50,8 @@ type UserState = {
 };
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
-const ACCEPTED_MIME_TYPES = ["image/jpeg", "image/png", "image/tiff", "image/x-tiff"];
-const ACCEPTED_EXTENSIONS = ["jpg", "jpeg", "png", "tif", "tiff"];
+const ACCEPTED_MIME_TYPES = ["image/jpeg", "image/png", "image/tiff", "image/x-tiff", "image/webp"];
+const ACCEPTED_EXTENSIONS = ["jpg", "jpeg", "png", "tif", "tiff", "webp"];
 
 function getInitialUserState(): UserState {
   if (typeof window === "undefined") {
@@ -94,15 +105,19 @@ function getFileKindLabel(file: File) {
   if (extension === "jpg" || extension === "jpeg") return "JPG";
   if (extension === "png") return "PNG";
   if (extension === "tif" || extension === "tiff") return "TIFF";
+  if (extension === "webp") return "WebP";
   return extension.toUpperCase() || "ARQUIVO";
 }
 
 function validateFile(file: File) {
+  console.log("Validando arquivo:", file.name, file.type);
   const extension = getFileExtension(file);
-  const isValidType = ACCEPTED_MIME_TYPES.includes(file.type.toLowerCase()) || ACCEPTED_EXTENSIONS.includes(extension);
+  const mime = file.type.toLowerCase();
+  const allowedByExtension = ACCEPTED_EXTENSIONS.includes(extension);
+  const allowedByMime = mime !== "" && ACCEPTED_MIME_TYPES.includes(mime);
 
-  if (!isValidType) {
-    return "Formato inválido. O sistema aceita apenas JPG, PNG e TIFF.";
+  if (!allowedByExtension && !allowedByMime) {
+    return "Formato inválido. O sistema aceita apenas JPG, PNG, TIFF e WebP.";
   }
 
   if (file.size > MAX_FILE_SIZE_BYTES) {
@@ -167,6 +182,66 @@ function isSameFile(a: File, b: File) {
   return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
 }
 
+const DUPLICATE_QUEUE_MESSAGE = "Arquivo duplicado já está na fila.";
+
+function shouldShowGpsUi(item: UploadItem) {
+  return validateFile(item.file) === null && item.message !== DUPLICATE_QUEUE_MESSAGE;
+}
+
+function filterCoordInput(value: string) {
+  let v = value.replace(/,/g, ".").replace(/[^\d.\-]/g, "");
+  const firstMinus = v.indexOf("-");
+  if (firstMinus > 0) {
+    v = v.replace(/-/g, "");
+  } else if (firstMinus === 0) {
+    v = "-" + v.slice(1).replace(/-/g, "");
+  }
+  const dot = v.indexOf(".");
+  if (dot !== -1) {
+    v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
+  }
+  return v;
+}
+
+function parseLatitude(s: string): number | null {
+  const t = s.trim();
+  if (t === "" || t === "-" || t === "." || t === "-.") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < -90 || n > 90) return null;
+  return n;
+}
+
+function parseLongitude(s: string): number | null {
+  const t = s.trim();
+  if (t === "" || t === "-" || t === "." || t === "-.") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < -180 || n > 180) return null;
+  return n;
+}
+
+function itemNeedsManualLocation(item: UploadItem) {
+  return shouldShowGpsUi(item) && item.hasLocation === false;
+}
+
+function isManualLocationResolved(item: UploadItem) {
+  if (item.locationException) return true;
+  return parseLatitude(item.manualLat) !== null && parseLongitude(item.manualLng) !== null;
+}
+
+async function deriveHasLocationFromFile(file: File): Promise<boolean> {
+  try {
+    const gps = await exifr.gps(file);
+    if (gps == null) return false;
+    const lat = gps.latitude;
+    const lng = gps.longitude;
+    if (typeof lat !== "number" || typeof lng !== "number") return false;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getProgressWidthClass(progress: number) {
   if (progress <= 0) return "w-0";
   if (progress <= 10) return "w-[10%]";
@@ -185,7 +260,7 @@ const FOTO_UPLOAD_ENDPOINT = "/api/fotos/upload-multiplas";
 
 export default function UploadImagensPage() {
   const router = useRouter();
-  const pathname = usePathname(); // Captura a rota atual com precisão
+  const pathname = usePathname();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [showPopUp, setShowPopUp] = useState(false);
   const [initialUserState] = useState<UserState>(() => getInitialUserState());
@@ -197,6 +272,22 @@ export default function UploadImagensPage() {
   const itemsRef = useRef<UploadItem[]>([]);
 
   const totalSelectedSize = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0), [items]);
+
+  const arquivosSemCoordenadas = useMemo(
+    () => items.filter((item) => item.hasLocation === false && shouldShowGpsUi(item)).length,
+    [items]
+  );
+
+  const podeMapearCoordenadas = useMemo(() => {
+    let temArquivoRelevante = false;
+    for (const item of items) {
+      if (!shouldShowGpsUi(item)) continue;
+      temArquivoRelevante = true;
+      if (item.hasLocation === null) return false;
+      if (item.hasLocation === false && !isManualLocationResolved(item)) return false;
+    }
+    return temArquivoRelevante;
+  }, [items]);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -322,6 +413,10 @@ export default function UploadImagensPage() {
           status: "rejected",
           progress: 0,
           message: validationError,
+          hasLocation: null,
+          manualLat: "",
+          manualLng: "",
+          locationException: null,
         });
         return;
       }
@@ -333,22 +428,43 @@ export default function UploadImagensPage() {
           previewUrl: URL.createObjectURL(file),
           status: "rejected",
           progress: 0,
-          message: "Arquivo duplicado já está na fila.",
+          message: DUPLICATE_QUEUE_MESSAGE,
+          hasLocation: null,
+          manualLat: "",
+          manualLng: "",
+          locationException: null,
         });
         return;
       }
 
+      const id = createId(file);
       nextItems.push({
-        id: createId(file),
+        id,
         file,
         previewUrl: URL.createObjectURL(file),
         status: "pending",
         progress: 0,
         message: "Aguardando envio",
+        hasLocation: null,
+        manualLat: "",
+        manualLng: "",
+        locationException: null,
       });
     });
 
     setItems((current) => [...current, ...nextItems]);
+
+    void Promise.resolve().then(() => {
+      nextItems.forEach((item) => {
+        if (item.status !== "pending" || item.hasLocation !== null) {
+          return;
+        }
+
+        void deriveHasLocationFromFile(item.file).then((hasLoc) => {
+          updateQueueItem(item.id, (current) => ({ ...current, hasLocation: hasLoc }));
+        });
+      });
+    });
   }
 
   function handleLogout() {
@@ -358,7 +474,6 @@ export default function UploadImagensPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
-      {/* Sidebar */}
       <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
         <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
           <Activity size={26} strokeWidth={2.5} />
@@ -491,7 +606,7 @@ export default function UploadImagensPage() {
               </div>
               <h3 className="text-lg font-bold text-gray-800">Arraste as imagens da via aqui</h3>
               <p className="mt-2 text-sm text-gray-500 max-w-2xl mx-auto">
-                Formatos aceitos: JPG, PNG e TIFF (Máx. 50MB por arquivo)
+                Formatos aceitos: JPG, PNG, TIFF e WebP (Máx. 50MB por arquivo)
               </p>
               <button
                 type="button"
@@ -510,7 +625,7 @@ export default function UploadImagensPage() {
               ref={inputRef}
               type="file"
               multiple
-              accept=".jpg,.jpeg,.png,.tif,.tiff,image/jpeg,image/png,image/tiff"
+              accept=".jpg,.jpeg,.png,.tif,.tiff,.webp,image/jpeg,image/png,image/tiff,image/webp"
               aria-label="Selecionar imagens para upload"
               className="hidden"
               onChange={(event) => {
@@ -537,6 +652,19 @@ export default function UploadImagensPage() {
               </div>
 
               <div className="p-4">
+                {arquivosSemCoordenadas > 0 ? (
+                  <div className="mb-4 flex gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+                    <Info className="h-5 w-5 shrink-0 text-sky-600" aria-hidden />
+                    <div>
+                      <p className="font-bold text-sky-950">Georreferenciamento manual</p>
+                      <p className="mt-1 text-sky-900/90">
+                        {arquivosSemCoordenadas === 1
+                          ? "1 arquivo selecionado não possui coordenadas GPS nos metadados (EXIF/XMP). Você poderá informar a localização manualmente no mapa no próximo passo."
+                          : `${arquivosSemCoordenadas} arquivos selecionados não possuem coordenadas GPS nos metadados (EXIF/XMP). Você poderá informar a localização manualmente no mapa no próximo passo.`}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
                 {!items.length ? (
                   <div className="flex min-h-36 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-400">
                     Nenhum arquivo selecionado ainda.
@@ -548,11 +676,23 @@ export default function UploadImagensPage() {
                       const isCompleted = item.status === 'completed';
                       const isRejected = item.status === 'rejected';
 
+                      const latInvalid =
+                        itemNeedsManualLocation(item) &&
+                        !item.locationException &&
+                        item.manualLat.trim() !== "" &&
+                        parseLatitude(item.manualLat) === null;
+                      const lngInvalid =
+                        itemNeedsManualLocation(item) &&
+                        !item.locationException &&
+                        item.manualLng.trim() !== "" &&
+                        parseLongitude(item.manualLng) === null;
+
                       return (
                         <div
                           key={item.id}
-                          className={`flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:items-center sm:justify-between ${isRejected ? 'border-red-200 bg-red-50' : isCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}
+                          className={`flex flex-col gap-3 rounded-2xl border p-3 ${isRejected ? 'border-red-200 bg-red-50' : isCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}
                         >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex items-start gap-3 sm:flex-1">
                             <div className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border ${isRejected ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-100'}`}>
                               {item.previewUrl ? (
@@ -574,6 +714,29 @@ export default function UploadImagensPage() {
                                 {isRejected ? item.message : `${getFileKindLabel(item.file)} • ${formatBytes(item.file.size)}`}
                               </p>
 
+                              {shouldShowGpsUi(item) ? (
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                  {item.hasLocation === null ? (
+                                    <>
+                                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-gray-400" aria-hidden />
+                                      <span className="text-gray-500">Verificando metadados de localização...</span>
+                                    </>
+                                  ) : null}
+                                  {item.hasLocation === true ? (
+                                    <>
+                                      <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
+                                      <span className="font-semibold text-emerald-700">Localização identificada</span>
+                                    </>
+                                  ) : null}
+                                  {item.hasLocation === false ? (
+                                    <>
+                                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+                                      <span className="font-semibold text-amber-700">Requer intervenção</span>
+                                    </>
+                                  ) : null}
+                                </div>
+                              ) : null}
+
                               <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-100">
                                 <div
                                   className={`h-full rounded-full transition-all ${isRejected ? 'bg-red-400 w-full' : isCompleted ? 'bg-emerald-500 w-full' : `bg-[#0a5483] ${getProgressWidthClass(item.progress)}`}`}
@@ -587,7 +750,7 @@ export default function UploadImagensPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-end gap-2 sm:w-auto">
+                          <div className="flex items-center justify-end gap-2 sm:w-auto sm:shrink-0">
                             <button
                               type="button"
                               onClick={() => {
@@ -604,12 +767,129 @@ export default function UploadImagensPage() {
                               <Trash2 size={16} />
                             </button>
                           </div>
+                          </div>
+
+                          {itemNeedsManualLocation(item) ? (
+                            <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-3">
+                              <p className="text-[0.65rem] font-bold uppercase tracking-wider text-amber-900/80">
+                                Pendentes de localização — coordenadas manuais
+                              </p>
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                  <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                                    Latitude
+                                  </label>
+                                  <input
+                                    id={`lat-${item.id}`}
+                                    type="text"
+                                    inputMode="decimal"
+                                    autoComplete="off"
+                                    disabled={!!item.locationException}
+                                    value={item.manualLat}
+                                    onChange={(e) => {
+                                      const v = filterCoordInput(e.target.value);
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        manualLat: v,
+                                        locationException: null,
+                                      }));
+                                    }}
+                                    placeholder="-23,5505"
+                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${latInvalid ? "border-red-400" : "border-gray-200"}`}
+                                  />
+                                </div>
+                                <div>
+                                  <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                                    Longitude
+                                  </label>
+                                  <input
+                                    id={`lng-${item.id}`}
+                                    type="text"
+                                    inputMode="decimal"
+                                    autoComplete="off"
+                                    disabled={!!item.locationException}
+                                    value={item.manualLng}
+                                    onChange={(e) => {
+                                      const v = filterCoordInput(e.target.value);
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        manualLng: v,
+                                        locationException: null,
+                                      }));
+                                    }}
+                                    placeholder="-46,6333"
+                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${lngInvalid ? "border-red-400" : "border-gray-200"}`}
+                                  />
+                                </div>
+                              </div>
+                              {(latInvalid || lngInvalid) ? (
+                                <p className="text-xs font-medium text-red-600">Use apenas números decimais. Latitude −90 a 90; longitude −180 a 180.</p>
+                              ) : null}
+                              <div>
+                                <p className="mb-2 text-xs font-semibold text-gray-600">Sem dados de posição?</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        locationException: c.locationException === "sem_gps" ? null : "sem_gps",
+                                        manualLat: "",
+                                        manualLng: "",
+                                      }))
+                                    }
+                                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                                      item.locationException === "sem_gps"
+                                        ? "border-[#0a5483] bg-[#0a5483] text-white"
+                                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                                    }`}
+                                  >
+                                    Sem GPS
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        locationException: c.locationException === "exif_corrompido" ? null : "exif_corrompido",
+                                        manualLat: "",
+                                        manualLng: "",
+                                      }))
+                                    }
+                                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                                      item.locationException === "exif_corrompido"
+                                        ? "border-[#0a5483] bg-[#0a5483] text-white"
+                                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                                    }`}
+                                  >
+                                    EXIF corrompido
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="mt-8">
+              <button
+                type="button"
+                disabled={!podeMapearCoordenadas}
+                onClick={() => router.push("/mapa")}
+                className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold uppercase tracking-wide transition ${
+                  podeMapearCoordenadas
+                    ? "bg-[#0a5483] text-white shadow-sm hover:bg-[#083d61]"
+                    : "cursor-not-allowed bg-gray-200 text-gray-500"
+                }`}
+              >
+                Mapear coordenadas
+                <ChevronRight size={18} strokeWidth={2.5} />
+              </button>
             </div>
           </section>
         </div>
