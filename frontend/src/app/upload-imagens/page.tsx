@@ -45,8 +45,8 @@ type UserState = {
 };
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
-const ACCEPTED_MIME_TYPES = ["image/jpeg", "image/png", "image/tiff", "image/x-tiff"];
-const ACCEPTED_EXTENSIONS = ["jpg", "jpeg", "png", "tif", "tiff"];
+const ACCEPTED_MIME_TYPES = ["image/jpeg", "image/png", "image/tiff", "image/x-tiff", "image/webp"];
+const ACCEPTED_EXTENSIONS = ["jpg", "jpeg", "png", "tif", "tiff", "webp"];
 
 function getInitialUserState(): UserState {
   if (typeof window === "undefined") {
@@ -100,15 +100,19 @@ function getFileKindLabel(file: File) {
   if (extension === "jpg" || extension === "jpeg") return "JPG";
   if (extension === "png") return "PNG";
   if (extension === "tif" || extension === "tiff") return "TIFF";
+  if (extension === "webp") return "WebP";
   return extension.toUpperCase() || "ARQUIVO";
 }
 
 function validateFile(file: File) {
+  console.log("Validando arquivo:", file.name, file.type);
   const extension = getFileExtension(file);
-  const isValidType = ACCEPTED_MIME_TYPES.includes(file.type.toLowerCase()) || ACCEPTED_EXTENSIONS.includes(extension);
+  const mime = file.type.toLowerCase();
+  const allowedByExtension = ACCEPTED_EXTENSIONS.includes(extension);
+  const allowedByMime = mime !== "" && ACCEPTED_MIME_TYPES.includes(mime);
 
-  if (!isValidType) {
-    return "Formato inválido. O sistema aceita apenas JPG, PNG e TIFF.";
+  if (!allowedByExtension && !allowedByMime) {
+    return "Formato inválido. O sistema aceita apenas JPG, PNG, TIFF e WebP.";
   }
 
   if (file.size > MAX_FILE_SIZE_BYTES) {
@@ -537,7 +541,7 @@ export default function UploadImagensPage() {
               </div>
               <h3 className="text-lg font-bold text-gray-800">Arraste as imagens da via aqui</h3>
               <p className="mt-2 text-sm text-gray-500 max-w-2xl mx-auto">
-                Formatos aceitos: JPG, PNG e TIFF (Máx. 50MB por arquivo)
+                Formatos aceitos: JPG, PNG, TIFF e WebP (Máx. 50MB por arquivo)
               </p>
               <button
                 type="button"
@@ -556,7 +560,7 @@ export default function UploadImagensPage() {
               ref={inputRef}
               type="file"
               multiple
-              accept=".jpg,.jpeg,.png,.tif,.tiff,image/jpeg,image/png,image/tiff"
+              accept=".jpg,.jpeg,.png,.tif,.tiff,.webp,image/jpeg,image/png,image/tiff,image/webp"
               aria-label="Selecionar imagens para upload"
               className="hidden"
               onChange={(event) => {
