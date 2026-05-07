@@ -194,17 +194,24 @@ function obterFeedbackErro(message: string) {
     };
   }
 
-  if (/11 dígitos|11 digitos|formato.*cft\/?cpf|cft\/?cpf.*inválid/i.test(message)) {
+  if (/telefone.*inválid|celular.*inválid/i.test(message)) {
     return {
-      title: 'CFT/CPF inválido',
-      message: 'O CFT/CPF deve conter 11 dígitos numéricos.',
+      title: 'Telefone inválido',
+      message: 'Informe um telefone válido no formato (31) 99781-4542.',
     };
   }
 
-  if (/cft\/?cpf.*apenas números|somente números|caracteres inválidos|inválido/i.test(message)) {
+  if (/órgão\/instituição.*apenas letras|orgão\/instituição.*apenas letras|empresa\/órgão.*apenas letras|instituição de ensino.*apenas letras/i.test(message)) {
+    return {
+      title: 'Campo inválido',
+      message: 'Órgão, empresa ou instituição não pode conter números.',
+    };
+  }
+
+  if (/11 dígitos|11 digitos|cft\/?cpf.*apenas números|cft\/?cpf.*somente números|cft\/?cpf.*já cadastrado|cft\/?cpf.*em uso/i.test(message)) {
     return {
       title: 'CFT/CPF inválido',
-      message: 'O CFT/CPF deve conter apenas números.',
+      message: 'O CFT/CPF deve conter 11 dígitos numéricos.',
     };
   }
 
