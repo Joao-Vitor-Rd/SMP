@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import axios, { AxiosHeaders } from 'axios';
+import axios from 'axios';
+import { authApi, clearAuthSession, SessionExpiredError } from '@/lib/authApi';
 import {
   Activity,
   ArrowLeft,
@@ -28,45 +29,6 @@ import {
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-
-class SessionExpiredError extends Error {
-  constructor(message = 'Sessão expirada') {
-    super(message);
-    this.name = 'SessionExpiredError';
-  }
-}
-
-const authApi = axios.create({
-  baseURL: API_BASE_URL,
-});
-
-authApi.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token_acesso');
-    if (token) {
-      const headers = AxiosHeaders.from(config.headers);
-      headers.set('Authorization', `Bearer ${token}`);
-      config.headers = headers;
-    }
-  }
-
-  return config;
-});
-
-authApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token_acesso');
-        localStorage.removeItem('token_atualizacao');
-      }
-      return Promise.reject(new SessionExpiredError());
-    }
-
-    return Promise.reject(error);
-  }
-);
 
 type CargoUsuario = 'supervisor' | 'tecnico' | 'colaborador' | '';
 
@@ -229,82 +191,14 @@ export default function EditarPerfilPage() {
     });
   }
 
-  async function handleSalvarPerfil() {
-    const nome = perfil.nomeCompleto.trim();
-    const uf = perfil.uf.trim().toUpperCase();
-    const cidade = perfil.cidade.trim();
-    const empresaOuOrgao = perfil.empresa.trim();
-    const telefone = perfil.telefone.trim();
-
-    if (!nome || !uf || !cidade) {
-      mostrarFeedback('Preencha nome, UF e cidade para salvar o perfil.', 'error', 'Campos obrigatórios');
-      return;
-    }
-
-    const usuarioJson = localStorage.getItem('usuario');
-    const usuario = usuarioJson ? JSON.parse(usuarioJson) : null;
-    const cargo = (perfil.cargo || usuario?.cargo || '') as CargoUsuario;
-
-    if (!cargo) {
-      mostrarFeedback('Não foi possível identificar o tipo de usuário para salvar o perfil.', 'error', 'Sessão inválida');
-      return;
-    }
-
-    const rotaAtualizacao = cargo === 'supervisor' ? '/api/supervisores/me' : '/api/colaboradores/me';
-
+  async function handleLogout() {
     try {
-      setSalvandoPerfil(true);
-
-      const response = await authApi.put(rotaAtualizacao, {
-        nome,
-        uf,
-        cidade,
-        empresa_ou_orgao: empresaOuOrgao || null,
-        telefone: telefone || null,
-      });
-
-      const perfilAtualizado = response.data;
-
-      setPerfil((current) => ({
-        ...current,
-        id: perfilAtualizado.id ?? current.id,
-        nomeCompleto: perfilAtualizado.nome ?? nome,
-        uf: perfilAtualizado.uf ?? uf,
-        cidade: perfilAtualizado.cidade ?? cidade,
-        telefone: perfilAtualizado.telefone ?? telefone,
-        empresa: perfilAtualizado.empresa ?? perfilAtualizado.empresa_ou_orgao ?? empresaOuOrgao,
-      }));
-
-      localStorage.setItem(
-        'usuario',
-        JSON.stringify({
-          ...usuario,
-          id: perfilAtualizado.id ?? usuario?.id ?? perfil.id,
-          nome: perfilAtualizado.nome ?? nome,
-          email: perfilAtualizado.email ?? usuario?.email ?? perfil.email,
-          crea: perfilAtualizado.identificador_profissional ?? usuario?.crea ?? usuario?.identificador_profissional,
-          identificador_profissional: perfilAtualizado.identificador_profissional ?? usuario?.identificador_profissional ?? usuario?.crea,
-          cft: perfilAtualizado.cft ?? usuario?.cft ?? usuario?.cpf,
-          cpf: perfilAtualizado.cpf ?? usuario?.cpf ?? usuario?.cft,
-          empresa: perfilAtualizado.empresa ?? perfilAtualizado.empresa_ou_orgao ?? usuario?.empresa ?? usuario?.empresa_ou_orgao,
-          empresa_ou_orgao: perfilAtualizado.empresa_ou_orgao ?? perfilAtualizado.empresa ?? usuario?.empresa_ou_orgao ?? usuario?.empresa,
-          telefone: perfilAtualizado.telefone ?? telefone,
-          uf: perfilAtualizado.uf ?? uf,
-          cidade: perfilAtualizado.cidade ?? cidade,
-          cargo,
-        })
-      );
-
-      mostrarFeedback('Perfil atualizado com sucesso.', 'success', 'Alterações salvas');
+      await authApi.post('/auth/logout');
     } catch (error) {
-      if (error instanceof SessionExpiredError) {
-        return;
-      }
-
-      const feedbackErro = obterFeedbackErro(extrairMensagemErroApi(error));
-      mostrarFeedback(feedbackErro.message, 'error', feedbackErro.title);
+      console.error('Erro ao fazer logout:', error);
     } finally {
-      setSalvandoPerfil(false);
+      clearAuthSession();
+      router.replace('/login');
     }
   }
 
@@ -446,7 +340,7 @@ export default function EditarPerfilPage() {
       };
 
       console.log('Payload a enviar:', payload);
-      console.log('Token de acesso:', localStorage.getItem('token_acesso')?.substring(0, 20) + '...');
+      console.log('Token de acesso:', 'armazenado em HttpOnly cookie');
       
       const response = await authApi.post('/api/colaboradores', payload);
       
@@ -590,7 +484,7 @@ export default function EditarPerfilPage() {
               </div>
             )}
 
-            <button className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-100 px-4 py-2 rounded-xl text-sm hover:bg-red-100 font-bold transition-all">
+            <button onClick={handleLogout} className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-100 px-4 py-2 rounded-xl text-sm hover:bg-red-100 font-bold transition-all">
               <LogOut size={16} /> Sair
             </button>
           </div>
