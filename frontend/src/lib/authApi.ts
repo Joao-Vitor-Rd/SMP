@@ -1,6 +1,25 @@
 import axios, { AxiosHeaders } from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+export function getPublicApiBaseUrl(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').trim();
+
+  if (typeof window === 'undefined') {
+    return raw;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.hostname === 'backend') {
+      return `http://localhost:${parsed.port || '8000'}`;
+    }
+  } catch {
+    return raw;
+  }
+
+  return raw;
+}
+
+const API_BASE_URL = getPublicApiBaseUrl();
 
 class SessionExpiredError extends Error {
   constructor(message: string = 'Sessão expirada') {

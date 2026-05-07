@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import axios, { AxiosHeaders } from 'axios';
+import axios from 'axios';
 import {
   Activity,
   ArrowLeft,
@@ -26,47 +26,7 @@ import {
   User,
   UserPlus,
 } from 'lucide-react';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-
-class SessionExpiredError extends Error {
-  constructor(message = 'Sessão expirada') {
-    super(message);
-    this.name = 'SessionExpiredError';
-  }
-}
-
-const authApi = axios.create({
-  baseURL: API_BASE_URL,
-});
-
-authApi.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token_acesso');
-    if (token) {
-      const headers = AxiosHeaders.from(config.headers);
-      headers.set('Authorization', `Bearer ${token}`);
-      config.headers = headers;
-    }
-  }
-
-  return config;
-});
-
-authApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token_acesso');
-        localStorage.removeItem('token_atualizacao');
-      }
-      return Promise.reject(new SessionExpiredError());
-    }
-
-    return Promise.reject(error);
-  }
-);
+import { authApi, SessionExpiredError } from '../../lib/authApi';
 
 type CargoUsuario = 'supervisor' | 'tecnico' | 'colaborador' | '';
 
