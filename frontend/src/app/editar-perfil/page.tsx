@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import axios, { AxiosHeaders } from 'axios';
+import axios from 'axios';
+import { authApi, clearAuthSession, SessionExpiredError } from '@/lib/authApi';
 import {
   Activity,
   ArrowLeft,
@@ -28,45 +29,6 @@ import {
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-
-class SessionExpiredError extends Error {
-  constructor(message = 'Sessão expirada') {
-    super(message);
-    this.name = 'SessionExpiredError';
-  }
-}
-
-const authApi = axios.create({
-  baseURL: API_BASE_URL,
-});
-
-authApi.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token_acesso');
-    if (token) {
-      const headers = AxiosHeaders.from(config.headers);
-      headers.set('Authorization', `Bearer ${token}`);
-      config.headers = headers;
-    }
-  }
-
-  return config;
-});
-
-authApi.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token_acesso');
-        localStorage.removeItem('token_atualizacao');
-      }
-      return Promise.reject(new SessionExpiredError());
-    }
-
-    return Promise.reject(error);
-  }
-);
 
 type CargoUsuario = 'supervisor' | 'tecnico' | 'colaborador' | '';
 
@@ -228,6 +190,17 @@ export default function EditarPerfilPage() {
     });
   }
 
+  async function handleLogout() {
+    try {
+      await authApi.post('/auth/logout');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    } finally {
+      clearAuthSession();
+      router.replace('/login');
+    }
+  }
+
   useEffect(() => {
     async function fetchUserData() {
       try {
@@ -366,7 +339,7 @@ export default function EditarPerfilPage() {
       };
 
       console.log('Payload a enviar:', payload);
-      console.log('Token de acesso:', localStorage.getItem('token_acesso')?.substring(0, 20) + '...');
+      console.log('Token de acesso:', 'armazenado em HttpOnly cookie');
       
       const response = await authApi.post('/api/colaboradores', payload);
       
@@ -510,7 +483,7 @@ export default function EditarPerfilPage() {
               </div>
             )}
 
-            <button className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-100 px-4 py-2 rounded-xl text-sm hover:bg-red-100 font-bold transition-all">
+            <button onClick={handleLogout} className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-100 px-4 py-2 rounded-xl text-sm hover:bg-red-100 font-bold transition-all">
               <LogOut size={16} /> Sair
             </button>
           </div>
