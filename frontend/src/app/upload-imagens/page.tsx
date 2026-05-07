@@ -1,19 +1,23 @@
 "use client";
 
 import axios from "axios";
+import exifr from "exifr";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Activity,
+  AlertCircle,
   Bell,
   CheckCircle2,
   ChevronRight,
   FileText,
   Folder,
   History,
+  Loader2,
   LogOut,
   Map,
+  MapPin,
   Maximize,
   Settings,
   Trash2,
@@ -31,6 +35,7 @@ type UploadItem = {
   status: QueueStatus;
   progress: number;
   message: string;
+  hasLocation: boolean | null;
 };
 
 type UserState = {
@@ -167,6 +172,26 @@ function isSameFile(a: File, b: File) {
   return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
 }
 
+const DUPLICATE_QUEUE_MESSAGE = "Arquivo duplicado já está na fila.";
+
+function shouldShowGpsUi(item: UploadItem) {
+  return validateFile(item.file) === null && item.message !== DUPLICATE_QUEUE_MESSAGE;
+}
+
+async function deriveHasLocationFromFile(file: File): Promise<boolean> {
+  try {
+    const gps = await exifr.gps(file);
+    if (gps == null) return false;
+    const lat = gps.latitude;
+    const lng = gps.longitude;
+    if (typeof lat !== "number" || typeof lng !== "number") return false;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getProgressWidthClass(progress: number) {
   if (progress <= 0) return "w-0";
   if (progress <= 10) return "w-[10%]";
@@ -185,7 +210,7 @@ const FOTO_UPLOAD_ENDPOINT = "/api/fotos/upload-multiplas";
 
 export default function UploadImagensPage() {
   const router = useRouter();
-  const pathname = usePathname(); // Captura a rota atual com precisão
+  const pathname = usePathname();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [showPopUp, setShowPopUp] = useState(false);
   const [initialUserState] = useState<UserState>(() => getInitialUserState());
@@ -322,6 +347,7 @@ export default function UploadImagensPage() {
           status: "rejected",
           progress: 0,
           message: validationError,
+          hasLocation: null,
         });
         return;
       }
@@ -333,22 +359,37 @@ export default function UploadImagensPage() {
           previewUrl: URL.createObjectURL(file),
           status: "rejected",
           progress: 0,
-          message: "Arquivo duplicado já está na fila.",
+          message: DUPLICATE_QUEUE_MESSAGE,
+          hasLocation: null,
         });
         return;
       }
 
+      const id = createId(file);
       nextItems.push({
-        id: createId(file),
+        id,
         file,
         previewUrl: URL.createObjectURL(file),
         status: "pending",
         progress: 0,
         message: "Aguardando envio",
+        hasLocation: null,
       });
     });
 
     setItems((current) => [...current, ...nextItems]);
+
+    void Promise.resolve().then(() => {
+      nextItems.forEach((item) => {
+        if (item.status !== "pending" || item.hasLocation !== null) {
+          return;
+        }
+
+        void deriveHasLocationFromFile(item.file).then((hasLoc) => {
+          updateQueueItem(item.id, (current) => ({ ...current, hasLocation: hasLoc }));
+        });
+      });
+    });
   }
 
   function handleLogout() {
@@ -358,7 +399,6 @@ export default function UploadImagensPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
-      {/* Sidebar */}
       <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
         <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
           <Activity size={26} strokeWidth={2.5} />
@@ -573,6 +613,29 @@ export default function UploadImagensPage() {
                               <p className={`mt-1 text-xs ${isRejected ? 'text-red-600' : 'text-gray-500'}`}>
                                 {isRejected ? item.message : `${getFileKindLabel(item.file)} • ${formatBytes(item.file.size)}`}
                               </p>
+
+                              {shouldShowGpsUi(item) ? (
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                  {item.hasLocation === null ? (
+                                    <>
+                                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-gray-400" aria-hidden />
+                                      <span className="text-gray-500">Verificando metadados de localização...</span>
+                                    </>
+                                  ) : null}
+                                  {item.hasLocation === true ? (
+                                    <>
+                                      <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
+                                      <span className="font-semibold text-emerald-700">Localização identificada</span>
+                                    </>
+                                  ) : null}
+                                  {item.hasLocation === false ? (
+                                    <>
+                                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+                                      <span className="font-semibold text-amber-700">Requer intervenção</span>
+                                    </>
+                                  ) : null}
+                                </div>
+                              ) : null}
 
                               <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-100">
                                 <div
