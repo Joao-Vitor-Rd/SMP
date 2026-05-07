@@ -26,7 +26,77 @@ import {
   User,
   UserPlus,
 } from 'lucide-react';
-import { authApi, SessionExpiredError } from '../../lib/authApi';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+const UF_OPTIONS = [
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
+];
+
+class SessionExpiredError extends Error {
+  constructor(message = 'Sessão expirada') {
+    super(message);
+    this.name = 'SessionExpiredError';
+  }
+}
+
+const authApi = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+authApi.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token_acesso');
+    if (token) {
+      const headers = AxiosHeaders.from(config.headers);
+      headers.set('Authorization', `Bearer ${token}`);
+      config.headers = headers;
+    }
+  }
+
+  return config;
+});
+
+authApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token_acesso');
+        localStorage.removeItem('token_atualizacao');
+      }
+      return Promise.reject(new SessionExpiredError());
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 type CargoUsuario = 'supervisor' | 'tecnico' | 'colaborador' | '';
 
@@ -48,6 +118,28 @@ function formatarCargo(cargo: CargoUsuario) {
   if (cargo === 'tecnico') return 'Técnico';
   if (cargo === 'colaborador') return 'Colaborador';
   return 'Engenheiro';
+}
+
+function normalizarCpfCft(valor: string) {
+  return valor.replace(/\D/g, '').slice(0, 11);
+}
+
+function formatarCpfCft(valor: string) {
+  const digitos = normalizarCpfCft(valor);
+
+  if (digitos.length <= 3) {
+    return digitos;
+  }
+
+  if (digitos.length <= 6) {
+    return `${digitos.slice(0, 3)}.${digitos.slice(3)}`;
+  }
+
+  if (digitos.length <= 9) {
+    return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6)}`;
+  }
+
+  return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-${digitos.slice(9)}`;
 }
 
 function emailEhValido(email: string) {
@@ -102,10 +194,24 @@ function obterFeedbackErro(message: string) {
     };
   }
 
-  if (/cft\/?cpf.*apenas números|somente números|caracteres inválidos|inválido/i.test(message)) {
+  if (/telefone.*inválid|celular.*inválid/i.test(message)) {
+    return {
+      title: 'Telefone inválido',
+      message: 'Informe um telefone válido no formato (31) 99781-4542.',
+    };
+  }
+
+  if (/órgão\/instituição.*apenas letras|orgão\/instituição.*apenas letras|empresa\/órgão.*apenas letras|instituição de ensino.*apenas letras/i.test(message)) {
+    return {
+      title: 'Campo inválido',
+      message: 'Órgão, empresa ou instituição não pode conter números.',
+    };
+  }
+
+  if (/11 dígitos|11 digitos|cft\/?cpf.*apenas números|cft\/?cpf.*somente números|cft\/?cpf.*já cadastrado|cft\/?cpf.*em uso/i.test(message)) {
     return {
       title: 'CFT/CPF inválido',
-      message: 'O CFT/CPF deve conter apenas números.',
+      message: 'O CFT/CPF deve conter 11 dígitos numéricos.',
     };
   }
 
@@ -144,6 +250,7 @@ export default function EditarPerfilPage() {
     cidade: '',
     cargo: '',
   });
+  const [nomeEmEdicao, setNomeEmEdicao] = useState('');
   const [showPopUp, setShowPopUp] = useState(false);
   const [tipoEquipe, setTipoEquipe] = useState<'TECNICO' | 'COLABORADOR'>('TECNICO');
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
@@ -190,7 +297,7 @@ export default function EditarPerfilPage() {
   }
 
   async function handleSalvarPerfil() {
-    const nome = perfil.nomeCompleto.trim();
+    const nome = nomeEmEdicao.trim();
     const uf = perfil.uf.trim().toUpperCase();
     const cidade = perfil.cidade.trim();
     const empresaOuOrgao = perfil.empresa.trim();
@@ -234,6 +341,7 @@ export default function EditarPerfilPage() {
         telefone: perfilAtualizado.telefone ?? telefone,
         empresa: perfilAtualizado.empresa ?? perfilAtualizado.empresa_ou_orgao ?? empresaOuOrgao,
       }));
+      setNomeEmEdicao(perfilAtualizado.nome ?? nome);
 
       localStorage.setItem(
         'usuario',
@@ -293,6 +401,7 @@ export default function EditarPerfilPage() {
           cidade: usuario.cidade ?? current.cidade,
           cargo,
         }));
+        setNomeEmEdicao(usuario.nome ?? '');
 
         if (cargo !== 'supervisor') {
           return;
@@ -320,6 +429,7 @@ export default function EditarPerfilPage() {
           cidade: supervisor.cidade ?? current.cidade,
           cargo: cargo || 'supervisor',
         }));
+        setNomeEmEdicao(supervisor.nome ?? usuario.nome ?? '');
 
         localStorage.setItem(
           'usuario',
@@ -368,8 +478,15 @@ export default function EditarPerfilPage() {
       return;
     }
 
+    const cftInformado = normalizarCpfCft(convite.cft);
+
     if (tipoEquipe === 'TECNICO' && !convite.cft.trim()) {
       mostrarFeedback('Informe o CFT/CPF do técnico.', 'error', 'CFT/CPF obrigatório');
+      return;
+    }
+
+    if (tipoEquipe === 'TECNICO' && cftInformado.length !== 11) {
+      mostrarFeedback('O CFT/CPF deve conter 11 dígitos numéricos.', 'error', 'CFT/CPF inválido');
       return;
     }
 
@@ -397,7 +514,7 @@ export default function EditarPerfilPage() {
         id_profissional_responsavel: parseInt(String(perfil.id), 10),
         is_tecnico: tipoEquipe === 'TECNICO',
         email: emailInformado,
-        cft: tipoEquipe === 'TECNICO' ? convite.cft.trim() : null,
+        cft: tipoEquipe === 'TECNICO' ? cftInformado : null,
         limite_acesso: tipoEquipe === 'COLABORADOR' && convite.limiteAcesso
           ? new Date(
               `${convite.limiteAcesso}T23:59:59`
@@ -534,7 +651,7 @@ export default function EditarPerfilPage() {
             {showPopUp && (
               <div className="absolute top-16 right-28 w-60 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
                 <div className="p-4 bg-gray-50 border-b border-gray-100">
-                  <p className="font-bold text-sm text-gray-900">{perfil.nomeCompleto || 'Engenheiro(a)'}</p>
+                    <p className="font-bold text-sm text-gray-900">{perfil.nomeCompleto || 'Engenheiro(a)'}</p>
                   <p className="text-[11px] text-gray-500 italic font-medium">{perfil.email}</p>
                 </div>
                 <button 
@@ -577,7 +694,7 @@ export default function EditarPerfilPage() {
                 <p className="text-sm text-gray-600 font-medium">{formatarCargo(perfil.cargo)}</p>
                 {perfil.cargo === 'tecnico' ? (
                   <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
-                    CFT / CPF: {perfil.cft || 'Não informado'}
+                    CPF/CFT: {perfil.cft ? formatarCpfCft(perfil.cft) : 'Não informado'}
                   </p>
                 ) : (
                   <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
@@ -595,7 +712,9 @@ export default function EditarPerfilPage() {
                 <div>
                   <p className="text-[12px] font-bold leading-4">Campos protegidos</p>
                   <p className="text-[11px] leading-snug text-blue-600 font-medium">
-                    O CREA e e-mail não podem ser alterados após o cadastro por questões de segurança e rastreabilidade.
+                    {perfil.cargo === 'tecnico'
+                      ? 'O CPF/CFT e e-mail não podem ser alterados após o cadastro por questões de segurança e rastreabilidade.'
+                      : 'O CREA e e-mail não podem ser alterados após o cadastro por questões de segurança e rastreabilidade.'}
                   </p>
                 </div>
               </div>
@@ -609,22 +728,22 @@ export default function EditarPerfilPage() {
                 <input
                   type="text"
                   placeholder="Nome Completo"
-                  value={perfil.nomeCompleto}
-                  onChange={(e) => setPerfil({...perfil, nomeCompleto: e.target.value})}
+                  value={nomeEmEdicao}
+                  onChange={(e) => setNomeEmEdicao(e.target.value)}
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                 />
               </div>
               
               <div>
                 <label className="text-[12px] font-bold text-gray-700 flex items-center gap-2 mb-2 uppercase tracking-tight">
-                  <ShieldCheck size={14} className="text-gray-500" /> CREA
+                  <ShieldCheck size={14} className="text-gray-500" /> {perfil.cargo === 'tecnico' ? 'CPF/CFT' : 'CREA'}
                 </label>
                 {perfil.cargo === 'tecnico' ? (
                   <input
                     type="text"
-                    title="CFT / CPF"
-                    aria-label="CFT / CPF"
-                    value={perfil.cft}
+                    title="CPF/CFT"
+                    aria-label="CPF/CFT"
+                    value={formatarCpfCft(perfil.cft)}
                     readOnly
                     className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3.5 text-sm text-gray-600 font-medium cursor-not-allowed italic shadow-inner"
                   />
@@ -688,15 +807,20 @@ export default function EditarPerfilPage() {
                 <label className="text-[12px] font-bold text-gray-700 flex items-center gap-2 mb-2 uppercase tracking-tight">
                   <Globe size={14} className="text-gray-500" /> Estado (UF)
                 </label>
-                <input
-                  type="text"
+                <select
                   title="Estado (UF)"
                   aria-label="Estado (UF)"
                   value={perfil.uf}
-                  onChange={(e) => setPerfil({...perfil, uf: e.target.value})}
-                  placeholder="CE"
-                  className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-                />
+                  onChange={(e) => setPerfil({ ...perfil, uf: e.target.value })}
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                >
+                  <option value="">Selecione a UF</option>
+                  {UF_OPTIONS.map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -799,9 +923,9 @@ export default function EditarPerfilPage() {
                     inputMode="numeric"
                     pattern="[0-9]*"
                     required={tipoEquipe === 'TECNICO'}
-                    placeholder="CPF do técnico"
-                    value={convite.cft}
-                    onChange={(event) => setConvite((current) => ({ ...current, cft: event.target.value.replace(/\D/g, '') }))}
+                    placeholder="000.000.000-00"
+                    value={formatarCpfCft(convite.cft)}
+                    onChange={(event) => setConvite((current) => ({ ...current, cft: normalizarCpfCft(event.target.value) }))}
                     className="w-full p-3.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white font-medium placeholder:text-blue-200/50 outline-none focus:border-white/40 transition-all"
                   />
                 </div>

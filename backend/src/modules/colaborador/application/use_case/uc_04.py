@@ -65,9 +65,9 @@ class CriarColaboradorUseCase:
             if not create_data.cft or not create_data.cft.strip():
                 raise ValueError("CFT/CPF é obrigatório para técnico")
 
-            cft_formatado = create_data.cft.strip()
-            if not re.fullmatch(r"\d+", cft_formatado):
-                raise ValueError("CFT/CPF deve conter apenas números")
+            cft_formatado = re.sub(r"\D", "", create_data.cft)
+            if len(cft_formatado) != 11:
+                raise ValueError("CFT/CPF deve conter 11 dígitos numéricos")
 
             if self.repository.find_by_cft(cft_formatado):
                 raise ValueError("CFT/CPF já cadastrado no sistema")

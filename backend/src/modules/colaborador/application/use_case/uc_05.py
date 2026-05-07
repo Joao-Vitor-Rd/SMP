@@ -1,3 +1,5 @@
+import re
+
 from src.modules.colaborador.application.dtos.colaborador_dto import UpdateColaboradorDTO, ColaboradorResponseDTO
 from src.modules.colaborador.domain.entities.colaborador import Colaborador
 from src.modules.colaborador.domain.repositories.IColaboradorRepository import IColaboradorRepository
@@ -42,11 +44,23 @@ class AtualizarColaboradorUseCase:
 
         empresa_ou_orgao = colaborador_atual.empresa_ou_orgao
         if update_data.empresa_ou_orgao is not None:
-            empresa_ou_orgao = update_data.empresa_ou_orgao.strip() or None
+            empresa_limpa = update_data.empresa_ou_orgao.strip()
+            if empresa_limpa:
+                if not self._validar_texto_sem_numeros(empresa_limpa):
+                    raise ValueError("Órgão/Instituição deve incluir apenas letras")
+                empresa_ou_orgao = self._normalizar_texto(empresa_limpa)
+            else:
+                empresa_ou_orgao = None
 
         instituicao_ensino = colaborador_atual.instituicao_ensino
         if update_data.instituicao_ensino is not None:
-            instituicao_ensino = update_data.instituicao_ensino.strip() or None
+            instituicao_limpa = update_data.instituicao_ensino.strip()
+            if instituicao_limpa:
+                if not self._validar_texto_sem_numeros(instituicao_limpa):
+                    raise ValueError("Órgão/Instituição deve incluir apenas letras")
+                instituicao_ensino = self._normalizar_texto(instituicao_limpa)
+            else:
+                instituicao_ensino = None
 
         telefone = colaborador_atual.telefone
         if update_data.telefone is not None:
@@ -83,3 +97,9 @@ class AtualizarColaboradorUseCase:
             acesso_liberado=colaborador_salvo.acesso_liberado,
             status="Ativo",
         )
+
+    def _validar_texto_sem_numeros(self, texto: str) -> bool:
+        return bool(re.fullmatch(r"[A-Za-zÀ-ÿ\s/&.\-]+", texto))
+
+    def _normalizar_texto(self, texto: str) -> str:
+        return " ".join(texto.strip().split())

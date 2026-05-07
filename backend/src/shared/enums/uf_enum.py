@@ -33,9 +33,19 @@ class UFEnum(str, Enum):
     TO = "TO"  # Tocantins
 
     @classmethod
-    def is_valid(cls, uf: str) -> bool:
+    def is_valid(cls, uf) -> bool:
         """Verifica se um valor é uma UF válida"""
-        return uf in cls.__members__
+        if uf is None:
+            return False
+
+        if isinstance(uf, cls):
+            return True
+
+        if isinstance(uf, str):
+            uf_normalizada = uf.strip().upper()
+            return uf_normalizada in cls.__members__ or uf_normalizada in cls._value2member_map_
+
+        return False
 
     @classmethod
     def get_all_values(cls) -> list[str]:
