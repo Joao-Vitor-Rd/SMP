@@ -29,6 +29,8 @@ import { authApi, clearAuthSession } from "../../lib/authApi";
 
 type QueueStatus = "pending" | "uploading" | "completed" | "rejected";
 
+type LocationException = "sem_gps" | "exif_corrompido";
+
 type UploadItem = {
   id: string;
   file: File;
@@ -37,6 +39,9 @@ type UploadItem = {
   progress: number;
   message: string;
   hasLocation: boolean | null;
+  manualLat: string;
+  manualLng: string;
+  locationException: LocationException | null;
 };
 
 type UserState = {
@@ -183,6 +188,46 @@ function shouldShowGpsUi(item: UploadItem) {
   return validateFile(item.file) === null && item.message !== DUPLICATE_QUEUE_MESSAGE;
 }
 
+function filterCoordInput(value: string) {
+  let v = value.replace(/,/g, ".").replace(/[^\d.\-]/g, "");
+  const firstMinus = v.indexOf("-");
+  if (firstMinus > 0) {
+    v = v.replace(/-/g, "");
+  } else if (firstMinus === 0) {
+    v = "-" + v.slice(1).replace(/-/g, "");
+  }
+  const dot = v.indexOf(".");
+  if (dot !== -1) {
+    v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
+  }
+  return v;
+}
+
+function parseLatitude(s: string): number | null {
+  const t = s.trim();
+  if (t === "" || t === "-" || t === "." || t === "-.") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < -90 || n > 90) return null;
+  return n;
+}
+
+function parseLongitude(s: string): number | null {
+  const t = s.trim();
+  if (t === "" || t === "-" || t === "." || t === "-.") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < -180 || n > 180) return null;
+  return n;
+}
+
+function itemNeedsManualLocation(item: UploadItem) {
+  return shouldShowGpsUi(item) && item.hasLocation === false;
+}
+
+function isManualLocationResolved(item: UploadItem) {
+  if (item.locationException) return true;
+  return parseLatitude(item.manualLat) !== null && parseLongitude(item.manualLng) !== null;
+}
+
 async function deriveHasLocationFromFile(file: File): Promise<boolean> {
   try {
     const gps = await exifr.gps(file);
@@ -232,6 +277,17 @@ export default function UploadImagensPage() {
     () => items.filter((item) => item.hasLocation === false && shouldShowGpsUi(item)).length,
     [items]
   );
+
+  const podeMapearCoordenadas = useMemo(() => {
+    let temArquivoRelevante = false;
+    for (const item of items) {
+      if (!shouldShowGpsUi(item)) continue;
+      temArquivoRelevante = true;
+      if (item.hasLocation === null) return false;
+      if (item.hasLocation === false && !isManualLocationResolved(item)) return false;
+    }
+    return temArquivoRelevante;
+  }, [items]);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -358,6 +414,9 @@ export default function UploadImagensPage() {
           progress: 0,
           message: validationError,
           hasLocation: null,
+          manualLat: "",
+          manualLng: "",
+          locationException: null,
         });
         return;
       }
@@ -371,6 +430,9 @@ export default function UploadImagensPage() {
           progress: 0,
           message: DUPLICATE_QUEUE_MESSAGE,
           hasLocation: null,
+          manualLat: "",
+          manualLng: "",
+          locationException: null,
         });
         return;
       }
@@ -384,6 +446,9 @@ export default function UploadImagensPage() {
         progress: 0,
         message: "Aguardando envio",
         hasLocation: null,
+        manualLat: "",
+        manualLng: "",
+        locationException: null,
       });
     });
 
@@ -611,11 +676,23 @@ export default function UploadImagensPage() {
                       const isCompleted = item.status === 'completed';
                       const isRejected = item.status === 'rejected';
 
+                      const latInvalid =
+                        itemNeedsManualLocation(item) &&
+                        !item.locationException &&
+                        item.manualLat.trim() !== "" &&
+                        parseLatitude(item.manualLat) === null;
+                      const lngInvalid =
+                        itemNeedsManualLocation(item) &&
+                        !item.locationException &&
+                        item.manualLng.trim() !== "" &&
+                        parseLongitude(item.manualLng) === null;
+
                       return (
                         <div
                           key={item.id}
-                          className={`flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:items-center sm:justify-between ${isRejected ? 'border-red-200 bg-red-50' : isCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}
+                          className={`flex flex-col gap-3 rounded-2xl border p-3 ${isRejected ? 'border-red-200 bg-red-50' : isCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}
                         >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex items-start gap-3 sm:flex-1">
                             <div className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border ${isRejected ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-100'}`}>
                               {item.previewUrl ? (
@@ -673,7 +750,7 @@ export default function UploadImagensPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-end gap-2 sm:w-auto">
+                          <div className="flex items-center justify-end gap-2 sm:w-auto sm:shrink-0">
                             <button
                               type="button"
                               onClick={() => {
@@ -690,12 +767,129 @@ export default function UploadImagensPage() {
                               <Trash2 size={16} />
                             </button>
                           </div>
+                          </div>
+
+                          {itemNeedsManualLocation(item) ? (
+                            <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-3">
+                              <p className="text-[0.65rem] font-bold uppercase tracking-wider text-amber-900/80">
+                                Pendentes de localização — coordenadas manuais
+                              </p>
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                  <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                                    Latitude
+                                  </label>
+                                  <input
+                                    id={`lat-${item.id}`}
+                                    type="text"
+                                    inputMode="decimal"
+                                    autoComplete="off"
+                                    disabled={!!item.locationException}
+                                    value={item.manualLat}
+                                    onChange={(e) => {
+                                      const v = filterCoordInput(e.target.value);
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        manualLat: v,
+                                        locationException: null,
+                                      }));
+                                    }}
+                                    placeholder="-23,5505"
+                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${latInvalid ? "border-red-400" : "border-gray-200"}`}
+                                  />
+                                </div>
+                                <div>
+                                  <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                                    Longitude
+                                  </label>
+                                  <input
+                                    id={`lng-${item.id}`}
+                                    type="text"
+                                    inputMode="decimal"
+                                    autoComplete="off"
+                                    disabled={!!item.locationException}
+                                    value={item.manualLng}
+                                    onChange={(e) => {
+                                      const v = filterCoordInput(e.target.value);
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        manualLng: v,
+                                        locationException: null,
+                                      }));
+                                    }}
+                                    placeholder="-46,6333"
+                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${lngInvalid ? "border-red-400" : "border-gray-200"}`}
+                                  />
+                                </div>
+                              </div>
+                              {(latInvalid || lngInvalid) ? (
+                                <p className="text-xs font-medium text-red-600">Use apenas números decimais. Latitude −90 a 90; longitude −180 a 180.</p>
+                              ) : null}
+                              <div>
+                                <p className="mb-2 text-xs font-semibold text-gray-600">Sem dados de posição?</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        locationException: c.locationException === "sem_gps" ? null : "sem_gps",
+                                        manualLat: "",
+                                        manualLng: "",
+                                      }))
+                                    }
+                                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                                      item.locationException === "sem_gps"
+                                        ? "border-[#0a5483] bg-[#0a5483] text-white"
+                                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                                    }`}
+                                  >
+                                    Sem GPS
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        locationException: c.locationException === "exif_corrompido" ? null : "exif_corrompido",
+                                        manualLat: "",
+                                        manualLng: "",
+                                      }))
+                                    }
+                                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                                      item.locationException === "exif_corrompido"
+                                        ? "border-[#0a5483] bg-[#0a5483] text-white"
+                                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                                    }`}
+                                  >
+                                    EXIF corrompido
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="mt-8">
+              <button
+                type="button"
+                disabled={!podeMapearCoordenadas}
+                onClick={() => router.push("/mapa")}
+                className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold uppercase tracking-wide transition ${
+                  podeMapearCoordenadas
+                    ? "bg-[#0a5483] text-white shadow-sm hover:bg-[#083d61]"
+                    : "cursor-not-allowed bg-gray-200 text-gray-500"
+                }`}
+              >
+                Mapear coordenadas
+                <ChevronRight size={18} strokeWidth={2.5} />
+              </button>
             </div>
           </section>
         </div>
