@@ -14,6 +14,7 @@ import {
   FileText,
   Folder,
   History,
+  Info,
   Loader2,
   LogOut,
   Map,
@@ -222,6 +223,11 @@ export default function UploadImagensPage() {
   const itemsRef = useRef<UploadItem[]>([]);
 
   const totalSelectedSize = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0), [items]);
+
+  const arquivosSemCoordenadas = useMemo(
+    () => items.filter((item) => item.hasLocation === false && shouldShowGpsUi(item)).length,
+    [items]
+  );
 
   useEffect(() => {
     itemsRef.current = items;
@@ -577,6 +583,19 @@ export default function UploadImagensPage() {
               </div>
 
               <div className="p-4">
+                {arquivosSemCoordenadas > 0 ? (
+                  <div className="mb-4 flex gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+                    <Info className="h-5 w-5 shrink-0 text-sky-600" aria-hidden />
+                    <div>
+                      <p className="font-bold text-sky-950">Georreferenciamento manual</p>
+                      <p className="mt-1 text-sky-900/90">
+                        {arquivosSemCoordenadas === 1
+                          ? "1 arquivo selecionado não possui coordenadas GPS nos metadados (EXIF/XMP). Você poderá informar a localização manualmente no mapa no próximo passo."
+                          : `${arquivosSemCoordenadas} arquivos selecionados não possuem coordenadas GPS nos metadados (EXIF/XMP). Você poderá informar a localização manualmente no mapa no próximo passo.`}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
                 {!items.length ? (
                   <div className="flex min-h-36 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-400">
                     Nenhum arquivo selecionado ainda.
