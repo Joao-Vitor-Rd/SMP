@@ -112,6 +112,57 @@ function validateFile(file: File) {
   return null;
 }
 
+function extractUploadErrorMessage(error: unknown) {
+  if (!axios.isAxiosError(error)) {
+    return "Falha ao enviar imagem.";
+  }
+
+  const data = error.response?.data as
+    | { detail?: unknown; message?: unknown; error?: unknown }
+    | string
+    | undefined;
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  const detail = data?.detail ?? data?.message ?? data?.error;
+
+  if (Array.isArray(detail)) {
+    const mensagem = detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+
+        if (item && typeof item === "object") {
+          const candidate = item as { msg?: unknown; message?: unknown; detail?: unknown };
+          return typeof candidate.msg === "string"
+            ? candidate.msg
+            : typeof candidate.message === "string"
+              ? candidate.message
+              : typeof candidate.detail === "string"
+                ? candidate.detail
+                : "";
+        }
+
+        return "";
+      })
+      .filter(Boolean)
+      .join(" ");
+
+    if (mensagem.trim()) {
+      return mensagem;
+    }
+  }
+
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+
+  return "Falha ao enviar imagem.";
+}
+
 function isSameFile(a: File, b: File) {
   return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
 }
@@ -185,9 +236,6 @@ export default function UploadImagensPage() {
 
     try {
       const response = await authApi.post(FOTO_UPLOAD_ENDPOINT, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
         onUploadProgress: (progressEvent) => {
           if (!progressEvent.total) {
             return;
@@ -230,9 +278,7 @@ export default function UploadImagensPage() {
         message: falhaUpload?.reason ?? "Falha ao enviar imagem.",
       }));
     } catch (error) {
-      const mensagemErro = axios.isAxiosError(error)
-        ? (error.response?.data as { detail?: string } | undefined)?.detail ?? "Falha ao enviar imagem."
-        : "Falha ao enviar imagem.";
+      const mensagemErro = extractUploadErrorMessage(error);
 
       updateQueueItem(item.id, (current) => ({
         ...current,

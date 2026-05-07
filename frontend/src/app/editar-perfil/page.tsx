@@ -148,6 +148,7 @@ export default function EditarPerfilPage() {
   });
   const [showPopUp, setShowPopUp] = useState(false);
   const [tipoEquipe, setTipoEquipe] = useState<'TECNICO' | 'COLABORADOR'>('TECNICO');
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   const [convite, setConvite] = useState({
     nome: '',
     email: '',
@@ -649,8 +650,13 @@ export default function EditarPerfilPage() {
             </div>
 
             <div className="flex gap-4 mt-12">
-              <button className="bg-[#003e68] text-white px-10 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-[#002d4d] transition-all flex items-center gap-2">
-                <Save size={16} /> Salvar Alterações
+              <button
+                type="button"
+                onClick={handleSalvarPerfil}
+                disabled={salvandoPerfil}
+                className="bg-[#003e68] text-white px-10 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-[#002d4d] transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                <Save size={16} /> {salvandoPerfil ? 'Salvando...' : 'Salvar Alterações'}
               </button>
               <button className="bg-gray-100 text-gray-700 px-10 py-3 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all border border-gray-300">Cancelar</button>
             </div>
