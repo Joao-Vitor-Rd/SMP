@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
 import {
   Activity,
   ArrowLeft,
@@ -142,6 +142,29 @@ function formatarCpfCft(valor: string) {
   return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-${digitos.slice(9)}`;
 }
 
+function normalizarTelefone(valor: string) {
+  return valor.replace(/\D/g, '').slice(0, 11);
+}
+
+function formatarTelefonePadrao(valor: string) {
+  const digitos = normalizarTelefone(valor);
+
+  if (digitos.length === 11) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+  }
+
+  if (digitos.length === 10) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
+  }
+
+  return valor.trim();
+}
+
+function telefoneEhValido(valor: string) {
+  const digitos = normalizarTelefone(valor);
+  return digitos.length === 10 || digitos.length === 11;
+}
+
 function emailEhValido(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -194,6 +217,13 @@ function obterFeedbackErro(message: string) {
     };
   }
 
+  if (/cft\/?cpf.*já cadastrado|cft\/?cpf.*em uso|duplicad/i.test(message)) {
+    return {
+      title: 'CFT/CPF duplicado',
+      message: 'Este CFT/CPF já está em uso no sistema. Use outro identificador.',
+    };
+  }
+
   if (/telefone.*inválid|celular.*inválid/i.test(message)) {
     return {
       title: 'Telefone inválido',
@@ -208,17 +238,10 @@ function obterFeedbackErro(message: string) {
     };
   }
 
-  if (/11 dígitos|11 digitos|cft\/?cpf.*apenas números|cft\/?cpf.*somente números|cft\/?cpf.*já cadastrado|cft\/?cpf.*em uso/i.test(message)) {
+  if (/11 dígitos|11 digitos|cft\/?cpf.*apenas números|cft\/?cpf.*somente números/i.test(message)) {
     return {
       title: 'CFT/CPF inválido',
       message: 'O CFT/CPF deve conter 11 dígitos numéricos.',
-    };
-  }
-
-  if (/cft\/?cpf.*já cadastrado|cft\/?cpf.*em uso|duplicad/i.test(message)) {
-    return {
-      title: 'CFT/CPF duplicado',
-      message: 'Este CFT/CPF já está em uso no sistema. Use outro identificador.',
     };
   }
 
@@ -301,10 +324,16 @@ export default function EditarPerfilPage() {
     const uf = perfil.uf.trim().toUpperCase();
     const cidade = perfil.cidade.trim();
     const empresaOuOrgao = perfil.empresa.trim();
-    const telefone = perfil.telefone.trim();
+    const telefoneInformado = perfil.telefone.trim();
+    const telefone = telefoneInformado ? formatarTelefonePadrao(telefoneInformado) : '';
 
     if (!nome || !uf || !cidade) {
       mostrarFeedback('Preencha nome, UF e cidade para salvar o perfil.', 'error', 'Campos obrigatórios');
+      return;
+    }
+
+    if (telefoneInformado && !telefoneEhValido(telefoneInformado)) {
+      mostrarFeedback('Informe um telefone válido no formato (31) 99781-4542.', 'error', 'Telefone inválido');
       return;
     }
 
@@ -396,7 +425,7 @@ export default function EditarPerfilPage() {
           crea: usuario.crea ?? usuario.identificador_profissional ?? current.crea,
           cft: usuario.cft ?? usuario.cpf ?? current.cft,
           empresa: usuario.empresa ?? current.empresa,
-          telefone: usuario.telefone ?? current.telefone,
+          telefone: usuario.telefone ? formatarTelefonePadrao(usuario.telefone) : current.telefone,
           uf: usuario.uf ?? current.uf,
           cidade: usuario.cidade ?? current.cidade,
           cargo,
@@ -424,7 +453,7 @@ export default function EditarPerfilPage() {
           crea: supervisor.identificador_profissional ?? current.crea,
           email: supervisor.email ?? current.email,
           empresa: supervisor.empresa ?? current.empresa,
-          telefone: supervisor.telefone ?? current.telefone,
+          telefone: supervisor.telefone ? formatarTelefonePadrao(supervisor.telefone) : current.telefone,
           uf: supervisor.uf ?? current.uf,
           cidade: supervisor.cidade ?? current.cidade,
           cargo: cargo || 'supervisor',
@@ -441,7 +470,7 @@ export default function EditarPerfilPage() {
             crea: supervisor.identificador_profissional ?? usuario.crea ?? usuario.identificador_profissional,
             identificador_profissional: supervisor.identificador_profissional ?? usuario.identificador_profissional,
             empresa: supervisor.empresa ?? usuario.empresa,
-            telefone: supervisor.telefone ?? usuario.telefone,
+            telefone: supervisor.telefone ? formatarTelefonePadrao(supervisor.telefone) : usuario.telefone,
             uf: supervisor.uf ?? usuario.uf,
             cidade: supervisor.cidade ?? usuario.cidade,
             cargo: cargo || 'supervisor',
@@ -797,8 +826,9 @@ export default function EditarPerfilPage() {
                   title="Telefone"
                   aria-label="Telefone"
                   value={perfil.telefone}
-                  onChange={(e) => setPerfil({...perfil, telefone: e.target.value})}
-                  placeholder="(85) 99999-9999"
+                  onChange={(e) => setPerfil({ ...perfil, telefone: e.target.value })}
+                  onBlur={() => setPerfil((current) => ({ ...current, telefone: current.telefone ? formatarTelefonePadrao(current.telefone) : '' }))}
+                  placeholder="(31) 99781-4542"
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                 />
               </div>
