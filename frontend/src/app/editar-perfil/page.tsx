@@ -30,6 +30,12 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
+const UF_OPTIONS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+];
+
 type CargoUsuario = 'supervisor' | 'tecnico' | 'colaborador' | '';
 
 type PerfilState = {
@@ -431,6 +437,63 @@ export default function EditarPerfilPage() {
       mostrarFeedback(feedbackErro.message, 'error', feedbackErro.title);
     } finally {
       setEnviandoConvite(false);
+    }
+  }
+
+  async function handleSalvarPerfil() {
+    try {
+      setSalvandoPerfil(true);
+
+      if (!nomeEmEdicao.trim()) {
+        mostrarFeedback('O nome completo é obrigatório.', 'error', 'Campo obrigatório');
+        return;
+      }
+
+      if (!emailEhValido(perfil.email.trim())) {
+        mostrarFeedback('E-mail inválido. Informe um e-mail válido.', 'error', 'E-mail inválido');
+        return;
+      }
+
+      if (!telefoneEhValido(perfil.telefone)) {
+        mostrarFeedback('Telefone inválido. Informe um telefone válido no formato (31) 99781-4542.', 'error', 'Telefone inválido');
+        return;
+      }
+
+      const payload = {
+        nome: nomeEmEdicao.trim(),
+        telefone: normalizarTelefone(perfil.telefone),
+        empresa_ou_orgao: perfil.empresa.trim(),
+        uf: perfil.uf,
+        cidade: perfil.cidade.trim(),
+      };
+
+      const endpoint = perfil.cargo === 'supervisor' ? '/api/supervisores/me' : '/api/colaboradores/me';
+      const response = await authApi.put(endpoint, payload);
+
+      mostrarFeedback('Perfil atualizado com sucesso.', 'success', 'Alterações salvas');
+
+      setPerfil({...perfil, nomeCompleto: nomeEmEdicao});
+      localStorage.setItem(
+        'usuario',
+        JSON.stringify({
+          ...JSON.parse(localStorage.getItem('usuario') || '{}'),
+          nome: nomeEmEdicao,
+          telefone: perfil.telefone,
+          empresa: perfil.empresa,
+          uf: perfil.uf,
+          cidade: perfil.cidade,
+        })
+      );
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        return;
+      }
+
+      console.error('Erro ao atualizar perfil:', error);
+      const feedbackErro = obterFeedbackErro(extrairMensagemErroApi(error));
+      mostrarFeedback(feedbackErro.message, 'error', feedbackErro.title);
+    } finally {
+      setSalvandoPerfil(false);
     }
   }
 
