@@ -706,7 +706,7 @@ export default function UploadImagensPage() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="truncate text-sm font-bold text-gray-900">{item.file.name}</p>
                                 <span className={`rounded-full border px-2.5 py-1 text-[0.68rem] font-bold uppercase tracking-[0.2em] ${isRejected ? 'border-red-200 bg-white text-red-600' : isCompleted ? 'border-emerald-200 bg-white text-emerald-700' : isUploading ? 'border-blue-200 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
-                                  {isRejected ? 'Rejeitado' : isCompleted ? 'Concluído' : isUploading ? 'Enviando' : "Na fila"}
+                                  {isRejected ? 'Pendente' : isCompleted ? 'Concluído' : isUploading ? 'Enviando' : "Na fila"}
                                 </span>
                               </div>
 
