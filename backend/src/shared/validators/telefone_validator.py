@@ -13,29 +13,19 @@ class TelefoneValidator(ITelefoneValidator):
     - 11xxxxxxxx (fixo sem formatação)
     """
     
-    # Regex para celular (2 dígitos de DDD + 9 + 4 dígitos + 4 dígitos)
-    REGEX_CELULAR = r'^(\(?\d{2}\)?)\s?(9\d{4})[-.\s]?(\d{4})$'
-    
-    # Regex para telefone fixo (2 dígitos de DDD + 4 dígitos + 4 dígitos)
-    REGEX_FIXO = r'^\(?(\d{2})\)?(\s|-)?(3|4|5|6|7|8)\d{3}(\-|\s)?(\d{4})$'
-    
     def validar_telefone(self, telefone: str) -> bool:
         if not telefone or not isinstance(telefone, str):
             return False
         
-        telefone = telefone.strip()
-        
-        if re.match(self.REGEX_CELULAR, telefone) or re.match(self.REGEX_FIXO, telefone):
-            return True
-        
-        return False
+        apenas_numeros = re.sub(r'\D', '', telefone)
+        return len(apenas_numeros) in {10, 11}
     
     def validar_celular(self, telefone: str) -> bool:
         if not telefone or not isinstance(telefone, str):
             return False
         
-        telefone = telefone.strip()
-        return bool(re.match(self.REGEX_CELULAR, telefone))
+        apenas_numeros = re.sub(r'\D', '', telefone)
+        return len(apenas_numeros) == 11
     
     def formatar_telefone(self, telefone: str) -> str:
         if not self.validar_telefone(telefone):
