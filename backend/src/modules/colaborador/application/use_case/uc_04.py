@@ -61,6 +61,8 @@ class CriarColaboradorUseCase:
         
         create_data.email = email_formatado
 
+        print(create_data.cft)
+
         if create_data.is_tecnico:
             if not create_data.cft or not create_data.cft.strip():
                 raise ValueError("CFT/CPF é obrigatório para técnico")
@@ -75,6 +77,9 @@ class CriarColaboradorUseCase:
             create_data.cft = cft_formatado
         else:
             create_data.cft = None
+
+        print(create_data.cft)
+
         
         # Validar se o email já existe (consulta única UNION em ambas tabelas)
         if self.email_unico_validator.validar_email_unico(create_data.email):
@@ -127,7 +132,8 @@ class CriarColaboradorUseCase:
                     nome_usuario=novo_colaborador.nome,
                     email_usuario=novo_colaborador.email,
                     is_tecnico=novo_colaborador.is_tecnico,
-                    limite_acesso=novo_colaborador.limite_acesso
+                    limite_acesso=novo_colaborador.limite_acesso,
+                    cft=novo_colaborador.cft
                 )
             except Exception as email_error:
                 self.repository.delete(colaborador_salvo.id)

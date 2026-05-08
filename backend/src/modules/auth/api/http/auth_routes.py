@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 from datetime import datetime
 from src.shared.infrastructure.db import get_session
@@ -53,11 +53,12 @@ def get_client_ip(request: Request) -> str:
     response_model=LoginResponseDTO,
     status_code=200,
     summary="Autenticar Usuário",
-    description="Realiza login de supervisor ou colaborador com validação de credenciais e retorna tokens JWT"
+    description="Realiza login de supervisor ou colaborador com validação de credenciais e retorna tokens JWT em HttpOnly cookies"
 )
 async def login(
     login_data: LoginDTO,
     request: Request,
+    response: Response,
     repository = Depends(get_repository),
     hasher = Depends(get_hasher),
     token_service = Depends(get_token_service),
@@ -66,7 +67,33 @@ async def login(
     try:
         ip_user = get_client_ip(request)
         use_case = LoginUseCase(repository, hasher, token_service, limitador)
-        return await use_case.execute(login_data, ip_user)
+        login_response = await use_case.execute(login_data, ip_user)
+        
+        # Adicionar tokens em HttpOnly cookies
+        response.set_cookie(
+            key="access_token",
+            value=login_response.token_acesso,
+            httponly=True,
+            # secure=True,  # Apenas HTTPS (descomente em produção)
+            samesite="lax",
+            max_age=900  # 15 minutos
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=login_response.token_atualizacao,
+            httponly=True,
+            # secure=True,  # Apenas HTTPS (descomente em produção)
+            samesite="lax",
+            max_age=2592000 if login_data.lembrar_me else 28800  # 30 dias ou 8 horas
+        )
+        
+        # Retornar resposta sem expor os tokens
+        return LoginResponseDTO(
+            token_acesso="",  # Vazio pois está no cookie
+            token_atualizacao="",  # Vazio pois está no cookie
+            tipo_token="bearer",
+            usuario=login_response.usuario
+        )
     except ValueError as e:
         detail = str(e)
         if detail.isdigit():
@@ -98,16 +125,62 @@ async def login(
     description="Usa o refresh token para obter um novo access token sem fazer login novamente"
 )
 async def refresh_token(
-    refresh_data: RefreshTokenDTO,
+    request: Request,
+    response: Response,
     token_service = Depends(get_token_service)
 ):
     try:
+        # Ler refresh token do cookie
+        refresh_token_cookie = request.cookies.get("refresh_token")
+        if not refresh_token_cookie:
+            raise ValueError("Token de atualização não encontrado")
+        
+        refresh_data = RefreshTokenDTO(token_atualizacao=refresh_token_cookie)
         use_case = RefreshTokenUseCase(token_service)
-        return use_case.execute(refresh_data)
+        result = use_case.execute(refresh_data)
+        
+        # Adicionar novo access token em HttpOnly cookie
+        response.set_cookie(
+            key="access_token",
+            value=result.token_acesso,
+            httponly=True,
+            # secure=True,  # Apenas HTTPS (descomente em produção)
+            samesite="lax",
+            max_age=900  # 15 minutos
+        )
+        
+        # Retornar resposta sem expor o token
+        return RefreshTokenResponseDTO(
+            token_acesso="",  # Vazio pois está no cookie
+            tipo_token="bearer"
+        )
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao renovar token: {str(e)}")
+
+
+@router.post(
+    "/logout",
+    status_code=204,
+    summary="Fazer Logout",
+    description="Limpa os tokens armazenados em HttpOnly cookies"
+)
+async def logout(response: Response):
+    """Remove os tokens dos cookies"""
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        # secure=True,  # Apenas HTTPS (descomente em produção)
+        samesite="lax"
+    )
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        # secure=True,  # Apenas HTTPS (descomente em produção)
+        samesite="lax"
+    )
+    return None
 
 
 @router.get(

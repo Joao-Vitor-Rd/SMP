@@ -7,8 +7,28 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("token_acesso");
-    router.replace(token ? "/editar-perfil" : "/login");
+    const checkAuth = async () => {
+      try {
+        // Tentar acessar o endpoint /auth/me para verificar autenticação
+        const res = await fetch("http://localhost:8000/auth/me", {
+          credentials: "include",  // Incluir cookies na requisição
+        });
+        
+        if (res.ok) {
+          // Usuário autenticado, redirecionar para editar-perfil
+          router.replace("/editar-perfil");
+        } else {
+          // Não autenticado, ir para login
+          router.replace("/login");
+        }
+      } catch (error) {
+        console.error("Erro ao verificar autenticação:", error);
+        // Em caso de erro, redirecionar para login
+        router.replace("/login");
+      }
+    };
+
+    checkAuth();
   }, [router]);
 
   return (
