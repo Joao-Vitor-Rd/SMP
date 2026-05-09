@@ -1,5 +1,6 @@
 import requests
 import pytest
+from uuid import uuid4
 from playwright.sync_api import sync_playwright
 
 BASE_URL = "http://localhost:8000"
@@ -32,6 +33,30 @@ class AuthManager:
 
 
 auth_manager = AuthManager()
+
+
+def criar_usuario_teste():
+    """Cria um supervisor único para testes que precisam de login."""
+    email = f"login.teste.{uuid4().hex[:8]}@email.com"
+    senha = "Senha@123"
+
+    response = requests.post(f"{BASE_URL}/api/supervisores/", json={
+        "nome": "Usuario Login",
+        "identificador_profissional": f"MG-{uuid4().hex[:6]}",
+        "cidade": "Belo Horizonte",
+        "uf": "MG",
+        "email": email,
+        "senha": senha,
+    })
+    response.raise_for_status()
+
+    return email, senha
+
+
+@pytest.fixture(scope="function") # roda antes de cada teste
+def usuario_teste():
+    """Entrega email e senha de um supervisor novo para o teste."""
+    return criar_usuario_teste()
 
 
 @pytest.fixture(scope="session")
