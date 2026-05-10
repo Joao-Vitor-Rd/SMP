@@ -1,7 +1,13 @@
 import requests
 import pytest
+import sys
 from uuid import uuid4
+from pathlib import Path
 from playwright.sync_api import sync_playwright
+
+TESTS_DIR = Path(__file__).resolve().parents[1]
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
 
 BASE_URL = "http://localhost:8000"
 
