@@ -27,4 +27,3 @@ def test_bloquear_campos_obrigatorios_vazios(page):
         assert campo.evaluate("element => element.validity.valueMissing")
 
     expect(page).to_have_url(f"{BASE_URL}/cadastro")
-

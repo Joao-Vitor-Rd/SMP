@@ -27,40 +27,53 @@ jobs:
           if [ -n "$BACKEND_ENV" ]; then
             printf '%s\n' "$BACKEND_ENV" > backend/.env
           else
-            cat > backend/.env <<'EOF'
-          POSTGRES_USER=postgres
-          POSTGRES_PASSWORD=postgres
-          POSTGRES_DB=smv
-          DATABASE_URL=postgresql://postgres:postgres@postgres:5432/smv
-
-          REDIS_URL=redis://redis:6379/0
-
-          SECRET_KEY_JWT=ci-test-secret-key
-          ALGORITHM=HS256
-
-          MINIO_ROOT_USER=minioadmin
-          MINIO_ROOT_PASSWORD=minioadmin
-          MINIO_BUCKET=smp-fotos
-
-          CREA_API_KEY=ci-test-key
-          CREA_API_URL=https://www.consultacrea.com.br/api/index.php
-
-          SMTP_SERVER=smtp.gmail.com
-          SMTP_PORT=587
-          SMTP_USER=ci@example.com
-          SMTP_PASSWORD=ci-password
-          FROM_EMAIL=ci@example.com
-          EOF
+            {
+              echo "POSTGRES_USER=postgres"
+              echo "POSTGRES_PASSWORD=postgres"
+              echo "POSTGRES_DB=smv"
+              echo "DATABASE_URL=postgresql://postgres:postgres@postgres:5432/smv"
+              echo "REDIS_URL=redis://redis:6379/0"
+              echo "SECRET_KEY_JWT=ci-test-secret-key"
+              echo "ALGORITHM=HS256"
+              echo "MINIO_ROOT_USER=minioadmin"
+              echo "MINIO_ROOT_PASSWORD=minioadmin"
+              echo "MINIO_BUCKET=smp-fotos"
+              echo "MINIO_ENDPOINT=minio:9000"
+              echo "MINIO_USE_SSL=false"
+              echo "CREA_API_KEY=ci-test-key"
+              echo "CREA_API_URL=https://www.consultacrea.com.br/api/index.php"
+              echo "SMTP_SERVER=smtp.gmail.com"
+              echo "SMTP_PORT=587"
+              echo "SMTP_USER=ci@example.com"
+              echo "SMTP_PASSWORD=ci-password"
+              echo "FROM_EMAIL=ci@example.com"
+            } > backend/.env
           fi
 
           test -s backend/.env
-          grep -q '^POSTGRES_USER=' backend/.env
-          grep -q '^POSTGRES_PASSWORD=' backend/.env
-          grep -q '^POSTGRES_DB=' backend/.env
-          grep -q '^DATABASE_URL=' backend/.env
+          grep -q '^POSTGRES_USER=.' backend/.env
+          grep -q '^POSTGRES_PASSWORD=.' backend/.env
+          grep -q '^POSTGRES_DB=.' backend/.env
+          grep -q '^DATABASE_URL=.' backend/.env
+          grep -q '^REDIS_URL=.' backend/.env
+          grep -q '^SECRET_KEY_JWT=.' backend/.env
 
       - name: Build das imagens Docker
-        run: docker compose build
+        run: |
+          for tentativa in 1 2 3; do
+            echo "Tentativa ${tentativa}/3 de build das imagens..."
+            if docker compose build; then
+              exit 0
+            fi
+
+            if [ "$tentativa" = "3" ]; then
+              echo "Build falhou após 3 tentativas."
+              exit 1
+            fi
+
+            echo "Build falhou. Aguardando 20s antes de tentar novamente..."
+            sleep 20
+          done
 
       - name: Subir aplicação com Docker Compose
         run: |
