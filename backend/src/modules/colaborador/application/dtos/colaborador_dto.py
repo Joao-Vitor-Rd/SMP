@@ -22,6 +22,8 @@ class UpdateColaboradorDTO(BaseModel):
     empresa_ou_orgao: Optional[str] = None
     telefone: Optional[str] = None
     instituicao_ensino: Optional[str] = None
+    is_tecnico: Optional[bool] = None
+    id_profissional_responsavel: Optional[int] = None
 
 
 class ColaboradorResponseDTO(BaseModel):
