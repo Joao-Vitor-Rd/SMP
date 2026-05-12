@@ -285,7 +285,7 @@ export default function EditarPerfilPage() {
           id: usuario.id ?? 0,
           nomeCompleto: usuario.nome ?? current.nomeCompleto,
           email: usuario.email ?? current.email,
-          crea: usuario.crea ?? usuario.identificador_profissional ?? current.crea,
+          crea: cargo === 'supervisor' ? (usuario.crea ?? usuario.identificador_profissional ?? current.crea) : '',
           cft: usuario.cft ?? usuario.cpf ?? current.cft,
           empresa: usuario.empresa ?? current.empresa,
           telefone: usuario.telefone ? formatarTelefonePadrao(usuario.telefone) : current.telefone,
@@ -295,10 +295,6 @@ export default function EditarPerfilPage() {
         }));
         setNomeEmEdicao(usuario.nome ?? '');
 
-        if (cargo !== 'supervisor') {
-          return;
-        }
-
         const tokenAcesso = localStorage.getItem('token_acesso');
         if (!tokenAcesso) {
           console.warn('Token de acesso não encontrado no localStorage');
@@ -306,39 +302,61 @@ export default function EditarPerfilPage() {
         }
 
         const resposta = await authApi.get('/auth/me');
+        const usuario_api = resposta.data;
 
-        const supervisor = resposta.data;
-
-        setPerfil((current) => ({
-          ...current,
-          id: supervisor.id ?? current.id,
-          nomeCompleto: supervisor.nome ?? current.nomeCompleto,
-          crea: supervisor.identificador_profissional ?? current.crea,
-          email: supervisor.email ?? current.email,
-          empresa: supervisor.empresa ?? current.empresa,
-          telefone: supervisor.telefone ? formatarTelefonePadrao(supervisor.telefone) : current.telefone,
-          uf: supervisor.uf ?? current.uf,
-          cidade: supervisor.cidade ?? current.cidade,
-          cargo: cargo || 'supervisor',
-        }));
-        setNomeEmEdicao(supervisor.nome ?? usuario.nome ?? '');
-
-        localStorage.setItem(
-          'usuario',
-          JSON.stringify({
-            ...usuario,
-            id: supervisor.id ?? usuario.id,
-            nome: supervisor.nome ?? usuario.nome,
-            email: supervisor.email ?? usuario.email,
-            crea: supervisor.identificador_profissional ?? usuario.crea ?? usuario.identificador_profissional,
-            identificador_profissional: supervisor.identificador_profissional ?? usuario.identificador_profissional,
-            empresa: supervisor.empresa ?? usuario.empresa,
-            telefone: supervisor.telefone ? formatarTelefonePadrao(supervisor.telefone) : usuario.telefone,
-            uf: supervisor.uf ?? usuario.uf,
-            cidade: supervisor.cidade ?? usuario.cidade,
+        if (cargo === 'supervisor') {
+          const supervisor = usuario_api;
+          setPerfil((current) => ({
+            ...current,
+            id: supervisor.id ?? current.id,
+            nomeCompleto: supervisor.nome ?? current.nomeCompleto,
+            crea: supervisor.identificador_profissional ?? current.crea,
+            email: supervisor.email ?? current.email,
+            empresa: supervisor.empresa ?? current.empresa,
+            telefone: supervisor.telefone ? formatarTelefonePadrao(supervisor.telefone) : current.telefone,
+            uf: supervisor.uf ?? current.uf,
+            cidade: supervisor.cidade ?? current.cidade,
             cargo: cargo || 'supervisor',
-          })
-        );
+          }));
+          setNomeEmEdicao(supervisor.nome ?? usuario.nome ?? '');
+        } else if (cargo === 'colaborador' || cargo === 'tecnico') {
+          const colaborador = usuario_api;
+          setPerfil((current) => ({
+            ...current,
+            id: colaborador.id ?? current.id,
+            nomeCompleto: colaborador.nome ?? current.nomeCompleto,
+            email: colaborador.email ?? current.email,
+            cft: colaborador.cft ?? current.cft,
+            empresa: colaborador.empresa_ou_orgao ?? current.empresa,
+            telefone: colaborador.telefone ? formatarTelefonePadrao(colaborador.telefone) : current.telefone,
+            uf: colaborador.uf ?? current.uf,
+            cidade: colaborador.cidade ?? current.cidade,
+            cargo: cargo || 'colaborador',
+          }));
+          setNomeEmEdicao(colaborador.nome ?? usuario.nome ?? '');
+        }
+
+        const userDataToSave = {
+          ...usuario,
+          id: usuario_api.id ?? usuario.id,
+          nome: usuario_api.nome ?? usuario.nome,
+          email: usuario_api.email ?? usuario.email,
+          telefone: usuario_api.telefone ? formatarTelefonePadrao(usuario_api.telefone) : usuario.telefone,
+          uf: usuario_api.uf ?? usuario.uf,
+          cidade: usuario_api.cidade ?? usuario.cidade,
+          cargo: cargo || usuario.cargo,
+        };
+
+        if (cargo === 'supervisor') {
+          (userDataToSave as any).crea = usuario_api.identificador_profissional ?? usuario.crea;
+          (userDataToSave as any).identificador_profissional = usuario_api.identificador_profissional ?? usuario.identificador_profissional;
+          (userDataToSave as any).empresa = usuario_api.empresa ?? usuario.empresa;
+        } else if (cargo === 'colaborador' || cargo === 'tecnico') {
+          (userDataToSave as any).cft = usuario_api.cft ?? usuario.cft;
+          (userDataToSave as any).empresa_ou_orgao = usuario_api.empresa_ou_orgao ?? usuario.empresa;
+        }
+
+        localStorage.setItem('usuario', JSON.stringify(userDataToSave));
       } catch (error) {
         if (error instanceof SessionExpiredError) {
           return;
