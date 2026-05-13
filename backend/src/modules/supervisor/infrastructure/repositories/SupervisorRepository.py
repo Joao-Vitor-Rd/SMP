@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
 from src.modules.supervisor.domain.entities.supervisor import Supervisor, SupervisorORM
+from src.modules.colaborador.domain.entities.colaborador import Colaborador, ColaboradorORM
 from src.shared.domain.entities.user import UserORM, CargoEnum
+from src.modules.colaborador.application.dtos.colaborador_dto import ColaboradorResponseDTO, ListarColaboradoresDTO
 from datetime import datetime, timezone
 
 class SupervisorRepository(ISupervisorRepository):
@@ -129,4 +131,19 @@ class SupervisorRepository(ISupervisorRepository):
 
         self.session.refresh(sup_orm)
         return Supervisor.model_validate(sup_orm)
+    
+    def listar_meus_colaboradores(self, supervisor_id) -> List[ListarColaboradoresDTO]:
+        cols_orm = self.session.query(ColaboradorORM).filter(
+                ColaboradorORM.id_profissional_responsavel == supervisor_id,
+                ColaboradorORM.is_tecnico == False
+            ).all()
+        if cols_orm:
+            return [ListarColaboradoresDTO(
+                id=col.id,
+                nome=col.nome,
+                email=col.email,
+                limite_acesso=col.limite_acesso,
+                ativo=col.acesso_liberado
+            ) for col in cols_orm]
+        return []
         

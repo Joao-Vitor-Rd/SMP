@@ -43,3 +43,13 @@ class ColaboradorResponseDTO(BaseModel):
     limite_acesso: Optional[datetime] = None
     acesso_liberado: bool = False
     status: str = "Ativo"
+
+
+class ListarColaboradoresDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
+    id: int
+    nome: str
+    email: EmailStr
+    limite_acesso: Optional[datetime] = None
+    ativo: bool
