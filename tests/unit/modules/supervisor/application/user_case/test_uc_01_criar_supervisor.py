@@ -1,3 +1,13 @@
+"""Testes unitários do UC-01: criação de supervisor.
+
+Este módulo valida o contrato de `CriarSupervisorUseCase` isolando banco,
+hash de senha e validadores externos por meio das fixtures declaradas no
+`conftest.py` do diretório. Os testes seguem o fluxo arrange-act-assert:
+preparam os mocks, executam o use case e verificam a entidade enviada ao
+repositório, a resposta retornada e as falhas esperadas para as principais
+regras de negócio.
+"""
+
 import pytest
 
 from src.modules.supervisor.domain.entities.supervisor import Supervisor

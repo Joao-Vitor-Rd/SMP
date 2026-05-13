@@ -1,3 +1,12 @@
+"""Testes unitários do UC-04: criação de colaborador.
+
+Este módulo exercita `CriarColaboradorUseCase` sem acesso a banco, SMTP ou
+serviços externos. As dependências ficam centralizadas no `conftest.py` local,
+permitindo que cada teste descreva apenas o cenário de negócio: criação de
+colaborador temporário, criação de técnico, validações obrigatórias e rollback
+quando o envio de notificação falha.
+"""
+
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -9,6 +18,8 @@ from src.modules.colaborador.domain.entities.colaborador import Colaborador
 @pytest.mark.sprint_01
 @pytest.mark.us_04
 class TestCriarColaboradorUseCase:
+    """Cenários principais para cadastro de colaborador e técnico."""
+
     def test_deve_criar_colaborador_temporario_com_sucesso(
         self,
         criar_colaborador_use_case,

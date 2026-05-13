@@ -1,3 +1,12 @@
+"""Testes unitários do UC-05: atualização de colaborador.
+
+Este módulo valida `AtualizarColaboradorUseCase` de forma isolada. As fixtures
+compartilhadas fornecem um colaborador existente, repositório mockado e
+validadores controlados, deixando os testes focados nas regras de atualização:
+normalização de texto, preservação ou limpeza de campos opcionais e rejeição de
+dados inválidos.
+"""
+
 import pytest
 
 
@@ -5,6 +14,8 @@ import pytest
 @pytest.mark.sprint_01
 @pytest.mark.us_05
 class TestAtualizarColaboradorUseCase:
+    """Cenários principais para alteração dos dados cadastrais do colaborador."""
+
     def test_deve_atualizar_colaborador_com_sucesso(
         self,
         atualizar_colaborador_use_case,
