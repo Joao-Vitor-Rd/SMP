@@ -57,6 +57,7 @@ class TestCriarColaboradorUseCase:
             email_usuario="ana.clara@example.com",
             is_tecnico=False,
             limite_acesso=dto.limite_acesso,
+            cft=None,
         )
         assert response.id == 10
         assert response.nome == "Ana Clara"
@@ -73,20 +74,21 @@ class TestCriarColaboradorUseCase:
         response = criar_colaborador_use_case.execute(
             make_create_colaborador_dto(
                 is_tecnico=True,
-                cft=" 123456 ",
+                cft=" 123.456.789-00 ",
                 limite_acesso=datetime.now(timezone.utc) + timedelta(days=3),
             )
         )
 
         colaborador_salvo = colaborador_repository.save.call_args.args[0]
-        colaborador_repository.find_by_cft.assert_called_once_with("123456")
+        colaborador_repository.find_by_cft.assert_called_once_with("12345678900")
         assert colaborador_salvo.is_tecnico is True
-        assert colaborador_salvo.cft == "123456"
+        assert colaborador_salvo.cft == "12345678900"
         assert colaborador_salvo.limite_acesso is None
-        assert response.cft == "123456"
+        assert response.cft == "12345678900"
         assert response.limite_acesso is None
         assert email_sender.enviar_notificacao.call_args.kwargs["is_tecnico"] is True
         assert email_sender.enviar_notificacao.call_args.kwargs["limite_acesso"] is None
+        assert email_sender.enviar_notificacao.call_args.kwargs["cft"] == "12345678900"
 
     def test_deve_rejeitar_nome_com_numero(
         self,
@@ -177,14 +179,14 @@ class TestCriarColaboradorUseCase:
         colaborador_repository.save.assert_not_called()
         hasher.hash.assert_not_called()
 
-    def test_deve_rejeitar_cft_com_letras(
+    def test_deve_rejeitar_cft_com_tamanho_invalido(
         self,
         criar_colaborador_use_case,
         colaborador_repository,
         hasher,
         make_create_colaborador_dto,
     ):
-        with pytest.raises(ValueError, match="CFT/CPF deve conter apenas números"):
+        with pytest.raises(ValueError, match="CFT/CPF deve conter 11 dígitos numéricos"):
             criar_colaborador_use_case.execute(
                 make_create_colaborador_dto(is_tecnico=True, cft="123abc")
             )
@@ -204,7 +206,7 @@ class TestCriarColaboradorUseCase:
 
         with pytest.raises(ValueError, match="CFT/CPF já cadastrado no sistema"):
             criar_colaborador_use_case.execute(
-                make_create_colaborador_dto(is_tecnico=True, cft="123456")
+                make_create_colaborador_dto(is_tecnico=True, cft="12345678900")
             )
 
         colaborador_repository.save.assert_not_called()
