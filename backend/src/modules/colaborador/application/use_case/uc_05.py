@@ -105,7 +105,7 @@ class AtualizarColaboradorUseCase:
             instituicao_ensino=colaborador_salvo.instituicao_ensino,
             limite_acesso=colaborador_salvo.limite_acesso,
             acesso_liberado=colaborador_salvo.acesso_liberado,
-            status="Ativo",
+            status="Ativo" if colaborador_salvo.acesso_liberado else "Inativo",
         )
 
     def _validar_texto_sem_numeros(self, texto: str) -> bool:

@@ -149,7 +149,7 @@ class CriarColaboradorUseCase:
                 cft=colaborador_salvo.cft,
                 limite_acesso=colaborador_salvo.limite_acesso,
                 acesso_liberado=colaborador_salvo.acesso_liberado,
-                status="Ativo",
+                status="Ativo" if colaborador_salvo.acesso_liberado else "Inativo",
             )
         except Exception as e:
             print(f"Erro ao criar colaborador: {str(e)}")

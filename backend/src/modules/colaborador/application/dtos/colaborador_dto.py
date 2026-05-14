@@ -53,3 +53,9 @@ class ListarColaboradoresDTO(BaseModel):
     email: EmailStr
     limite_acesso: Optional[datetime] = None
     ativo: bool
+
+
+class AtualizarLimiteAcessoDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
+    limite_acesso: datetime
