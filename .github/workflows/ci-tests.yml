@@ -137,6 +137,10 @@ jobs:
   unit:
     name: Rodar Testes Unitários
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./unit-tests.db
+      SECRET_KEY_JWT: ci-test-secret-key
+      ALGORITHM: HS256
 
     steps:
       - name: Checkout do repositório
