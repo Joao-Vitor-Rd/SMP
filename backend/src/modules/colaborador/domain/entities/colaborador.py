@@ -13,6 +13,8 @@ class ColaboradorORM(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
 
+    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+
     nome = Column(String(150), nullable=False)
 
     id_profissional_responsavel = Column(

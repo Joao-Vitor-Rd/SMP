@@ -1,5 +1,5 @@
-from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Annotated, Union
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 from datetime import datetime
 from src.shared.infrastructure.db import get_session
@@ -11,10 +11,12 @@ from src.modules.auth.infrastructure.repositories.generic_user_repository import
 from src.modules.auth.infrastructure.services.limitador_redis import LimitadorRedis
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
 from src.modules.supervisor.infrastructure.repositories.SupervisorRepository import SupervisorRepository
+from src.modules.colaborador.infrastructure.repositories.ColaboradorRepository import ColaboradorRepository
 from src.shared.auth.jwt_service import JWTService
-from src.shared.auth.dependencies import verify_supervisor_role
+from src.shared.auth.dependencies import verify_supervisor_role, verify_any_user
 import asyncio
 from src.modules.supervisor.application.dtos.supervisor_dto import SupervisorResponseDTO
+from src.modules.colaborador.application.dtos.colaborador_dto import ColaboradorResponseDTO
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
@@ -25,6 +27,10 @@ def get_repository(session: Annotated[Session, Depends(get_session)]):
 
 def get_supervisor_repository(session: Annotated[Session, Depends(get_session)]):
     return SupervisorRepository(session)
+
+
+def get_colaborador_repository(session: Annotated[Session, Depends(get_session)]):
+    return ColaboradorRepository(session)
 
 
 def get_hasher():
@@ -53,11 +59,12 @@ def get_client_ip(request: Request) -> str:
     response_model=LoginResponseDTO,
     status_code=200,
     summary="Autenticar Usuário",
-    description="Realiza login de supervisor ou colaborador com validação de credenciais e retorna tokens JWT"
+    description="Realiza login de supervisor ou colaborador com validação de credenciais e retorna tokens JWT em HttpOnly cookies"
 )
 async def login(
     login_data: LoginDTO,
     request: Request,
+    response: Response,
     repository = Depends(get_repository),
     hasher = Depends(get_hasher),
     token_service = Depends(get_token_service),
@@ -66,7 +73,33 @@ async def login(
     try:
         ip_user = get_client_ip(request)
         use_case = LoginUseCase(repository, hasher, token_service, limitador)
-        return await use_case.execute(login_data, ip_user)
+        login_response = await use_case.execute(login_data, ip_user)
+        
+        # Adicionar tokens em HttpOnly cookies
+        response.set_cookie(
+            key="access_token",
+            value=login_response.token_acesso,
+            httponly=True,
+            # secure=True,  # Apenas HTTPS (descomente em produção)
+            samesite="lax",
+            max_age=900  # 15 minutos
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=login_response.token_atualizacao,
+            httponly=True,
+            # secure=True,  # Apenas HTTPS (descomente em produção)
+            samesite="lax",
+            max_age=2592000 if login_data.lembrar_me else 28800  # 30 dias ou 8 horas
+        )
+        
+        # Retornar resposta sem expor os tokens
+        return LoginResponseDTO(
+            token_acesso="",  # Vazio pois está no cookie
+            token_atualizacao="",  # Vazio pois está no cookie
+            tipo_token="bearer",
+            usuario=login_response.usuario
+        )
     except ValueError as e:
         detail = str(e)
         if detail.isdigit():
@@ -98,49 +131,124 @@ async def login(
     description="Usa o refresh token para obter um novo access token sem fazer login novamente"
 )
 async def refresh_token(
-    refresh_data: RefreshTokenDTO,
+    request: Request,
+    response: Response,
     token_service = Depends(get_token_service)
 ):
     try:
+        # Ler refresh token do cookie
+        refresh_token_cookie = request.cookies.get("refresh_token")
+        if not refresh_token_cookie:
+            raise ValueError("Token de atualização não encontrado")
+        
+        refresh_data = RefreshTokenDTO(token_atualizacao=refresh_token_cookie)
         use_case = RefreshTokenUseCase(token_service)
-        return use_case.execute(refresh_data)
+        result = use_case.execute(refresh_data)
+        
+        # Adicionar novo access token em HttpOnly cookie
+        response.set_cookie(
+            key="access_token",
+            value=result.token_acesso,
+            httponly=True,
+            # secure=True,  # Apenas HTTPS (descomente em produção)
+            samesite="lax",
+            max_age=900  # 15 minutos
+        )
+        
+        # Retornar resposta sem expor o token
+        return RefreshTokenResponseDTO(
+            token_acesso="",  # Vazio pois está no cookie
+            tipo_token="bearer"
+        )
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao renovar token: {str(e)}")
 
 
+@router.post(
+    "/logout",
+    status_code=204,
+    summary="Fazer Logout",
+    description="Limpa os tokens armazenados em HttpOnly cookies"
+)
+async def logout(response: Response):
+    """Remove os tokens dos cookies"""
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        # secure=True,  # Apenas HTTPS (descomente em produção)
+        samesite="lax"
+    )
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        # secure=True,  # Apenas HTTPS (descomente em produção)
+        samesite="lax"
+    )
+    return None
+
+
 @router.get(
     "/me",
-    response_model=SupervisorResponseDTO,
+    response_model=Union[SupervisorResponseDTO, ColaboradorResponseDTO],
     status_code=200,
-    summary="Obter dados do supervisor logado",
-    description="Retorna os dados do supervisor logado com base no token JWT"
+    summary="Obter dados do usuário logado",
+    description="Retorna os dados do usuário logado (supervisor, colaborador ou técnico) com base no token JWT"
 )
-async def get_logged_supervisor(
-    payload: Annotated[dict, Depends(verify_supervisor_role)],
-    repository = Depends(get_supervisor_repository),
+async def get_logged_user(
+    payload: Annotated[dict, Depends(verify_any_user)],
+    supervisor_repo = Depends(get_supervisor_repository),
+    colaborador_repo = Depends(get_colaborador_repository),
 ):
     try:
         user_id_raw = payload.get("sub")
+        role = payload.get("role")
+        
         if not user_id_raw:
             raise HTTPException(status_code=401, detail="Token inválido")
 
         user_id = int(str(user_id_raw))
-        supervisor = await asyncio.to_thread(repository.find_by_id, user_id)
-        if not supervisor:
-            raise HTTPException(status_code=404, detail="Supervisor não encontrado")
-        return SupervisorResponseDTO(
-            id=supervisor.id,
-            nome=supervisor.name,
-            identificador_profissional=supervisor.idendificador_profissional,
-            uf=supervisor.uf,
-            cidade=supervisor.cidade,
-            email=supervisor.email,
-            telefone=supervisor.telefone,
-            empresa=supervisor.empresa_ou_orgao
-        )
+        
+        # Retornar dados baseado no role
+        if role == "supervisor":
+            supervisor = await asyncio.to_thread(supervisor_repo.find_by_id, user_id)
+            if not supervisor:
+                raise HTTPException(status_code=404, detail="Supervisor não encontrado")
+            return SupervisorResponseDTO(
+                id=supervisor.id,
+                nome=supervisor.name,
+                identificador_profissional=supervisor.idendificador_profissional,
+                uf=supervisor.uf,
+                cidade=supervisor.cidade,
+                email=supervisor.email,
+                telefone=supervisor.telefone,
+                empresa=supervisor.empresa_ou_orgao
+            )
+        elif role in ["colaborador", "tecnico"]:
+            colaborador = await asyncio.to_thread(colaborador_repo.find_by_id, user_id)
+            if not colaborador:
+                raise HTTPException(status_code=404, detail="Colaborador não encontrado")
+            return ColaboradorResponseDTO(
+                id=colaborador.id,
+                nome=colaborador.nome,
+                id_profissional_responsavel=colaborador.id_profissional_responsavel,
+                is_tecnico=colaborador.is_tecnico,
+                email=colaborador.email,
+                cft=colaborador.cft,
+                uf=colaborador.uf,
+                cidade=colaborador.cidade,
+                empresa_ou_orgao=colaborador.empresa_ou_orgao,
+                telefone=colaborador.telefone,
+                instituicao_ensino=colaborador.instituicao_ensino,
+                limite_acesso=colaborador.limite_acesso,
+                acesso_liberado=colaborador.acesso_liberado,
+                status="Ativo",
+            )
+        else:
+            raise HTTPException(status_code=403, detail="Role não reconhecido")
+            
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao obter dados do supervisor logado: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao obter dados do usuário: {str(e)}")

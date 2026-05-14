@@ -1,8 +1,11 @@
+import re
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from src.modules.colaborador.domain.repositories.IColaboradorRepository import IColaboradorRepository
 from src.modules.colaborador.domain.entities.colaborador import Colaborador, ColaboradorORM
+from src.shared.domain.entities.user import UserORM, CargoEnum
 from datetime import datetime, timezone
 
 
@@ -12,10 +15,25 @@ class ColaboradorRepository(IColaboradorRepository):
         self.session = session
 
     def save(self, colaborador: Colaborador) -> Colaborador:
+        cft_normalizado = re.sub(r"\D", "", colaborador.cft) if colaborador.cft else None
+
+        # Definir cargo baseado em is_tecnico
+        cargo = CargoEnum.TECNICO if colaborador.is_tecnico else CargoEnum.COLABORADOR
+        
+        # Criar e fazer flush do user PRIMEIRO para obter seu ID
+        user_orm = UserORM(
+            nome=colaborador.nome,
+            email=colaborador.email,
+            cargo=cargo
+        )
+        self.session.add(user_orm)
+        self.session.flush()  # Obter ID do user
+        
+        # Agora criar colaborador COM user_id preenchido
         col_orm = ColaboradorORM(
             nome=colaborador.nome,
             id_profissional_responsavel=colaborador.id_profissional_responsavel,
-            cft=colaborador.cft,
+            cft=cft_normalizado,
             uf=colaborador.uf,
             cidade=colaborador.cidade,
             instituicao_ensino=colaborador.instituicao_ensino,
@@ -26,8 +44,10 @@ class ColaboradorRepository(IColaboradorRepository):
             senha=colaborador.senha,
             limite_acesso=colaborador.limite_acesso,
             acesso_liberado=colaborador.acesso_liberado,
+            user_id=user_orm.id  # FK já preenchido
         )
         self.session.add(col_orm)
+        
         try:
             self.session.commit()
         except IntegrityError as e:
@@ -36,7 +56,7 @@ class ColaboradorRepository(IColaboradorRepository):
 
             # Extrair o nome do campo da constraint
             campo = None
-            if "colaborador_email_key" in error_msg.lower():
+            if "colaborador_email_key" in error_msg.lower() or "user_email_key" in error_msg.lower():
                 campo = "Email"
             elif "colaborador_cft_key" in error_msg.lower():
                 campo = "CFT/CPF"
@@ -75,7 +95,7 @@ class ColaboradorRepository(IColaboradorRepository):
 
     def find_by_cft(self, cft: str) -> Optional[Colaborador]:
         col_orm = self.session.query(ColaboradorORM).filter(
-            ColaboradorORM.cft == cft
+            func.regexp_replace(ColaboradorORM.cft, r"\D", "", "g") == cft
         ).first()
         return Colaborador.model_validate(col_orm) if col_orm else None
 

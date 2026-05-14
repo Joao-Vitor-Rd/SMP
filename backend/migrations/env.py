@@ -11,6 +11,12 @@ load_dotenv()
 
 # Importar Base do projeto
 from src.shared.infrastructure.db import Base
+
+# Importar todas as entidades para que o alembic as reconheça
+from src.shared.domain.entities.user import UserORM
+from src.modules.supervisor.domain.entities.supervisor import SupervisorORM
+from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
+
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
