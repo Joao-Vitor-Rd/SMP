@@ -5,7 +5,9 @@ from src.shared.infrastructure.db import get_session
 from src.modules.supervisor.application.user_case.uc_01 import CriarSupervisorUseCase
 from src.modules.supervisor.application.user_case.uc_08 import AtualizarSupervisorUseCase
 from src.modules.supervisor.application.user_case.ListarSupervisorUseCase import ListarSupervisorUseCase
+from src.modules.supervisor.application.user_case.uc_listar_meus_colaboradores import ListarMeusColaboradores
 from src.modules.supervisor.application.dtos import CreateSupervisorDTO, SupervisorResponseDTO, UpdateSupervisorDTO
+from src.modules.colaborador.application.dtos.colaborador_dto import ListarColaboradoresDTO
 from src.modules.supervisor.infrastructure.repositories.SupervisorRepository import SupervisorRepository
 from src.modules.supervisor.infrastructure.gateway.validador_crea_api import ValidadorCREAApi
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
@@ -144,3 +146,28 @@ async def atualizar_supervisor(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao atualizar supervisor: {str(e)}")
 
+
+@router.get(
+    "/me/colaboradores",
+    response_model=list[ListarColaboradoresDTO],
+    summary="Listar meus colaboradores",
+    description="Retorna lista de colaboradores do supervisor autenticado com nome, email, tempo limite e status ativo"
+)
+async def listar_meus_colaboradores(
+    payload: Annotated[dict, Depends(verify_supervisor_role)],
+    repository = Depends(get_repository)
+):
+    try:
+        user_id_raw = payload.get("sub")
+        if not user_id_raw:
+            raise HTTPException(status_code=401, detail="Token inválido")
+
+        supervisor_id = int(str(user_id_raw))
+        use_case = ListarMeusColaboradores(repository)
+        return use_case.execute(supervisor_id)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar colaboradores: {str(e)}")

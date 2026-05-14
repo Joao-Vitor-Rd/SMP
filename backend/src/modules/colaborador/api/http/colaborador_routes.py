@@ -4,7 +4,14 @@ from sqlalchemy.orm import Session
 from src.shared.infrastructure.db import get_session
 from src.modules.colaborador.application.use_case.uc_04 import CriarColaboradorUseCase
 from src.modules.colaborador.application.use_case.uc_05 import AtualizarColaboradorUseCase
-from src.modules.colaborador.application.dtos.colaborador_dto import CreateColaboradorDTO, ColaboradorResponseDTO, UpdateColaboradorDTO
+from src.modules.colaborador.application.use_case.alterar_acesso import AlternarAcessoLiberdoUseCase
+from src.modules.colaborador.application.use_case.alterar_limite_acesso import AtualizarLimiteAcessoUseCase
+from src.modules.colaborador.application.dtos.colaborador_dto import (
+    CreateColaboradorDTO, 
+    ColaboradorResponseDTO, 
+    UpdateColaboradorDTO,
+    AtualizarLimiteAcessoDTO
+)
 from src.modules.colaborador.infrastructure.repositories.ColaboradorRepository import ColaboradorRepository
 from src.modules.supervisor.infrastructure.repositories.SupervisorRepository import SupervisorRepository
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
@@ -160,3 +167,46 @@ async def atualizar_meu_perfil(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao atualizar colaborador: {str(e)}")
+
+
+@router.patch(
+    "/{colaborador_id}/acesso",
+    response_model=ColaboradorResponseDTO,
+    status_code=200,
+    summary="Alternar acesso_liberado do colaborador",
+    description="Alterna o valor de acesso_liberado (liberado/bloqueado) de um colaborador"
+)
+async def alternar_acesso_colaborador(
+    colaborador_id: int,
+    _: Annotated[dict, Depends(verify_supervisor_role)],
+    colaborador_repo = Depends(get_colaborador_repository)
+):
+    try:
+        use_case = AlternarAcessoLiberdoUseCase(colaborador_repo)
+        return use_case.execute(colaborador_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao alternar acesso: {str(e)}")
+
+
+@router.patch(
+    "/{colaborador_id}/limite-acesso",
+    response_model=ColaboradorResponseDTO,
+    status_code=200,
+    summary="Atualizar limite de acesso do colaborador",
+    description="Atualiza a data de limite de acesso do colaborador com validações (não pode ser no passado)"
+)
+async def atualizar_limite_acesso_colaborador(
+    colaborador_id: int,
+    update_data: AtualizarLimiteAcessoDTO,
+    _: Annotated[dict, Depends(verify_supervisor_role)],
+    colaborador_repo = Depends(get_colaborador_repository)
+):
+    try:
+        use_case = AtualizarLimiteAcessoUseCase(colaborador_repo)
+        return use_case.execute(colaborador_id, update_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar limite de acesso: {str(e)}")
