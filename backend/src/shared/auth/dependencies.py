@@ -51,10 +51,10 @@ async def verify_supervisor_role(
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    if payload.get("role") != "supervisor":
+    if payload.get("role") not in {"supervisor", "tecnico"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso negado: apenas supervisores podem usar este recurso"
+            detail="Acesso negado: apenas supervisores e técnicos podem usar este recurso"
         )
     
     return payload
