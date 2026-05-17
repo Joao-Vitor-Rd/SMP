@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
 from src.modules.supervisor.domain.entities.supervisor import Supervisor, SupervisorORM
+from src.modules.colaborador.domain.entities.colaborador import Colaborador, ColaboradorORM
+from src.shared.domain.entities.user import UserORM, CargoEnum
+from src.modules.colaborador.application.dtos.colaborador_dto import ColaboradorResponseDTO, ListarColaboradoresDTO
 from datetime import datetime, timezone
 
 class SupervisorRepository(ISupervisorRepository):
@@ -11,15 +14,27 @@ class SupervisorRepository(ISupervisorRepository):
         self.session = session
 
     def save(self, supervisor: Supervisor) -> Supervisor:
+        # Criar e fazer flush do user PRIMEIRO para obter seu ID
+        user_orm = UserORM(
+            nome=supervisor.name,
+            email=supervisor.email,
+            cargo=CargoEnum.SUPERVISOR
+        )
+        self.session.add(user_orm)
+        self.session.flush()  # Obter ID do user
+        
+        # Agora criar supervisor COM user_id preenchido
         sup_orm = SupervisorORM(
             name=supervisor.name,
             idendificador_profissional=supervisor.idendificador_profissional,
             uf=supervisor.uf,
             cidade=supervisor.cidade,
             email=supervisor.email,
-            password=supervisor.password
+            password=supervisor.password,
+            user_id=user_orm.id  # FK já preenchido
         )
         self.session.add(sup_orm)
+        
         try:
             self.session.commit()
         except IntegrityError as e:
@@ -28,7 +43,7 @@ class SupervisorRepository(ISupervisorRepository):
 
             # Extrair o nome do campo da constraint
             campo = None
-            if "supervisor_email_key" in error_msg.lower():
+            if "supervisor_email_key" in error_msg.lower() or "user_email_key" in error_msg.lower():
                 campo = "Email"
             elif "supervisor_idendificador_profissional_key" in error_msg.lower():
                 campo = "Identificador profissional"
@@ -116,4 +131,19 @@ class SupervisorRepository(ISupervisorRepository):
 
         self.session.refresh(sup_orm)
         return Supervisor.model_validate(sup_orm)
+    
+    def listar_meus_colaboradores(self, supervisor_id) -> List[ListarColaboradoresDTO]:
+        cols_orm = self.session.query(ColaboradorORM).filter(
+                ColaboradorORM.id_profissional_responsavel == supervisor_id,
+                ColaboradorORM.is_tecnico == False
+            ).all()
+        if cols_orm:
+            return [ListarColaboradoresDTO(
+                id=col.id,
+                nome=col.nome,
+                email=col.email,
+                limite_acesso=col.limite_acesso,
+                ativo=col.acesso_liberado
+            ) for col in cols_orm]
+        return []
         

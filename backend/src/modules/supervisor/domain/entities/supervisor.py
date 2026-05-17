@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, CheckConstraint, Enum
-from sqlalchemy.orm import validates
+from sqlalchemy import Column, String, CheckConstraint, Enum, ForeignKey
+from sqlalchemy.orm import validates, relationship
 from sqlalchemy import Column, Integer
 from src.shared.infrastructure.db import Base
 from src.shared.enums.uf_enum import UFEnum
@@ -14,6 +14,8 @@ class SupervisorORM(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
 
+    user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    
     name = Column(String(150), nullable=False)
 
     idendificador_profissional = Column(String(20), unique=True, nullable=False)

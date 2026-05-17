@@ -72,12 +72,22 @@ class AtualizarColaboradorUseCase:
             else:
                 telefone = None
 
+        is_tecnico = colaborador_atual.is_tecnico
+        if update_data.is_tecnico is not None:
+            is_tecnico = update_data.is_tecnico
+
+        id_profissional_responsavel = colaborador_atual.id_profissional_responsavel
+        if update_data.id_profissional_responsavel is not None:
+            id_profissional_responsavel = update_data.id_profissional_responsavel
+
         colaborador_atual.nome = nome_formatado
         colaborador_atual.uf = uf
         colaborador_atual.cidade = cidade_formatada
         colaborador_atual.empresa_ou_orgao = empresa_ou_orgao
         colaborador_atual.instituicao_ensino = instituicao_ensino
         colaborador_atual.telefone = telefone
+        colaborador_atual.is_tecnico = is_tecnico
+        colaborador_atual.id_profissional_responsavel = id_profissional_responsavel
 
         colaborador_salvo = self.repository.update_colaborador(colaborador_atual)
 
@@ -95,7 +105,7 @@ class AtualizarColaboradorUseCase:
             instituicao_ensino=colaborador_salvo.instituicao_ensino,
             limite_acesso=colaborador_salvo.limite_acesso,
             acesso_liberado=colaborador_salvo.acesso_liberado,
-            status="Ativo",
+            status="Ativo" if colaborador_salvo.acesso_liberado else "Inativo",
         )
 
     def _validar_texto_sem_numeros(self, texto: str) -> bool:

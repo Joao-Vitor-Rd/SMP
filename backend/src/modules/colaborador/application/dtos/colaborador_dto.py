@@ -22,6 +22,8 @@ class UpdateColaboradorDTO(BaseModel):
     empresa_ou_orgao: Optional[str] = None
     telefone: Optional[str] = None
     instituicao_ensino: Optional[str] = None
+    is_tecnico: Optional[bool] = None
+    id_profissional_responsavel: Optional[int] = None
 
 
 class ColaboradorResponseDTO(BaseModel):
@@ -41,3 +43,19 @@ class ColaboradorResponseDTO(BaseModel):
     limite_acesso: Optional[datetime] = None
     acesso_liberado: bool = False
     status: str = "Ativo"
+
+
+class ListarColaboradoresDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
+    id: int
+    nome: str
+    email: EmailStr
+    limite_acesso: Optional[datetime] = None
+    ativo: bool
+
+
+class AtualizarLimiteAcessoDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
+    limite_acesso: datetime

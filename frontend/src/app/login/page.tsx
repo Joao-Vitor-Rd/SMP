@@ -27,6 +27,7 @@ export default function LoginPage() {
       const res = await fetch(`${getPublicApiBaseUrl()}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",  // Incluir cookies na requisição
         body: JSON.stringify({ email, senha, lembrar_me: lembrarMe }),
       });
 
@@ -41,9 +42,10 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
-
-      localStorage.setItem("token_acesso", data.token_acesso);
-      localStorage.setItem("token_atualizacao", data.token_atualizacao);
+      console.log("Resposta do servidor:", data);
+      console.log("Usuário recebido:", data.usuario);
+      
+      // Tokens agora estão em HttpOnly cookies, apenas salvar dados do usuário
       if (data.usuario) {
         localStorage.setItem("usuario", JSON.stringify(data.usuario));
       }

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from src.modules.supervisor.domain.entities.supervisor import Supervisor
+from src.modules.colaborador.application.dtos.colaborador_dto import ListarColaboradoresDTO
 from datetime import datetime, timezone
 
 class ISupervisorRepository(ABC):
@@ -35,4 +36,8 @@ class ISupervisorRepository(ABC):
 
     @abstractmethod
     def update_supervisor(self, novo_supervisor: Supervisor) -> Supervisor:
+        pass
+
+    @abstractmethod
+    def listar_meus_colaboradores(self, supervisor_id) -> List[ListarColaboradoresDTO]:
         pass

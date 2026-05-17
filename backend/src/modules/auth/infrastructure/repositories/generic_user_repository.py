@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from src.modules.auth.domain.repositories.i_user_repository import IUserRepository
 from src.modules.supervisor.domain.entities.supervisor import SupervisorORM
 from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
+from src.shared.domain.entities.user import UserORM, CargoEnum
 from datetime import datetime
 
 
@@ -12,43 +13,52 @@ class GenericUserRepository(IUserRepository):
         self.session = session
     
     def find_by_email(self, email: str) -> Optional[dict]:
-        # Tenta buscar em supervisor
-        supervisor = self.session.query(SupervisorORM).filter(
-            SupervisorORM.email == email
+        # Buscar na tabela user pelo email
+        user = self.session.query(UserORM).filter(
+            UserORM.email == email
         ).first()
         
-        if supervisor:
-            return {
-                "user": supervisor,
-                "user_type": "supervisor",
-                "cargo": "supervisor",
-                "id": supervisor.id,
-                "email": supervisor.email,
-                "password": supervisor.password,
-                "nome": supervisor.name,
-                "identificador_profissional": supervisor.idendificador_profissional,
-                "limite_acesso": None,
-                "acesso_liberado": True,
-            }
+        if not user:
+            return None
         
-        # Tenta buscar em colaborador
-        colaborador = self.session.query(ColaboradorORM).filter(
-            ColaboradorORM.email == email
-        ).first()
+        # Baseado no cargo, buscar em supervisor ou colaborador
+        if user.cargo == CargoEnum.SUPERVISOR:
+            supervisor = self.session.query(SupervisorORM).filter(
+                SupervisorORM.user_id == user.id
+            ).first()
+            
+            if supervisor:
+                return {
+                    "user": supervisor,
+                    "user_type": "supervisor",
+                    "cargo": "supervisor",
+                    "id": supervisor.id,
+                    "email": user.email,
+                    "password": supervisor.password,
+                    "nome": supervisor.name,
+                    "identificador_profissional": supervisor.idendificador_profissional,
+                    "limite_acesso": None,
+                    "acesso_liberado": True,
+                }
         
-        if colaborador:
-            return {
-                "user": colaborador,
-                "user_type": "colaborador",
-                "cargo": "tecnico" if colaborador.is_tecnico else "colaborador",
-                "id": colaborador.id,
-                "email": colaborador.email,
-                "password": colaborador.senha,
-                "nome": colaborador.nome,
-                "cft": colaborador.cft,
-                "limite_acesso": colaborador.limite_acesso,
-                "acesso_liberado": colaborador.acesso_liberado,
-            }
+        elif user.cargo in [CargoEnum.COLABORADOR, CargoEnum.TECNICO]:
+            colaborador = self.session.query(ColaboradorORM).filter(
+                ColaboradorORM.user_id == user.id
+            ).first()
+            
+            if colaborador:
+                return {
+                    "user": colaborador,
+                    "user_type": "colaborador",
+                    "cargo": "tecnico" if colaborador.is_tecnico else "colaborador",
+                    "id": colaborador.id,
+                    "email": user.email,
+                    "password": colaborador.senha,
+                    "nome": colaborador.nome,
+                    "cft": colaborador.cft,
+                    "limite_acesso": colaborador.limite_acesso,
+                    "acesso_liberado": colaborador.acesso_liberado,
+                }
         
         return None
     
