@@ -28,8 +28,6 @@ import {
   UserPlus,
 } from 'lucide-react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-
 const UF_OPTIONS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
   'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
@@ -293,40 +291,6 @@ export default function EditarPerfilPage() {
     });
   }
 
-  async function handleSalvarPerfil() {
-    const nome = nomeEmEdicao.trim();
-    const uf = perfil.uf.trim().toUpperCase();
-    const cidade = perfil.cidade.trim();
-    const empresaOuOrgao = perfil.empresa.trim();
-    const telefoneInformado = perfil.telefone.trim();
-    const telefone = telefoneInformado ? formatarTelefonePadrao(telefoneInformado) : '';
-
-    if (!nome || !uf || !cidade) {
-      mostrarFeedback('Preencha nome, UF e cidade para salvar o perfil.', 'error', 'Campos obrigatórios');
-      return;
-    }
-
-    if (telefoneInformado && !telefoneEhValido(telefoneInformado)) {
-      mostrarFeedback('Informe um telefone válido no formato (31) 99781-4542.', 'error', 'Telefone inválido');
-      return;
-    }
-
-    if (empresaOuOrgao && !empresaOuOrgaoEhValido(empresaOuOrgao)) {
-      mostrarFeedback('Órgão, empresa ou instituição não pode conter números.', 'error', 'Campo inválido');
-      return;
-    }
-
-    const usuarioJson = localStorage.getItem('usuario');
-    const usuario = usuarioJson ? JSON.parse(usuarioJson) : null;
-    const cargo = (perfil.cargo || usuario?.cargo || '') as CargoUsuario;
-
-    if (!cargo) {
-      mostrarFeedback('Não foi possível identificar o tipo de usuário para salvar o perfil.', 'error', 'Sessão inválida');
-      return;
-    }
-
-    const rotaAtualizacao = cargo === 'supervisor' ? '/api/supervisores/me' : '/api/colaboradores/me';
-
   async function handleLogout() {
     try {
       await authApi.post('/auth/logout');
@@ -406,7 +370,7 @@ export default function EditarPerfilPage() {
           setNomeEmEdicao(colaborador.nome ?? usuario.nome ?? '');
         }
 
-        const userDataToSave = {
+        const userDataToSave: Record<string, unknown> = {
           ...usuario,
           id: usuario_api.id ?? usuario.id,
           nome: usuario_api.nome ?? usuario.nome,
@@ -418,12 +382,12 @@ export default function EditarPerfilPage() {
         };
 
         if (cargo === 'supervisor') {
-          (userDataToSave as any).crea = usuario_api.identificador_profissional ?? usuario.crea;
-          (userDataToSave as any).identificador_profissional = usuario_api.identificador_profissional ?? usuario.identificador_profissional;
-          (userDataToSave as any).empresa = usuario_api.empresa ?? usuario.empresa;
+          userDataToSave.crea = usuario_api.identificador_profissional ?? usuario.crea;
+          userDataToSave.identificador_profissional = usuario_api.identificador_profissional ?? usuario.identificador_profissional;
+          userDataToSave.empresa = usuario_api.empresa ?? usuario.empresa;
         } else if (cargo === 'colaborador' || cargo === 'tecnico') {
-          (userDataToSave as any).cft = usuario_api.cft ?? usuario.cft;
-          (userDataToSave as any).empresa_ou_orgao = usuario_api.empresa_ou_orgao ?? usuario.empresa;
+          userDataToSave.cft = usuario_api.cft ?? usuario.cft;
+          userDataToSave.empresa_ou_orgao = usuario_api.empresa_ou_orgao ?? usuario.empresa;
         }
 
         localStorage.setItem('usuario', JSON.stringify(userDataToSave));
@@ -547,6 +511,11 @@ export default function EditarPerfilPage() {
         return;
       }
 
+      if (perfil.empresa.trim() && !empresaOuOrgaoEhValido(perfil.empresa)) {
+        mostrarFeedback('Órgão, empresa ou instituição não pode conter números.', 'error', 'Campo inválido');
+        return;
+      }
+
       const payload = {
         nome: nomeEmEdicao.trim(),
         telefone: normalizarTelefone(perfil.telefone),
@@ -556,7 +525,7 @@ export default function EditarPerfilPage() {
       };
 
       const endpoint = perfil.cargo === 'supervisor' ? '/api/supervisores/me' : '/api/colaboradores/me';
-      const response = await authApi.put(endpoint, payload);
+      await authApi.put(endpoint, payload);
 
       mostrarFeedback('Perfil atualizado com sucesso.', 'success', 'Alterações salvas');
 
