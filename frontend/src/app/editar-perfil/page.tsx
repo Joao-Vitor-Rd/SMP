@@ -160,6 +160,32 @@ function formatarTelefonePadrao(valor: string) {
   return valor.trim();
 }
 
+function formatarTelefoneDuranteDigitacao(valor: string) {
+  const digitos = normalizarTelefone(valor);
+
+  if (!digitos) {
+    return '';
+  }
+
+  if (digitos.length <= 2) {
+    return `(${digitos}`;
+  }
+
+  if (digitos.length <= 3) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2)}`;
+  }
+
+  if (digitos.length <= 6) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2)}`;
+  }
+
+  if (digitos.length <= 10) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
+  }
+
+  return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+}
+
 function telefoneEhValido(valor: string) {
   const digitos = normalizarTelefone(valor);
   return digitos.length === 10 || digitos.length === 11;
@@ -167,6 +193,16 @@ function telefoneEhValido(valor: string) {
 
 function emailEhValido(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function empresaOuOrgaoEhValido(valor: string) {
+  const texto = valor.trim();
+
+  if (!texto) {
+    return true;
+  }
+
+  return /^[A-Za-zÀ-ÿ\s/&.\-]+$/.test(texto);
 }
 
 function extrairMensagemErroApi(error: unknown) {
@@ -334,6 +370,11 @@ export default function EditarPerfilPage() {
 
     if (telefoneInformado && !telefoneEhValido(telefoneInformado)) {
       mostrarFeedback('Informe um telefone válido no formato (31) 99781-4542.', 'error', 'Telefone inválido');
+      return;
+    }
+
+    if (empresaOuOrgao && !empresaOuOrgaoEhValido(empresaOuOrgao)) {
+      mostrarFeedback('Órgão, empresa ou instituição não pode conter números.', 'error', 'Campo inválido');
       return;
     }
 
@@ -826,9 +867,11 @@ export default function EditarPerfilPage() {
                   title="Telefone"
                   aria-label="Telefone"
                   value={perfil.telefone}
-                  onChange={(e) => setPerfil({ ...perfil, telefone: e.target.value })}
+                  onChange={(e) => setPerfil({ ...perfil, telefone: formatarTelefoneDuranteDigitacao(e.target.value) })}
                   onBlur={() => setPerfil((current) => ({ ...current, telefone: current.telefone ? formatarTelefonePadrao(current.telefone) : '' }))}
                   placeholder="(31) 99781-4542"
+                  inputMode="numeric"
+                  maxLength={15}
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                 />
               </div>
