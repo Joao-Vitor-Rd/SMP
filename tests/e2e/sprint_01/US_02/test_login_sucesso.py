@@ -1,5 +1,6 @@
 import pytest
 from playwright.sync_api import expect
+from e2e.pages.login_page import LoginPage
 
 BASE_URL = "http://localhost:3000"
 
@@ -7,12 +8,11 @@ BASE_URL = "http://localhost:3000"
 @pytest.mark.sprint_01
 @pytest.mark.us_02
 def test_login_sucesso(page, usuario_teste):
+    login_page = LoginPage(page)
     email, senha = usuario_teste
 
-    page.goto(f"{BASE_URL}/login")
+    login_page.acessar()
 
-    page.locator("input[type='email']").fill(email)
-    page.locator("input[type='password']").fill(senha)
-    page.get_by_role("button", name="Entrar").click()
+    login_page.login(email, senha)
 
     expect(page).to_have_url(f"{BASE_URL}/editar-perfil")

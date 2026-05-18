@@ -1,6 +1,7 @@
 import requests
 import pytest
 import sys
+import socket
 from uuid import uuid4
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -41,6 +42,22 @@ class AuthManager:
 auth_manager = AuthManager()
 
 
+def limpar_redis_teste():
+    try:
+        with socket.create_connection(("localhost", 6379), timeout=2) as sock:
+            sock.sendall(b"*1\r\n$7\r\nFLUSHDB\r\n")
+            sock.recv(1024)
+    except OSError:
+        pass
+
+
+@pytest.fixture(scope="function")
+def limpar_tentativas_login():
+    limpar_redis_teste()
+    yield
+    limpar_redis_teste()
+
+
 def criar_usuario_teste():
     """Cria um supervisor único para testes que precisam de login."""
     email = f"login.teste.{uuid4().hex[:8]}@email.com"
@@ -77,37 +94,35 @@ def page(browser):
     """Cada teste pega uma página nova com token válido"""
     page = browser.new_page()
 
-    page.goto(BASE_URL)
-
     # Injeta os tokens no localStorage se já estiver logado
     if auth_manager.access_token:
-        page.evaluate(f"""
+        page.add_init_script(f"""
             localStorage.setItem('access_token', '{auth_manager.access_token}');
             localStorage.setItem('refresh_token', '{auth_manager.refresh_token}');
         """)
 
-    # Renova token automaticamente se receber 401
-    page.add_init_script("""
-        const originalFetch = window.fetch;
-        window.fetch = async (...args) => {
-            let response = await originalFetch(...args);
+        # Renova token automaticamente se receber 401 em testes autenticados.
+        page.add_init_script("""
+            const originalFetch = window.fetch;
+            window.fetch = async (...args) => {
+                let response = await originalFetch(...args);
 
-            if (response.status === 401) {
-                const refreshToken = localStorage.getItem('refresh_token');
-                const refreshResponse = await originalFetch('/auth/refresh', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ token_atualizacao: refreshToken })
-                });
-                const data = await refreshResponse.json();
-                localStorage.setItem('access_token', data.token_acesso);
+                if (response.status === 401) {
+                    const refreshToken = localStorage.getItem('refresh_token');
+                    const refreshResponse = await originalFetch('/auth/refresh', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ token_atualizacao: refreshToken })
+                    });
+                    const data = await refreshResponse.json();
+                    localStorage.setItem('access_token', data.token_acesso);
 
-                return originalFetch(...args);
-            }
+                    return originalFetch(...args);
+                }
 
-            return response;
-        };
-    """)
+                return response;
+            };
+        """)
 
     yield page
     page.close()
