@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import axios from 'axios';
-import { authApi, clearAuthSession, SessionExpiredError } from '@/lib/authApi';
+import { authApi, clearAuthSession, SessionExpiredError } from '../../lib/authApi';
 import {
   Activity,
   ArrowLeft,
@@ -96,7 +96,7 @@ function formatarTelefonePadrao(valor: string) {
   return valor.trim();
 }
 
-function formatarTelefoneDuranteDigitacao(valor: string) {
+function formatarTelefoneParaExibicao(valor: string) {
   const digitos = normalizarTelefone(valor);
 
   if (!digitos) {
@@ -798,8 +798,8 @@ export default function EditarPerfilPage() {
                   type="text"
                   title="Telefone"
                   aria-label="Telefone"
-                  value={perfil.telefone}
-                  onChange={(e) => setPerfil({ ...perfil, telefone: formatarTelefoneDuranteDigitacao(e.target.value) })}
+                  value={formatarTelefoneParaExibicao(perfil.telefone)}
+                  onChange={(e) => setPerfil((current) => ({ ...current, telefone: normalizarTelefone(e.target.value) }))}
                   onBlur={() => setPerfil((current) => ({ ...current, telefone: current.telefone ? formatarTelefonePadrao(current.telefone) : '' }))}
                   placeholder="(31) 99781-4542"
                   inputMode="numeric"

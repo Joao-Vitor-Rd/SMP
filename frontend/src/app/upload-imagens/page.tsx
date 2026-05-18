@@ -17,7 +17,7 @@ import {
   Info,
   Loader2,
   LogOut,
-  Map,
+  Map as MapIcon,
   MapPin,
   Maximize,
   Settings,
@@ -26,22 +26,35 @@ import {
   User,
 } from "lucide-react";
 import { authApi, clearAuthSession } from "../../lib/authApi";
+import { type MapReviewLocationSource } from "../../lib/map-review";
+import { buildReviewPayloadFromUpload, clearConfirmationSummary, persistReviewItems, readPersistedReviewItems } from "../../lib/map-review";
 
 type QueueStatus = "pending" | "uploading" | "completed" | "rejected";
 
 type LocationException = "sem_gps" | "exif_corrompido";
 
+type UploadFileLike = Pick<File, "name" | "size" | "type" | "lastModified">;
+
 type UploadItem = {
   id: string;
-  file: File;
+  file: UploadFileLike;
+  originalFile?: File;
   previewUrl: string;
+  serverImageUrl: string | null;
+  serverLatitude: number | null;
+  serverLongitude: number | null;
   status: QueueStatus;
   progress: number;
   message: string;
   hasLocation: boolean | null;
+  locationSource: MapReviewLocationSource | null;
   manualLat: string;
   manualLng: string;
   locationException: LocationException | null;
+};
+
+type UploadItemSnapshot = Omit<UploadItem, "file" | "originalFile"> & {
+  file: UploadFileLike;
 };
 
 type UserState = {
@@ -51,7 +64,9 @@ type UserState = {
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const ACCEPTED_MIME_TYPES = ["image/jpeg", "image/png", "image/tiff", "image/x-tiff", "image/webp"];
-const ACCEPTED_EXTENSIONS = ["jpg", "jpeg", "png", "tif", "tiff", "webp"];
+const ACCEPTED_EXTENSIONS = ["jpg", "jpeg", "png", "tif", "tiff"];
+const UPLOAD_QUEUE_STORAGE_KEY = "smp:upload-queue";
+const originalFileCache = new globalThis.Map<string, File>();
 
 function getInitialUserState(): UserState {
   if (typeof window === "undefined") {
@@ -92,15 +107,40 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 ** size).toFixed(size === 0 ? 0 : 1)} ${units[size]}`;
 }
 
-function createId(file: File) {
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve(typeof reader.result === "string" ? reader.result : "");
+    };
+
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Falha ao preparar a imagem para o mapa."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function toUploadFileLike(file: File): UploadFileLike {
+  return {
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    lastModified: file.lastModified,
+  };
+}
+
+function createId(file: UploadFileLike) {
   return `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function getFileExtension(file: File) {
+function getFileExtension(file: UploadFileLike) {
   return file.name.split(".").pop()?.toLowerCase() ?? "";
 }
 
-function getFileKindLabel(file: File) {
+function getFileKindLabel(file: UploadFileLike) {
   const extension = getFileExtension(file);
   if (extension === "jpg" || extension === "jpeg") return "JPG";
   if (extension === "png") return "PNG";
@@ -109,7 +149,170 @@ function getFileKindLabel(file: File) {
   return extension.toUpperCase() || "ARQUIVO";
 }
 
-function validateFile(file: File) {
+function isBlobUrl(url: string) {
+  return url.startsWith("blob:");
+}
+
+function isUploadFileLike(value: unknown): value is UploadFileLike {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<UploadFileLike>;
+
+  return (
+    typeof candidate.name === "string" &&
+    candidate.name.trim().length > 0 &&
+    typeof candidate.size === "number" &&
+    Number.isFinite(candidate.size) &&
+    typeof candidate.type === "string" &&
+    typeof candidate.lastModified === "number" &&
+    Number.isFinite(candidate.lastModified)
+  );
+}
+
+function isUploadItemSnapshot(value: unknown): value is UploadItemSnapshot {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<UploadItemSnapshot> & { file?: unknown };
+
+  return (
+    typeof candidate.id === "string" &&
+    isUploadFileLike(candidate.file) &&
+    typeof candidate.previewUrl === "string" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.progress === "number" &&
+    typeof candidate.message === "string" &&
+    (candidate.locationSource === undefined || candidate.locationSource === null || typeof candidate.locationSource === "string")
+  );
+}
+
+function createPreviewForRestoredItem(item: UploadItemSnapshot) {
+  return item.serverImageUrl ?? item.previewUrl ?? "";
+}
+
+function serializeUploadItem(item: UploadItem): UploadItemSnapshot {
+  return {
+    id: item.id,
+    file: item.file,
+    previewUrl: item.previewUrl,
+    serverImageUrl: item.serverImageUrl,
+    serverLatitude: item.serverLatitude,
+    serverLongitude: item.serverLongitude,
+    status: item.status,
+    progress: item.progress,
+    message: item.message,
+    hasLocation: item.hasLocation,
+    locationSource: item.locationSource,
+    manualLat: item.manualLat,
+    manualLng: item.manualLng,
+    locationException: item.locationException,
+  };
+}
+
+function restoreUploadItem(snapshot: UploadItemSnapshot): UploadItem {
+  const manualReady = isCompleteManualCoordinatePair(snapshot.manualLat, snapshot.manualLng);
+
+  return {
+    ...snapshot,
+    file: snapshot.file,
+    originalFile: originalFileCache.get(snapshot.id),
+    hasLocation: manualReady ? true : snapshot.hasLocation,
+    locationSource: snapshot.locationSource ?? (manualReady ? "manual" : snapshot.hasLocation ? "gps" : null),
+    status: snapshot.status !== "rejected" && manualReady ? "completed" : snapshot.status,
+    progress: snapshot.status !== "rejected" && manualReady ? 100 : snapshot.progress,
+    message:
+      snapshot.status !== "rejected" && manualReady
+        ? "Localização informada e pronta para revisão."
+        : snapshot.message,
+    previewUrl: createPreviewForRestoredItem(snapshot),
+  };
+}
+
+function hydrateUploadItemFromReview(item: UploadItem, review: ReturnType<typeof readPersistedReviewItems>[number] | undefined): UploadItem {
+  if (!review || item.status === "rejected") {
+    return item;
+  }
+
+  const reviewHasLocation = typeof review.latitude === "number" && typeof review.longitude === "number";
+
+  if (!reviewHasLocation) {
+    return item;
+  }
+
+  return {
+    ...item,
+    hasLocation: true,
+    locationSource: review.locationSource === "manual" ? "manual" : "gps",
+    status: review.status === "confirmed" || review.status === "ready" ? "completed" : item.status,
+    progress: 100,
+    message: review.locationSource === "manual"
+      ? "Localização informada e pronta para revisão."
+      : "Localização identificada via GPS.",
+  };
+}
+
+function readStoredUploadQueue(): UploadItem[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const raw = window.sessionStorage.getItem(UPLOAD_QUEUE_STORAGE_KEY);
+
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const storedItems = parsed.filter(isUploadItemSnapshot).map(restoreUploadItem);
+    const reviewById = new globalThis.Map(readPersistedReviewItems().map((item) => [item.id, item]));
+
+    return storedItems.map((item) => hydrateUploadItemFromReview(item, reviewById.get(item.id)));
+  } catch {
+    return [];
+  }
+}
+
+function persistUploadQueue(items: UploadItem[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const serializableItems = items.map(serializeUploadItem);
+  window.sessionStorage.setItem(UPLOAD_QUEUE_STORAGE_KEY, JSON.stringify(serializableItems));
+}
+
+function resolveOriginalFile(item: UploadItem) {
+  return item.originalFile ?? originalFileCache.get(item.id) ?? null;
+}
+
+function isCompleteManualCoordinatePair(latitudeText: string, longitudeText: string) {
+  const latitude = Number(latitudeText.trim());
+  const longitude = Number(longitudeText.trim());
+
+  return (
+    Number.isFinite(latitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+function validateFile(file: UploadFileLike) {
+  if (!isUploadFileLike(file)) {
+    return "Arquivo inválido. Selecione a imagem novamente.";
+  }
+
   console.log("Validando arquivo:", file.name, file.type);
   const extension = getFileExtension(file);
   const mime = file.type.toLowerCase();
@@ -178,7 +381,7 @@ function extractUploadErrorMessage(error: unknown) {
   return "Falha ao enviar imagem.";
 }
 
-function isSameFile(a: File, b: File) {
+function isSameFile(a: UploadFileLike, b: UploadFileLike) {
   return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
 }
 
@@ -228,7 +431,11 @@ function isManualLocationResolved(item: UploadItem) {
   return parseLatitude(item.manualLat) !== null && parseLongitude(item.manualLng) !== null;
 }
 
-async function deriveHasLocationFromFile(file: File): Promise<boolean> {
+async function deriveHasLocationFromFile(file: File | UploadFileLike): Promise<boolean> {
+  if (!("arrayBuffer" in file)) {
+    return false;
+  }
+
   try {
     const gps = await exifr.gps(file);
     if (gps == null) return false;
@@ -267,7 +474,7 @@ export default function UploadImagensPage() {
   const [usuarioNome] = useState(initialUserState.nome);
   const [cargoUsuario] = useState(initialUserState.cargo);
   const [isDragging, setIsDragging] = useState(false);
-  const [items, setItems] = useState<UploadItem[]>([]);
+  const [items, setItems] = useState<UploadItem[]>(() => readStoredUploadQueue());
   const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<UploadItem[]>([]);
 
@@ -294,18 +501,27 @@ export default function UploadImagensPage() {
   }, [items]);
 
   useEffect(() => {
-    return () => {
-      itemsRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-    };
+    persistUploadQueue(items);
+  }, [items]);
+
+  useEffect(() => {
+    return undefined;
   }, []);
 
   function cleanupItem(item: UploadItem) {
-    URL.revokeObjectURL(item.previewUrl);
+    if (isBlobUrl(item.previewUrl)) {
+      URL.revokeObjectURL(item.previewUrl);
+    }
   }
 
   const clearQueue = useCallback(() => {
     setItems((current) => {
-      current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      current.forEach((item) => {
+        if (isBlobUrl(item.previewUrl)) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+      window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
       return [];
     });
   }, []);
@@ -314,15 +530,61 @@ export default function UploadImagensPage() {
     setItems((current) => current.map((item) => (item.id === itemId ? updater(item) : item)));
   }, []);
 
+  const prepareReviewItems = useCallback(async () => {
+    const persistedById = new globalThis.Map(readPersistedReviewItems().map((item) => [item.id, item]));
+
+    const reviewItems = await Promise.all(
+      items.map(async (item) => {
+        const persistedReview = persistedById.get(item.id);
+        const durableImageUrl = item.serverImageUrl ?? (item.originalFile ? await fileToDataUrl(item.originalFile) : item.previewUrl);
+
+        return {
+          id: item.id,
+          fileName: item.file.name,
+          imageUrl: persistedReview?.imageUrl ?? durableImageUrl,
+          latitude: persistedReview?.latitude ?? item.serverLatitude,
+          longitude: persistedReview?.longitude ?? item.serverLongitude,
+          locationSource: persistedReview?.locationSource ?? item.locationSource,
+          manualLat: item.manualLat,
+          manualLng: item.manualLng,
+          locationException: persistedReview?.locationException ?? item.locationException,
+          status: item.status === "completed" ? "ready" : item.status,
+          message: persistedReview?.note ?? item.message,
+        };
+      })
+    );
+
+    const normalizedReviewItems = buildReviewPayloadFromUpload(reviewItems);
+
+    clearConfirmationSummary();
+    if (normalizedReviewItems.length > 0) {
+      persistReviewItems(normalizedReviewItems);
+    }
+
+    return normalizedReviewItems;
+  }, [items]);
+
   const uploadQueueItem = useCallback(async (item: UploadItem) => {
+    const originalFile = resolveOriginalFile(item);
+
+    if (!originalFile) {
+      updateQueueItem(item.id, (current) => ({
+        ...current,
+        status: "rejected",
+        progress: 0,
+        message: "Arquivo original indisponível para reenvio. Selecione a imagem novamente.",
+      }));
+      return;
+    }
+
     const formData = new FormData();
-    formData.append("files", item.file);
+    formData.append("files", originalFile);
 
     updateQueueItem(item.id, (current) => ({
       ...current,
       status: "uploading",
       progress: 0,
-      message: "Enviando para o backend...",
+      message: "Enviado com sucesso",
     }));
 
     try {
@@ -337,14 +599,14 @@ export default function UploadImagensPage() {
             ...current,
             status: "uploading",
             progress,
-            message: `Enviando para o backend... ${progress}%`,
+            message: `Enviado com sucesso ${progress}%`,
           }));
         },
       });
 
       const resultadoUpload = response.data as {
-        success?: Array<{ id?: number; caminho_arquivo?: string }>;
-        failed?: Array<{ filename?: string; reason?: string }>;
+        success?: Array<{ id?: number; caminho_arquivo?: string; latitude?: number; longitude?: number }>;
+        failed?: Array<{ filename?: string; reason?: string; image_url?: string }>;
       };
 
       const fotoEnviada = resultadoUpload.success?.[0];
@@ -353,17 +615,18 @@ export default function UploadImagensPage() {
       if (fotoEnviada) {
         updateQueueItem(item.id, (current) => ({
           ...current,
+          serverImageUrl: fotoEnviada.caminho_arquivo ?? current.serverImageUrl,
+          serverLatitude: typeof fotoEnviada.latitude === "number" ? fotoEnviada.latitude : current.serverLatitude,
+          serverLongitude: typeof fotoEnviada.longitude === "number" ? fotoEnviada.longitude : current.serverLongitude,
           status: "completed",
           progress: 100,
-          message: fotoEnviada.caminho_arquivo
-            ? `Enviado com sucesso: ${fotoEnviada.caminho_arquivo}`
-            : "Enviado com sucesso",
         }));
         return;
       }
 
       updateQueueItem(item.id, (current) => ({
         ...current,
+        serverImageUrl: falhaUpload?.image_url ?? current.serverImageUrl,
         status: "rejected",
         progress: 0,
         message: falhaUpload?.reason ?? "Falha ao enviar imagem.",
@@ -404,16 +667,22 @@ export default function UploadImagensPage() {
     incoming.forEach((file) => {
       const validationError = validateFile(file);
       const duplicate = items.some((item) => isSameFile(item.file, file)) || nextItems.some((item) => isSameFile(item.file, file));
+      const id = createId(file);
 
       if (validationError) {
         nextItems.push({
-          id: createId(file),
-          file,
+          id,
+          file: toUploadFileLike(file),
+          originalFile: file,
           previewUrl: URL.createObjectURL(file),
+          serverImageUrl: null,
+          serverLatitude: null,
+          serverLongitude: null,
           status: "rejected",
           progress: 0,
           message: validationError,
           hasLocation: null,
+          locationSource: null,
           manualLat: "",
           manualLng: "",
           locationException: null,
@@ -423,13 +692,18 @@ export default function UploadImagensPage() {
 
       if (duplicate) {
         nextItems.push({
-          id: createId(file),
-          file,
+          id,
+          file: toUploadFileLike(file),
+          originalFile: file,
           previewUrl: URL.createObjectURL(file),
+          serverImageUrl: null,
+          serverLatitude: null,
+          serverLongitude: null,
           status: "rejected",
           progress: 0,
           message: DUPLICATE_QUEUE_MESSAGE,
           hasLocation: null,
+          locationSource: null,
           manualLat: "",
           manualLng: "",
           locationException: null,
@@ -437,15 +711,19 @@ export default function UploadImagensPage() {
         return;
       }
 
-      const id = createId(file);
       nextItems.push({
         id,
-        file,
+        file: toUploadFileLike(file),
+        originalFile: file,
         previewUrl: URL.createObjectURL(file),
+        serverImageUrl: null,
+        serverLatitude: null,
+        serverLongitude: null,
         status: "pending",
         progress: 0,
         message: "Aguardando envio",
         hasLocation: null,
+        locationSource: null,
         manualLat: "",
         manualLng: "",
         locationException: null,
@@ -454,14 +732,24 @@ export default function UploadImagensPage() {
 
     setItems((current) => [...current, ...nextItems]);
 
+    nextItems.forEach((item) => {
+      if (item.originalFile) {
+        originalFileCache.set(item.id, item.originalFile);
+      }
+    });
+
     void Promise.resolve().then(() => {
       nextItems.forEach((item) => {
         if (item.status !== "pending" || item.hasLocation !== null) {
           return;
         }
 
-        void deriveHasLocationFromFile(item.file).then((hasLoc) => {
-          updateQueueItem(item.id, (current) => ({ ...current, hasLocation: hasLoc }));
+        void deriveHasLocationFromFile(resolveOriginalFile(item) ?? item.file).then((hasLoc) => {
+          updateQueueItem(item.id, (current) => ({
+            ...current,
+            hasLocation: hasLoc,
+            locationSource: hasLoc ? "gps" : current.locationSource,
+          }));
         });
       });
     });
@@ -484,7 +772,7 @@ export default function UploadImagensPage() {
             { Icon: Upload, label: "Enviar", href: "/upload-imagens" },
             { Icon: Maximize, label: "Expandir", href: "/expandir" },
             { Icon: FileText, label: "Documentos", href: "/documentos" },
-            { Icon: Map, label: "Mapa", href: "/mapa" },
+            { Icon: MapIcon, label: "Mapa", href: "/mapa" },
             { Icon: History, label: "Histórico", href: "/historico" },
           ].map(({ Icon, label, href }) => {
             const isActive = pathname === href;
@@ -556,15 +844,6 @@ export default function UploadImagensPage() {
                   <Settings size={16} className="text-gray-400 group-hover:text-blue-600" />
                   <span className="group-hover:text-blue-600 font-bold">Editar Perfil</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 p-4 hover:bg-red-50 text-sm text-red-600 transition-colors group border-t border-gray-100"
-                >
-                  <LogOut size={16} />
-                  <span className="font-bold">Sair</span>
-                </button>
               </div>
             )}
 
@@ -606,7 +885,7 @@ export default function UploadImagensPage() {
               </div>
               <h3 className="text-lg font-bold text-gray-800">Arraste as imagens da via aqui</h3>
               <p className="mt-2 text-sm text-gray-500 max-w-2xl mx-auto">
-                Formatos aceitos: JPG, PNG, TIFF e WebP (Máx. 50MB por arquivo)
+                Formatos aceitos: JPG, PNG, TIFF (Máx. 50MB por arquivo)
               </p>
               <button
                 type="button"
@@ -675,6 +954,7 @@ export default function UploadImagensPage() {
                       const isUploading = item.status === 'uploading';
                       const isCompleted = item.status === 'completed';
                       const isRejected = item.status === 'rejected';
+                      const locationSource = item.locationSource ?? (item.hasLocation ? "gps" : null);
 
                       const latInvalid =
                         itemNeedsManualLocation(item) &&
@@ -722,10 +1002,16 @@ export default function UploadImagensPage() {
                                       <span className="text-gray-500">Verificando metadados de localização...</span>
                                     </>
                                   ) : null}
-                                  {item.hasLocation === true ? (
+                                  {item.status === 'completed' && locationSource === "manual" ? (
                                     <>
                                       <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
-                                      <span className="font-semibold text-emerald-700">Localização identificada</span>
+                                      <span className="font-semibold text-emerald-700">Localização informada</span>
+                                    </>
+                                  ) : null}
+                                  {item.status === 'completed' && locationSource === "gps" ? (
+                                    <>
+                                      <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
+                                      <span className="font-semibold text-emerald-700">Localização identificada via GPS</span>
                                     </>
                                   ) : null}
                                   {item.hasLocation === false ? (
@@ -792,6 +1078,21 @@ export default function UploadImagensPage() {
                                         ...c,
                                         manualLat: v,
                                         locationException: null,
+                                        hasLocation: isCompleteManualCoordinatePair(v, c.manualLng) ? true : false,
+                                        locationSource: isCompleteManualCoordinatePair(v, c.manualLng) ? "manual" : c.locationSource,
+                                        status:
+                                          c.status === "rejected"
+                                            ? c.status
+                                            : "pending",
+                                        progress:
+                                          c.status === "rejected"
+                                            ? c.progress
+                                            : 0,
+                                        message: c.status === "rejected"
+                                          ? c.message
+                                          : isCompleteManualCoordinatePair(v, c.manualLng)
+                                            ? "Coordenadas manuais preenchidas."
+                                            : "Aguardando coordenadas manuais.",
                                       }));
                                     }}
                                     placeholder="-23,5505"
@@ -815,6 +1116,21 @@ export default function UploadImagensPage() {
                                         ...c,
                                         manualLng: v,
                                         locationException: null,
+                                        hasLocation: isCompleteManualCoordinatePair(c.manualLat, v) ? true : false,
+                                        locationSource: isCompleteManualCoordinatePair(c.manualLat, v) ? "manual" : c.locationSource,
+                                        status:
+                                          c.status === "rejected"
+                                            ? c.status
+                                            : "pending",
+                                        progress:
+                                          c.status === "rejected"
+                                            ? c.progress
+                                            : 0,
+                                        message: c.status === "rejected"
+                                          ? c.message
+                                          : isCompleteManualCoordinatePair(c.manualLat, v)
+                                            ? "Coordenadas manuais preenchidas."
+                                            : "Aguardando coordenadas manuais.",
                                       }));
                                     }}
                                     placeholder="-46,6333"
@@ -836,6 +1152,7 @@ export default function UploadImagensPage() {
                                         locationException: c.locationException === "sem_gps" ? null : "sem_gps",
                                         manualLat: "",
                                         manualLng: "",
+                                        locationSource: null,
                                       }))
                                     }
                                     className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
@@ -845,24 +1162,6 @@ export default function UploadImagensPage() {
                                     }`}
                                   >
                                     Sem GPS
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      updateQueueItem(item.id, (c) => ({
-                                        ...c,
-                                        locationException: c.locationException === "exif_corrompido" ? null : "exif_corrompido",
-                                        manualLat: "",
-                                        manualLng: "",
-                                      }))
-                                    }
-                                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
-                                      item.locationException === "exif_corrompido"
-                                        ? "border-[#0a5483] bg-[#0a5483] text-white"
-                                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                                    }`}
-                                  >
-                                    EXIF corrompido
                                   </button>
                                 </div>
                               </div>
@@ -880,7 +1179,11 @@ export default function UploadImagensPage() {
               <button
                 type="button"
                 disabled={!podeMapearCoordenadas}
-                onClick={() => router.push("/mapa")}
+                onClick={() => {
+                  void prepareReviewItems().finally(() => {
+                    router.push("/mapa");
+                  });
+                }}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold uppercase tracking-wide transition ${
                   podeMapearCoordenadas
                     ? "bg-[#0a5483] text-white shadow-sm hover:bg-[#083d61]"
