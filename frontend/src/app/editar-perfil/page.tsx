@@ -107,10 +107,6 @@ function formatarTelefoneDuranteDigitacao(valor: string) {
     return `(${digitos}`;
   }
 
-  if (digitos.length <= 3) {
-    return `(${digitos.slice(0, 2)}) ${digitos.slice(2)}`;
-  }
-
   if (digitos.length <= 6) {
     return `(${digitos.slice(0, 2)}) ${digitos.slice(2)}`;
   }
@@ -138,7 +134,7 @@ function empresaOuOrgaoEhValido(valor: string) {
     return true;
   }
 
-  return /^[A-Za-zÀ-ÿ\s/&.\-]+$/.test(texto);
+  return /^[A-Za-zÀ-ÿ\s,&/.\-]+$/.test(texto);
 }
 
 function extrairMensagemErroApi(error: unknown) {

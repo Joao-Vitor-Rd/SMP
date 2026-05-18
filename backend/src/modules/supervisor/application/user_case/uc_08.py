@@ -41,7 +41,7 @@ class AtualizarSupervisorUseCase:
             empresa_limpa = update_data.empresa_ou_orgao.strip()
             if empresa_limpa:
                 if not self._validar_texto_sem_numeros(empresa_limpa):
-                    raise ValueError("Órgão/Instituição deve incluir apenas letras")
+                    raise ValueError("Órgão/Instituição não pode conter números")
                 empresa_ou_orgao = self._normalizar_texto(empresa_limpa)
             else:
                 empresa_ou_orgao = None
