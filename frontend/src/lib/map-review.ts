@@ -325,7 +325,9 @@ export async function loadReviewItems(): Promise<MapReviewInspection[]> {
     return stored;
   }
 
-  return [];
+  const fallback = buildMockData();
+  persistReviewItems(fallback);
+  return fallback;
 }
 
 export async function saveInspectionPosition(itemId: string, latitude: number, longitude: number) {

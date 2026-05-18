@@ -221,10 +221,10 @@ function restoreUploadItem(snapshot: UploadItemSnapshot): UploadItem {
     originalFile: originalFileCache.get(snapshot.id),
     hasLocation: manualReady ? true : snapshot.hasLocation,
     locationSource: snapshot.locationSource ?? (manualReady ? "manual" : snapshot.hasLocation ? "gps" : null),
-    status: snapshot.status !== "rejected" && manualReady ? "completed" : snapshot.status,
-    progress: snapshot.status !== "rejected" && manualReady ? 100 : snapshot.progress,
+    status: manualReady ? "completed" : snapshot.status,
+    progress: manualReady ? 100 : snapshot.progress,
     message:
-      snapshot.status !== "rejected" && manualReady
+      manualReady
         ? "Localização informada e pronta para revisão."
         : snapshot.message,
     previewUrl: createPreviewForRestoredItem(snapshot),
@@ -232,7 +232,7 @@ function restoreUploadItem(snapshot: UploadItemSnapshot): UploadItem {
 }
 
 function hydrateUploadItemFromReview(item: UploadItem, review: ReturnType<typeof readPersistedReviewItems>[number] | undefined): UploadItem {
-  if (!review || item.status === "rejected") {
+  if (!review) {
     return item;
   }
 

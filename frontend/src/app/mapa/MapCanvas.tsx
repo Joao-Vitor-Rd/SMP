@@ -96,6 +96,7 @@ function ReviewMarker({
     <Marker
       ref={markerRef}
       position={[item.latitude, item.longitude]}
+      draggable
       eventHandlers={{
         click: () => onSelect(item.id),
         dragend: (event) => {
