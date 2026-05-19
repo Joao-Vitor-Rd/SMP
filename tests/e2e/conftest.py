@@ -47,8 +47,18 @@ def _ler_resposta_redis(sock):
     return sock.recv(65536)
 
 
+def _comando_redis(*partes):
+    comando = [f"*{len(partes)}\r\n".encode()]
+    for parte in partes:
+        if isinstance(parte, str):
+            parte = parte.encode()
+        comando.append(f"${len(parte)}\r\n".encode())
+        comando.append(parte + b"\r\n")
+    return b"".join(comando)
+
+
 def _chaves_brute_force_redis(sock):
-    sock.sendall(b"*2\r\n$4\r\nKEYS\r\n$12\r\nbrute_force:*\r\n")
+    sock.sendall(_comando_redis("KEYS", "brute_force:*"))
     resposta = _ler_resposta_redis(sock)
 
     if not resposta.startswith(b"*"):
@@ -78,12 +88,7 @@ def limpar_redis_teste():
             if not chaves:
                 return
 
-            comando = [f"*{len(chaves) + 1}\r\n$3\r\nDEL\r\n".encode()]
-            for chave in chaves:
-                comando.append(f"${len(chave)}\r\n".encode())
-                comando.append(chave + b"\r\n")
-
-            sock.sendall(b"".join(comando))
+            sock.sendall(_comando_redis("DEL", *chaves))
             _ler_resposta_redis(sock)
     except OSError:
         pass
@@ -117,6 +122,7 @@ def criar_usuario_teste():
 @pytest.fixture(scope="function") # roda antes de cada teste
 def usuario_teste():
     """Entrega email e senha de um supervisor novo para o teste."""
+    limpar_redis_teste()
     return criar_usuario_teste()
 
 
