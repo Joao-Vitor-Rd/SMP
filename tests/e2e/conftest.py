@@ -2,6 +2,7 @@ import requests
 import pytest
 import sys
 import socket
+import os
 from uuid import uuid4
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -42,11 +43,48 @@ class AuthManager:
 auth_manager = AuthManager()
 
 
+def _ler_resposta_redis(sock):
+    return sock.recv(65536)
+
+
+def _chaves_brute_force_redis(sock):
+    sock.sendall(b"*2\r\n$4\r\nKEYS\r\n$12\r\nbrute_force:*\r\n")
+    resposta = _ler_resposta_redis(sock)
+
+    if not resposta.startswith(b"*"):
+        return []
+
+    linhas = resposta.split(b"\r\n")
+    chaves = []
+    index = 1
+
+    while index < len(linhas):
+        if linhas[index].startswith(b"$") and index + 1 < len(linhas):
+            chaves.append(linhas[index + 1])
+            index += 2
+            continue
+        index += 1
+
+    return chaves
+
+
 def limpar_redis_teste():
+    host = os.getenv("REDIS_TEST_HOST", "localhost")
+    port = int(os.getenv("REDIS_TEST_PORT", "6379"))
+
     try:
-        with socket.create_connection(("localhost", 6379), timeout=2) as sock:
-            sock.sendall(b"*1\r\n$7\r\nFLUSHDB\r\n")
-            sock.recv(1024)
+        with socket.create_connection((host, port), timeout=2) as sock:
+            chaves = _chaves_brute_force_redis(sock)
+            if not chaves:
+                return
+
+            comando = [f"*{len(chaves) + 1}\r\n$3\r\nDEL\r\n".encode()]
+            for chave in chaves:
+                comando.append(f"${len(chave)}\r\n".encode())
+                comando.append(chave + b"\r\n")
+
+            sock.sendall(b"".join(comando))
+            _ler_resposta_redis(sock)
     except OSError:
         pass
 
