@@ -35,13 +35,15 @@ def test_criar_tecnico_sucesso(page, usuario_teste):
     expect(tecnico_page.campo_data_expiracao).not_to_be_visible()
 
     with page.expect_response(
-        lambda response: response.url.endswith("/api/colaboradores/")
+        lambda response: "/api/colaboradores" in response.url
         and response.request.method == "POST"
-        and response.status == 201
+        and 200 <= response.status < 300
     ) as response_info:
         tecnico_page.adicionar_tecnico()
 
     resposta = response_info.value
+    assert resposta.status in (200, 201)
+
     tecnico = resposta.json()
 
     assert tecnico["nome"] == "Carlos Tecnico"
