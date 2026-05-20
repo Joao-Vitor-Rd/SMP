@@ -20,8 +20,8 @@ class AtualizarColaboradorUseCase:
         self.string_sem_numero_validator = string_sem_numero_validator
         self.telefone_validator = telefone_validator
 
-    def execute(self, colaborador_id: int, update_data: UpdateColaboradorDTO) -> ColaboradorResponseDTO:
-        colaborador_atual = self.repository.find_by_id(colaborador_id)
+    def execute(self, user_id: int, update_data: UpdateColaboradorDTO) -> ColaboradorResponseDTO:
+        colaborador_atual = self.repository.find_by_user_id(user_id)
 
         if colaborador_atual is None:
             raise ValueError("Colaborador não encontrado")
@@ -71,15 +71,24 @@ class AtualizarColaboradorUseCase:
             else:
                 instituicao_ensino = None
 
-        telefone = colaborador_atual.telefone
-        if update_data.telefone is not None:
-            telefone_limpo = update_data.telefone.strip()
-            if telefone_limpo:
-                if not self.telefone_validator.validar_telefone(telefone_limpo):
-                    raise ValueError("Telefone inválido")
-                telefone = self.telefone_validator.formatar_telefone(telefone_limpo)
-            else:
+        # Detectar se o campo `telefone` foi enviado pelo cliente.
+        provided = update_data.model_dump(exclude_unset=True)
+        if 'telefone' in provided:
+            # Campo enviado explicitamente (pode ser null)
+            telefone_val = provided.get('telefone')
+            if telefone_val is None:
                 telefone = None
+            else:
+                telefone_limpo = str(telefone_val).strip()
+                if telefone_limpo:
+                    if not self.telefone_validator.validar_telefone(telefone_limpo):
+                        raise ValueError("Telefone inválido")
+                    telefone = self.telefone_validator.formatar_telefone(telefone_limpo)
+                else:
+                    telefone = None
+        else:
+            # Campo não enviado: manter o telefone atual
+            telefone = colaborador_atual.telefone
 
         is_tecnico = colaborador_atual.is_tecnico
         if update_data.is_tecnico is not None:
