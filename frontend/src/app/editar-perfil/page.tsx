@@ -89,10 +89,6 @@ function formatarTelefonePadrao(valor: string) {
     return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
   }
 
-  if (digitos.length === 10) {
-    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
-  }
-
   return valor.trim();
 }
 
@@ -111,16 +107,12 @@ function formatarTelefoneParaExibicao(valor: string) {
     return `(${digitos.slice(0, 2)}) ${digitos.slice(2)}`;
   }
 
-  if (digitos.length <= 10) {
-    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
-  }
-
   return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
 }
 
 function telefoneEhValido(valor: string) {
   const digitos = normalizarTelefone(valor);
-  return digitos.length === 10 || digitos.length === 11;
+  return digitos.length === 11;
 }
 
 function emailEhValido(email: string) {
@@ -195,7 +187,7 @@ function obterFeedbackErro(message: string) {
   if (/telefone.*inválid|celular.*inválid/i.test(message)) {
     return {
       title: 'Telefone inválido',
-      message: 'Informe um telefone válido no formato (xx) xxxxx-xxxx.',
+      message: 'Informe um telefone com DDD e 11 dígitos, como (21)99999-9999.',
     };
   }
 
@@ -503,7 +495,7 @@ export default function EditarPerfilPage() {
       }
 
       if (!telefoneEhValido(perfil.telefone)) {
-        mostrarFeedback('Telefone inválido. Informe um telefone válido no formato (xx) xxxxx-xxxx.', 'error', 'Telefone inválido');
+        mostrarFeedback('Telefone inválido. Informe um telefone com DDD e 11 dígitos, como (21)99999-9999.', 'error', 'Telefone inválido');
         return;
       }
 
