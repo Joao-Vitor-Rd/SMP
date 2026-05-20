@@ -24,7 +24,6 @@ class CriarColaboradorUseCase:
     def __init__(
             self, 
             repository: IColaboradorRepository,
-            repository_user: IUserRepository,
             repository_supervisor: ISupervisorRepository,
             criador_senha: ICriadorSenha,
             hasher: PassWordHasher,
@@ -32,7 +31,8 @@ class CriarColaboradorUseCase:
             email_validator: IEmailValidator,
             telefone_validator: ITelefoneValidator,
             email_unico_validator: IEmailUnicoValidator,
-            string_sem_numero_validator: IStringSemNumeroValidador
+            string_sem_numero_validator: IStringSemNumeroValidador,
+            repository_user: IUserRepository | None = None
         ):
         self.repository = repository
         self.repository_user = repository_user
@@ -54,25 +54,46 @@ class CriarColaboradorUseCase:
             create_data.email,
         )
 
-        profissional_existente = self.repository_user.find_by_id(create_data.id_profissional_responsavel)
+        supervisor = self.repository_supervisor.find_by_id(create_data.id_profissional_responsavel)
         logger.info(
-            "Lookup direto em user.id=%s encontrado=%s",
+            "Lookup em supervisor.id=%s encontrado=%s",
             create_data.id_profissional_responsavel,
-            profissional_existente is not None,
+            supervisor is not None,
         )
-        if profissional_existente is None:
-            supervisor_user_id = self.repository_supervisor.find_user_id_by_id(create_data.id_profissional_responsavel)
-            logger.info(
-                "Fallback supervisor.id=%s -> user_id=%s",
-                create_data.id_profissional_responsavel,
-                supervisor_user_id,
-            )
-            if supervisor_user_id is not None:
-                profissional_existente = self.repository_user.find_by_id(supervisor_user_id)
+
+        profissional_existente = None
+        if supervisor is not None:
+            if self.repository_user is not None:
+                supervisor_user_id = getattr(supervisor, "user_id", None) or getattr(supervisor, "id", None)
                 logger.info(
-                    "Lookup via supervisor.user_id=%s encontrado=%s",
+                    "Supervisor.id=%s resolve para user_id=%s",
+                    create_data.id_profissional_responsavel,
                     supervisor_user_id,
+                )
+                if supervisor_user_id is not None:
+                    profissional_existente = self.repository_user.find_by_id(supervisor_user_id)
+                    logger.info(
+                        "Lookup via supervisor.user_id=%s encontrado=%s",
+                        supervisor_user_id,
+                        profissional_existente is not None,
+                    )
+            if profissional_existente is None:
+                profissional_existente = type(
+                    "ResponsavelResolvido",
+                    (),
+                    {"id": getattr(supervisor, "id", create_data.id_profissional_responsavel), "cargo": CargoEnum.SUPERVISOR},
+                )()
+        else:
+            if self.repository_user is not None:
+                profissional_existente = self.repository_user.find_by_id(create_data.id_profissional_responsavel)
+                logger.info(
+                    "Lookup direto em user.id=%s encontrado=%s",
+                    create_data.id_profissional_responsavel,
                     profissional_existente is not None,
+                )
+            if profissional_existente is None:
+                raise ValueError(
+                    f"Supervisor com identificador: {create_data.id_profissional_responsavel} não cadastrado no sistema"
                 )
 
         #valida nome e formata nome
@@ -82,12 +103,8 @@ class CriarColaboradorUseCase:
             raise ValueError(f"Nome deve incluir apenas letras")
 
         # valida se o profissional responsável existe na tabela user e é supervisor/técnico
-        if profissional_existente is None:
-            raise ValueError(
-                f"Profissional com identificador: {create_data.id_profissional_responsavel} não cadastrado no sistema"
-            )
-
-        cargo_profissional = profissional_existente.cargo.value if hasattr(profissional_existente.cargo, "value") else str(profissional_existente.cargo)
+        cargo_profissional_raw = getattr(profissional_existente, "cargo", None)
+        cargo_profissional = cargo_profissional_raw.value if hasattr(cargo_profissional_raw, "value") else str(cargo_profissional_raw)
         logger.info(
             "Profissional responsável resolvido: id=%s cargo=%s",
             profissional_existente.id,
