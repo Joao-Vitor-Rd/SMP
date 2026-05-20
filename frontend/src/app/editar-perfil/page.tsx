@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import axios from 'axios';
-import { authApi, clearAuthSession, SessionExpiredError } from '@/lib/authApi';
+import { authApi, clearAuthSession, SessionExpiredError } from '../../lib/authApi';
 import {
   Activity,
   ArrowLeft,
@@ -27,8 +27,6 @@ import {
   User,
   UserPlus,
 } from 'lucide-react';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 const UF_OPTIONS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -98,6 +96,28 @@ function formatarTelefonePadrao(valor: string) {
   return valor.trim();
 }
 
+function formatarTelefoneParaExibicao(valor: string) {
+  const digitos = normalizarTelefone(valor);
+
+  if (!digitos) {
+    return '';
+  }
+
+  if (digitos.length <= 2) {
+    return `(${digitos}`;
+  }
+
+  if (digitos.length <= 6) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2)}`;
+  }
+
+  if (digitos.length <= 10) {
+    return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}`;
+  }
+
+  return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+}
+
 function telefoneEhValido(valor: string) {
   const digitos = normalizarTelefone(valor);
   return digitos.length === 10 || digitos.length === 11;
@@ -105,6 +125,16 @@ function telefoneEhValido(valor: string) {
 
 function emailEhValido(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function empresaOuOrgaoEhValido(valor: string) {
+  const texto = valor.trim();
+
+  if (!texto) {
+    return true;
+  }
+
+  return /^[A-Za-zÀ-ÿ\s,&/.\-]+$/.test(texto);
 }
 
 function extrairMensagemErroApi(error: unknown) {
@@ -336,7 +366,7 @@ export default function EditarPerfilPage() {
           setNomeEmEdicao(colaborador.nome ?? usuario.nome ?? '');
         }
 
-        const userDataToSave = {
+        const userDataToSave: Record<string, unknown> = {
           ...usuario,
           id: usuario_api.id ?? usuario.id,
           nome: usuario_api.nome ?? usuario.nome,
@@ -348,12 +378,12 @@ export default function EditarPerfilPage() {
         };
 
         if (cargo === 'supervisor') {
-          (userDataToSave as any).crea = usuario_api.identificador_profissional ?? usuario.crea;
-          (userDataToSave as any).identificador_profissional = usuario_api.identificador_profissional ?? usuario.identificador_profissional;
-          (userDataToSave as any).empresa = usuario_api.empresa ?? usuario.empresa;
+          userDataToSave.crea = usuario_api.identificador_profissional ?? usuario.crea;
+          userDataToSave.identificador_profissional = usuario_api.identificador_profissional ?? usuario.identificador_profissional;
+          userDataToSave.empresa = usuario_api.empresa ?? usuario.empresa;
         } else if (cargo === 'colaborador' || cargo === 'tecnico') {
-          (userDataToSave as any).cft = usuario_api.cft ?? usuario.cft;
-          (userDataToSave as any).empresa_ou_orgao = usuario_api.empresa_ou_orgao ?? usuario.empresa;
+          userDataToSave.cft = usuario_api.cft ?? usuario.cft;
+          userDataToSave.empresa_ou_orgao = usuario_api.empresa_ou_orgao ?? usuario.empresa;
         }
 
         localStorage.setItem('usuario', JSON.stringify(userDataToSave));
@@ -477,6 +507,11 @@ export default function EditarPerfilPage() {
         return;
       }
 
+      if (perfil.empresa.trim() && !empresaOuOrgaoEhValido(perfil.empresa)) {
+        mostrarFeedback('Órgão, empresa ou instituição não pode conter números.', 'error', 'Campo inválido');
+        return;
+      }
+
       const payload = {
         nome: nomeEmEdicao.trim(),
         telefone: normalizarTelefone(perfil.telefone),
@@ -486,7 +521,7 @@ export default function EditarPerfilPage() {
       };
 
       const endpoint = perfil.cargo === 'supervisor' ? '/api/supervisores/me' : '/api/colaboradores/me';
-      const response = await authApi.put(endpoint, payload);
+      await authApi.put(endpoint, payload);
 
       mostrarFeedback('Perfil atualizado com sucesso.', 'success', 'Alterações salvas');
 
@@ -763,10 +798,12 @@ export default function EditarPerfilPage() {
                   type="text"
                   title="Telefone"
                   aria-label="Telefone"
-                  value={perfil.telefone}
-                  onChange={(e) => setPerfil({ ...perfil, telefone: e.target.value })}
+                  value={formatarTelefoneParaExibicao(perfil.telefone)}
+                  onChange={(e) => setPerfil((current) => ({ ...current, telefone: normalizarTelefone(e.target.value) }))}
                   onBlur={() => setPerfil((current) => ({ ...current, telefone: current.telefone ? formatarTelefonePadrao(current.telefone) : '' }))}
                   placeholder="(31) 99781-4542"
+                  inputMode="numeric"
+                  maxLength={15}
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                 />
               </div>

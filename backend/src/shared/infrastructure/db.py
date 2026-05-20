@@ -50,13 +50,12 @@ def sync_schema():
                 col_name = column.name
                 
                 if col_name not in existing_columns:
-                    # Coluna nova - adicionar
+                    # Coluna nova - em tabela já existente, criar como NULL para não quebrar registros antigos
                     try:
                         col_type = str(column.type.compile(dialect=connection.dialect))
-                        nullable = "NULL" if column.nullable else "NOT NULL"
                         default = f"DEFAULT {column.default.arg}" if column.default is not None else ""
-                        
-                        sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type} {nullable} {default}".strip()
+
+                        sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type} NULL {default}".strip()
                         connection.execute(text(sql))
                         print(f"✓ Coluna {table_name}.{col_name} criada")
                     except Exception as e:

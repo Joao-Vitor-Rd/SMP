@@ -1,3 +1,5 @@
+import re
+
 from src.modules.supervisor.application.dtos import SupervisorResponseDTO, UpdateSupervisorDTO
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
 from src.shared.domain.interfaces.i_string_sem_numeros_validator import IStringSemNumeroValidador
@@ -36,7 +38,13 @@ class AtualizarSupervisorUseCase:
 
         empresa_ou_orgao = supervisor_atual.empresa_ou_orgao
         if update_data.empresa_ou_orgao is not None:
-            empresa_ou_orgao = update_data.empresa_ou_orgao.strip() or None
+            empresa_limpa = update_data.empresa_ou_orgao.strip()
+            if empresa_limpa:
+                if not self._validar_texto_sem_numeros(empresa_limpa):
+                    raise ValueError("Órgão/Instituição não pode conter números")
+                empresa_ou_orgao = self._normalizar_texto(empresa_limpa)
+            else:
+                empresa_ou_orgao = None
 
         telefone = supervisor_atual.telefone
         if update_data.telefone is not None:
@@ -66,3 +74,9 @@ class AtualizarSupervisorUseCase:
             telefone=supervisor_salvo.telefone,
             empresa=supervisor_salvo.empresa_ou_orgao,
         )
+
+    def _validar_texto_sem_numeros(self, texto: str) -> bool:
+        return bool(re.fullmatch(r"[A-Za-zÀ-ÿ\s/&.\-]+", texto))
+
+    def _normalizar_texto(self, texto: str) -> str:
+        return " ".join(texto.strip().split())

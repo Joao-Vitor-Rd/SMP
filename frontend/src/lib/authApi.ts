@@ -1,4 +1,4 @@
-import axios, { AxiosHeaders, AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
 
 export function getPublicApiBaseUrl(): string {
   const raw = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').trim();
@@ -53,7 +53,11 @@ authApi.interceptors.request.use((config) => {
 authApi.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as any;
+    const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
+
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
 
     // Se o erro é 401 e ainda não tentamos refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -86,7 +90,7 @@ authApi.interceptors.response.use(
 
         // Tentar novamente a requisição original com o novo token
         return authApi(originalRequest);
-      } catch (refreshError) {
+      } catch {
         isRefreshing = false;
 
         // Se o refresh falhar, limpar sessão e rejeitar
