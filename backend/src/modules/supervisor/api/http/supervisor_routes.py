@@ -1,5 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
+import logging
+import re
 from sqlalchemy.orm import Session
 from src.shared.infrastructure.db import get_session
 from src.modules.supervisor.application.user_case.uc_01 import CriarSupervisorUseCase
@@ -18,6 +20,7 @@ from src.shared.validators.string_sem_numero_validator import StringSemNumeroVal
 from src.shared.validators.telefone_validator import TelefoneValidator
 
 router = APIRouter(tags=["Supervisores"])
+logger = logging.getLogger(__name__)
 
 def get_repository(session: Annotated[Session, Depends(get_session)]):
     return SupervisorRepository(session)
@@ -101,17 +104,25 @@ async def atualizar_meu_perfil(
     telefone_validator = Depends(get_telefone_validator),
 ):
     try:
+        # Log raw telefone payload to inspect frontend formatting
+        raw_tel = getattr(update_data, 'telefone', None)
+        apenas_numeros = re.sub(r"\D", "", str(raw_tel)) if raw_tel is not None else None
+        logger.info("Atualizar supervisor solicitado: sub=%s telefone_recebido=%s telefone_digits=%s len=%s", payload.get("sub"), raw_tel, apenas_numeros, len(apenas_numeros) if apenas_numeros is not None else None)
         user_id_raw = payload.get("sub")
         if not user_id_raw:
             raise HTTPException(status_code=401, detail="Token inválido")
 
-        supervisor_id = int(str(user_id_raw))
+        user_id = int(str(user_id_raw))
+        supervisor = repository.find_by_user_id(user_id)
+        if not supervisor:
+            raise HTTPException(status_code=404, detail="Supervisor não encontrado")
+
         use_case = AtualizarSupervisorUseCase(
             repository,
             string_validator,
             telefone_validator,
         )
-        return use_case.execute(supervisor_id, update_data)
+        return use_case.execute(int(supervisor.id), update_data)
     except HTTPException:
         raise
     except ValueError as e:

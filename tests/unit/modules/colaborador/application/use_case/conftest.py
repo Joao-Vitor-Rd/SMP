@@ -16,6 +16,7 @@ from src.modules.colaborador.domain.entities.colaborador import Colaborador
 def colaborador_repository():
     mock = Mock()
     mock.find_by_cft.return_value = None
+    mock.find_by_user_id.return_value = None
     mock.save.side_effect = lambda colaborador: colaborador.model_copy(update={"id": 10})
     mock.update_colaborador.side_effect = lambda colaborador: colaborador
     return mock

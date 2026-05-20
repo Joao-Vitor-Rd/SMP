@@ -14,6 +14,10 @@ class IColaboradorRepository(ABC):
         pass
 
     @abstractmethod
+    def find_by_user_id(self, user_id: int) -> Optional[Colaborador]:
+        pass
+
+    @abstractmethod
     def find_all(self) -> List[Colaborador]:
         pass
 

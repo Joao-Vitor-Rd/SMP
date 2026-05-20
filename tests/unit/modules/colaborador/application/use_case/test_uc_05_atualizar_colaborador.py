@@ -24,7 +24,7 @@ class TestAtualizarColaboradorUseCase:
         telefone_validator,
         make_update_colaborador_dto,
     ):
-        colaborador_repository.find_by_id.return_value = colaborador_existente
+        colaborador_repository.find_by_user_id.return_value = colaborador_existente
 
         response = atualizar_colaborador_use_case.execute(
             10,
@@ -57,7 +57,7 @@ class TestAtualizarColaboradorUseCase:
         colaborador_repository,
         make_update_colaborador_dto,
     ):
-        colaborador_repository.find_by_id.return_value = None
+        colaborador_repository.find_by_user_id.return_value = None
 
         with pytest.raises(ValueError, match="Colaborador não encontrado"):
             atualizar_colaborador_use_case.execute(99, make_update_colaborador_dto())
@@ -72,7 +72,7 @@ class TestAtualizarColaboradorUseCase:
         string_sem_numero_validator,
         make_update_colaborador_dto,
     ):
-        colaborador_repository.find_by_id.return_value = colaborador_existente
+        colaborador_repository.find_by_user_id.return_value = colaborador_existente
         string_sem_numero_validator.validar_string_sem_numero.return_value = False
 
         with pytest.raises(ValueError, match="Nome deve incluir apenas letras"):
@@ -91,7 +91,7 @@ class TestAtualizarColaboradorUseCase:
         string_sem_numero_validator,
         make_update_colaborador_dto,
     ):
-        colaborador_repository.find_by_id.return_value = colaborador_existente
+        colaborador_repository.find_by_user_id.return_value = colaborador_existente
         string_sem_numero_validator.validar_string_sem_numero.side_effect = [
             True,
             False,
@@ -112,7 +112,7 @@ class TestAtualizarColaboradorUseCase:
         colaborador_existente,
         make_update_colaborador_dto,
     ):
-        colaborador_repository.find_by_id.return_value = colaborador_existente
+        colaborador_repository.find_by_user_id.return_value = colaborador_existente
 
         with pytest.raises(ValueError, match="UF inválida"):
             atualizar_colaborador_use_case.execute(
@@ -130,7 +130,7 @@ class TestAtualizarColaboradorUseCase:
         telefone_validator,
         make_update_colaborador_dto,
     ):
-        colaborador_repository.find_by_id.return_value = colaborador_existente
+        colaborador_repository.find_by_user_id.return_value = colaborador_existente
         telefone_validator.validar_telefone.return_value = False
 
         with pytest.raises(ValueError, match="Telefone inválido"):
@@ -149,7 +149,7 @@ class TestAtualizarColaboradorUseCase:
         colaborador_existente,
         make_update_colaborador_dto,
     ):
-        colaborador_repository.find_by_id.return_value = colaborador_existente
+        colaborador_repository.find_by_user_id.return_value = colaborador_existente
 
         response = atualizar_colaborador_use_case.execute(
             10,

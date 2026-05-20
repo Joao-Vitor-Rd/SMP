@@ -18,12 +18,13 @@ from src.modules.supervisor.infrastructure.repositories.SupervisorRepository imp
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
 from src.shared.infrastructure.secret_criador_senha import SecretCriadorSenha 
 from src.modules.noticacao.infrastructure.SmtpEmailNotificacao import SmtpEmailNotificacaoService
-from src.shared.auth.dependencies import verify_supervisor_role, verify_any_user, verify_supervisor_ou_tecnico
+from src.shared.auth.dependencies import verify_supervisor_role, verify_colaborador_role, verify_supervisor_ou_tecnico
 from src.shared.validators.email_validator import EmailValidator
 from src.shared.validators.telefone_validator import TelefoneValidator
 from src.shared.infrastructure.email_unico_validator import EmailUnicoValidator
 from src.shared.validators.string_sem_numero_validator import StringSemNumeroValidator
 import logging
+import re
 
 router = APIRouter(tags=["Colaboradores"])
 logger = logging.getLogger(__name__)
@@ -168,29 +169,23 @@ async def deletar_colaborador(
 )
 async def atualizar_meu_perfil(
     update_data: UpdateColaboradorDTO,
-    payload: Annotated[dict, Depends(verify_any_user)],
+    payload: Annotated[dict, Depends(verify_colaborador_role)],
     colaborador_repo = Depends(get_colaborador_repository),
     string_validator = Depends(get_string_validator),
     telefone_validator = Depends(get_telefone_validator),
 ):
     try:
-        if payload.get("role") not in {"colaborador", "tecnico"}:
-            raise HTTPException(
-                status_code=403,
-                detail="Este endpoint é exclusivo para colaboradores autenticados"
-            )
-
         user_id_raw = payload.get("sub")
         if not user_id_raw:
             raise HTTPException(status_code=401, detail="Token inválido")
 
-        colaborador_id = int(str(user_id_raw))
+        user_id = int(str(user_id_raw))
         use_case = AtualizarColaboradorUseCase(
             colaborador_repo,
             string_validator,
             telefone_validator,
         )
-        return use_case.execute(colaborador_id, update_data)
+        return use_case.execute(user_id, update_data)
     except HTTPException:
         raise
     except ValueError as e:
