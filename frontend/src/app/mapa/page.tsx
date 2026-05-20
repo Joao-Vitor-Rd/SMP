@@ -1,7 +1,6 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
@@ -37,7 +36,7 @@ import {
   type MapReviewInspection,
 } from "../../lib/map-review";
 
-const MapCanvas = dynamic(() => import("./MapCanvas"), { ssr: false });
+import MapContainerBase from "../../../components/MapContainerBase";
 
 type UserState = {
   nome: string;
@@ -314,7 +313,7 @@ export default function MapaRevisaoPage() {
         </div>
       </aside>
 
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto p-8 pb-28">
         <header className="flex justify-between items-start mb-10">
           <div>
             <h1 className="text-xl font-bold text-gray-800">Sistema de Monitoramento de Pavimentação</h1>
@@ -399,30 +398,17 @@ export default function MapaRevisaoPage() {
           <section className="grid gap-6 xl:grid-cols-[minmax(0,2.2fr)_360px]">
             <div className="space-y-6">
               <div className="overflow-hidden rounded-4xl border border-white/70 bg-white/90 p-2.5 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-sm">
-                {loading ? (
-                  <div className="flex min-h-155 items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50/80">
-                    <div className="flex items-center gap-3 rounded-2xl border border-white/80 bg-white px-5 py-4 text-sm font-semibold text-slate-600 shadow-lg">
-                      <Loader2 size={18} className="animate-spin text-[#0a5483]" />
-                      {loadingMessage}
-                    </div>
-                  </div>
-                ) : errorMessage ? (
-                  <div className="flex min-h-155 items-center justify-center rounded-[28px] border border-dashed border-rose-200 bg-rose-50/80 px-6 text-center">
-                    <div className="max-w-md">
-                      <p className="text-lg font-black text-rose-700">Falha ao carregar o mapa</p>
-                      <p className="mt-2 text-sm leading-6 text-rose-700/80">{errorMessage}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <MapCanvas
+                <MapContainerBase
                     items={items}
                     selectedId={selectedId}
                     onSelect={setSelectedId}
                     onMove={(itemId, latitude, longitude) => {
                       void updateItemPosition(itemId, latitude, longitude);
                     }}
+                    loading={loading}
+                    errorMessage={errorMessage}
+                    loadingMessage={loadingMessage}
                   />
-                )}
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
@@ -560,6 +546,28 @@ export default function MapaRevisaoPage() {
           </section>
         </div>
       </main>
+
+      <footer className="fixed bottom-0 left-20 right-0 z-50 border-t border-slate-200 bg-white p-4 shadow-md">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold text-slate-900">Confirmação final</p>
+            <p className="text-xs text-slate-500">
+              {pendingChanges > 0
+                ? `${pendingChanges} imagem(ns) aguardando validação antes do envio.`
+                : "Todas as inspeções revisadas estão prontas para confirmação."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleConfirmReview()}
+            disabled={confirming || loading || items.length === 0}
+            className="inline-flex min-w-56 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-black text-white shadow-md transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            {confirming ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+            Confirmar registro das inspeções
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }
