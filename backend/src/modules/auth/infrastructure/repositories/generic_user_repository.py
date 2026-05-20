@@ -11,6 +11,15 @@ class GenericUserRepository(IUserRepository):
     
     def __init__(self, session: Session):
         self.session = session
+
+    def find_by_id(self, user_id: int) -> Optional[UserORM]:
+        return self.session.query(UserORM).filter(UserORM.id == user_id).first()
+
+    def find_colaborador_by_user_id(self, user_id: int) -> Optional[ColaboradorORM]:
+        return self.session.query(ColaboradorORM).filter(ColaboradorORM.user_id == user_id).first()
+
+    def find_supervisor_by_user_id(self, user_id: int) -> Optional[SupervisorORM]:
+        return self.session.query(SupervisorORM).filter(SupervisorORM.user_id == user_id).first()
     
     def find_by_email(self, email: str) -> Optional[dict]:
         # Buscar na tabela user pelo email
@@ -23,16 +32,15 @@ class GenericUserRepository(IUserRepository):
         
         # Baseado no cargo, buscar em supervisor ou colaborador
         if user.cargo == CargoEnum.SUPERVISOR:
-            supervisor = self.session.query(SupervisorORM).filter(
-                SupervisorORM.user_id == user.id
-            ).first()
+            supervisor = self.find_supervisor_by_user_id(user.id)
             
             if supervisor:
                 return {
-                    "user": supervisor,
+                    "user": user,
+                    "profile": supervisor,
                     "user_type": "supervisor",
                     "cargo": "supervisor",
-                    "id": supervisor.id,
+                    "id": user.id,
                     "email": user.email,
                     "password": supervisor.password,
                     "nome": supervisor.name,
@@ -42,16 +50,15 @@ class GenericUserRepository(IUserRepository):
                 }
         
         elif user.cargo in [CargoEnum.COLABORADOR, CargoEnum.TECNICO]:
-            colaborador = self.session.query(ColaboradorORM).filter(
-                ColaboradorORM.user_id == user.id
-            ).first()
+            colaborador = self.find_colaborador_by_user_id(user.id)
             
             if colaborador:
                 return {
-                    "user": colaborador,
+                    "user": user,
+                    "profile": colaborador,
                     "user_type": "colaborador",
                     "cargo": "tecnico" if colaborador.is_tecnico else "colaborador",
-                    "id": colaborador.id,
+                    "id": user.id,
                     "email": user.email,
                     "password": colaborador.senha,
                     "nome": colaborador.nome,
@@ -64,17 +71,13 @@ class GenericUserRepository(IUserRepository):
     
     def update_failed_attempts(self, user_type: str, user_id: int, attempts: int) -> None:
         if user_type == "supervisor":
-            supervisor = self.session.query(SupervisorORM).filter(
-                SupervisorORM.id == user_id
-            ).first()
+            supervisor = self.find_supervisor_by_user_id(user_id)
             if supervisor:
                 supervisor.tentativas_falhas = attempts
                 self.session.commit()
                 self.session.refresh(supervisor)
         elif user_type == "colaborador":
-            colaborador = self.session.query(ColaboradorORM).filter(
-                ColaboradorORM.id == user_id
-            ).first()
+            colaborador = self.find_colaborador_by_user_id(user_id)
             if colaborador:
                 colaborador.tentativas_falhas = attempts
                 self.session.commit()
@@ -82,17 +85,13 @@ class GenericUserRepository(IUserRepository):
     
     def update_lock_time(self, user_type: str, user_id: int, lock_time: Optional[datetime]) -> None:
         if user_type == "supervisor":
-            supervisor = self.session.query(SupervisorORM).filter(
-                SupervisorORM.id == user_id
-            ).first()
+            supervisor = self.find_supervisor_by_user_id(user_id)
             if supervisor:
                 supervisor.limite_de_bloqueio = lock_time
                 self.session.commit()
                 self.session.refresh(supervisor)
         elif user_type == "colaborador":
-            colaborador = self.session.query(ColaboradorORM).filter(
-                ColaboradorORM.id == user_id
-            ).first()
+            colaborador = self.find_colaborador_by_user_id(user_id)
             if colaborador:
                 colaborador.limite_de_bloqueio = lock_time
                 self.session.commit()

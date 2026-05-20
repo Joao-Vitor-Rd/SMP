@@ -18,6 +18,7 @@ class SupervisorRepository(ISupervisorRepository):
         user_orm = UserORM(
             nome=supervisor.name,
             email=supervisor.email,
+            telefone=supervisor.telefone,
             cargo=CargoEnum.SUPERVISOR
         )
         self.session.add(user_orm)
@@ -47,8 +48,11 @@ class SupervisorRepository(ISupervisorRepository):
                 campo = "Email"
             elif "supervisor_idendificador_profissional_key" in error_msg.lower():
                 campo = "Identificador profissional"
+            elif "user_telefone_key" in error_msg.lower() or "telefone" in error_msg.lower():
+                campo = "Telefone"
             
             if campo:
+                # Mensagem amigável para o cliente
                 raise ValueError(f"{campo} já cadastrado no sistema")
             raise
         self.session.refresh(sup_orm)
@@ -58,6 +62,18 @@ class SupervisorRepository(ISupervisorRepository):
         sup_orm = self.session.query(SupervisorORM).filter(SupervisorORM.id == supervisor_id).first()
         if sup_orm:
             return Supervisor.model_validate(sup_orm)
+        return None
+
+    def find_by_user_id(self, user_id: int) -> Optional[Supervisor]:
+        sup_orm = self.session.query(SupervisorORM).filter(SupervisorORM.user_id == user_id).first()
+        if sup_orm:
+            return Supervisor.model_validate(sup_orm)
+        return None
+
+    def find_user_id_by_id(self, supervisor_id: int) -> Optional[int]:
+        sup_orm = self.session.query(SupervisorORM.user_id).filter(SupervisorORM.id == supervisor_id).first()
+        if sup_orm:
+            return sup_orm[0]
         return None
     
     def find_by_identificador_profissional(self, idendificador_profissional: int) -> Optional[Supervisor]:
@@ -110,7 +126,14 @@ class SupervisorRepository(ISupervisorRepository):
         sup_orm.name = novo_supervisor.name
         sup_orm.cidade = novo_supervisor.cidade
         sup_orm.empresa_ou_orgao = novo_supervisor.empresa_ou_orgao
-        sup_orm.telefone = novo_supervisor.telefone
+        # Atualizar telefone no user relacionado
+        if hasattr(sup_orm, 'user') and sup_orm.user is not None:
+            sup_orm.user.telefone = novo_supervisor.telefone
+        else:
+            # fallback: buscar user pela FK
+            user = self.session.get(UserORM, sup_orm.user_id)
+            if user:
+                user.telefone = novo_supervisor.telefone
         sup_orm.uf = novo_supervisor.uf
 
         try:
@@ -124,6 +147,8 @@ class SupervisorRepository(ISupervisorRepository):
                 campo = "Email"
             elif "supervisor_idendificador_profissional_key" in error_msg:
                 campo = "Identificador profissional"
+            elif "user_telefone_key" in error_msg or "telefone" in error_msg:
+                campo = "Telefone"
 
             if campo:
                 raise ValueError(f"{campo} já cadastrado no sistema")
@@ -134,8 +159,7 @@ class SupervisorRepository(ISupervisorRepository):
     
     def listar_meus_colaboradores(self, supervisor_id) -> List[ListarColaboradoresDTO]:
         cols_orm = self.session.query(ColaboradorORM).filter(
-                ColaboradorORM.id_profissional_responsavel == supervisor_id,
-                ColaboradorORM.is_tecnico == False
+                ColaboradorORM.id_profissional_responsavel == supervisor_id
             ).all()
         if cols_orm:
             return [ListarColaboradoresDTO(

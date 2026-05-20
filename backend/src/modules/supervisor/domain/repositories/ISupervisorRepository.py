@@ -15,6 +15,10 @@ class ISupervisorRepository(ABC):
         pass
 
     @abstractmethod
+    def find_user_id_by_id(self, supervisor_id: int) -> Optional[int]:
+        pass
+
+    @abstractmethod
     def find_by_email(self, email: str) -> Optional[Supervisor]:
         pass
 

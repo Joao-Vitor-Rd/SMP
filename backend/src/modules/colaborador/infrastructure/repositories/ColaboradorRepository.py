@@ -24,6 +24,7 @@ class ColaboradorRepository(IColaboradorRepository):
         user_orm = UserORM(
             nome=colaborador.nome,
             email=colaborador.email,
+            telefone=colaborador.telefone,
             cargo=cargo
         )
         self.session.add(user_orm)
@@ -38,7 +39,6 @@ class ColaboradorRepository(IColaboradorRepository):
             cidade=colaborador.cidade,
             instituicao_ensino=colaborador.instituicao_ensino,
             empresa_ou_orgao=colaborador.empresa_ou_orgao,
-            telefone=colaborador.telefone,
             is_tecnico=colaborador.is_tecnico,
             email=colaborador.email,
             senha=colaborador.senha,
@@ -62,6 +62,8 @@ class ColaboradorRepository(IColaboradorRepository):
                 campo = "CFT/CPF"
             elif "colaborador_id_profissional_responsavel_fkey" in error_msg.lower():
                 campo = "ID profissional responsável"
+            elif "user_telefone_key" in error_msg.lower() or "telefone" in error_msg.lower():
+                campo = "Telefone"
             
             if campo:
                 raise ValueError(f"{campo} já cadastrado no sistema")
@@ -73,6 +75,12 @@ class ColaboradorRepository(IColaboradorRepository):
     def find_by_id(self, colaborador_id: int) -> Optional[Colaborador]:
         col_orm = self.session.query(ColaboradorORM).filter(
             ColaboradorORM.id == colaborador_id
+        ).first()
+        return Colaborador.model_validate(col_orm) if col_orm else None
+
+    def find_by_user_id(self, user_id: int) -> Optional[Colaborador]:
+        col_orm = self.session.query(ColaboradorORM).filter(
+            ColaboradorORM.user_id == user_id
         ).first()
         return Colaborador.model_validate(col_orm) if col_orm else None
 
@@ -158,9 +166,33 @@ class ColaboradorRepository(IColaboradorRepository):
         col_orm.cidade = colaborador.cidade
         col_orm.instituicao_ensino = colaborador.instituicao_ensino
         col_orm.empresa_ou_orgao = colaborador.empresa_ou_orgao
-        col_orm.telefone = colaborador.telefone
+        # Atualizar telefone no user relacionado
+        if hasattr(col_orm, 'user') and col_orm.user is not None:
+            col_orm.user.telefone = colaborador.telefone
+        else:
+            user = self.session.get(UserORM, col_orm.user_id)
+            if user:
+                user.telefone = colaborador.telefone
 
-        self.session.commit()
+        try:
+            self.session.commit()
+        except IntegrityError as e:
+            self.session.rollback()
+            error_msg = str(e).lower()
+            campo = None
+            if "colaborador_email_key" in error_msg or "user_email_key" in error_msg:
+                campo = "Email"
+            elif "colaborador_cft_key" in error_msg:
+                campo = "CFT/CPF"
+            elif "colaborador_id_profissional_responsavel_fkey" in error_msg:
+                campo = "ID profissional responsável"
+            elif "user_telefone_key" in error_msg or "telefone" in error_msg:
+                campo = "Telefone"
+
+            if campo:
+                raise ValueError(f"{campo} já cadastrado no sistema")
+            raise
+
         self.session.refresh(col_orm)
         return Colaborador.model_validate(col_orm)
 
@@ -172,7 +204,12 @@ class ColaboradorRepository(IColaboradorRepository):
         if not col_orm:
             raise ValueError(f"Colaborador com ID {colaborador_id} não encontrado")
         
+        user = self.session.get(UserORM, col_orm.user_id)
+
         self.session.delete(col_orm)
+        if user:
+            self.session.delete(user)
+
         self.session.commit()
 
 

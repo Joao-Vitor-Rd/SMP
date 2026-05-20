@@ -12,12 +12,7 @@ class ListarMeusColaboradores:
     ):
         self.repository = repository
 
-    def execute(self, supervisor_id: int) -> List[ListarColaboradoresDTO]:
-        supervisor_atual = self.repository.find_by_id(supervisor_id)
-
-        if supervisor_atual is None:
-            raise ValueError("Supervisor não encontrado")
-
-        meus_colaboradores = self.repository.listar_meus_colaboradores(supervisor_id)
+    def execute(self, user_id: int) -> List[ListarColaboradoresDTO]:
+        meus_colaboradores = self.repository.listar_meus_colaboradores(user_id)
 
         return meus_colaboradores

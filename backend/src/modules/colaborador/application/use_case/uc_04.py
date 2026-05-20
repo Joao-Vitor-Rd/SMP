@@ -3,6 +3,7 @@ import re
 from src.modules.colaborador.domain.entities.colaborador import Colaborador
 from src.modules.colaborador.domain.repositories.IColaboradorRepository import IColaboradorRepository
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
+from src.modules.auth.domain.repositories.i_user_repository import IUserRepository
 from src.modules.colaborador.application.dtos.colaborador_dto import CreateColaboradorDTO
 from src.modules.colaborador.application.dtos.colaborador_dto import ColaboradorResponseDTO
 from src.shared.security.password_hash import PassWordHasher
@@ -13,12 +14,17 @@ from src.shared.domain.interfaces.i_email_validator import IEmailValidator
 from src.shared.domain.interfaces.i_telefone_validator import ITelefoneValidator
 from src.shared.domain.interfaces.i_email_unico_validator import IEmailUnicoValidator
 from src.shared.domain.interfaces.i_string_sem_numeros_validator import IStringSemNumeroValidador
+from src.shared.enums.cargo_enum import CargoEnum
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CriarColaboradorUseCase:
 
     def __init__(
             self, 
             repository: IColaboradorRepository,
+            repository_user: IUserRepository,
             repository_supervisor: ISupervisorRepository,
             criador_senha: ICriadorSenha,
             hasher: PassWordHasher,
@@ -29,6 +35,7 @@ class CriarColaboradorUseCase:
             string_sem_numero_validator: IStringSemNumeroValidador
         ):
         self.repository = repository
+        self.repository_user = repository_user
         self.repository_supervisor = repository_supervisor
         self.criador_senha = criador_senha
         self.hasher = hasher
@@ -40,9 +47,33 @@ class CriarColaboradorUseCase:
 
     def execute(self, create_data: CreateColaboradorDTO) -> ColaboradorResponseDTO:
 
-        supervisor_existente = self.repository_supervisor.find_by_id(
-            create_data.id_profissional_responsavel
+        logger.info(
+            "Iniciando criação de colaborador: responsavel_id=%s is_tecnico=%s email=%s",
+            create_data.id_profissional_responsavel,
+            create_data.is_tecnico,
+            create_data.email,
         )
+
+        profissional_existente = self.repository_user.find_by_id(create_data.id_profissional_responsavel)
+        logger.info(
+            "Lookup direto em user.id=%s encontrado=%s",
+            create_data.id_profissional_responsavel,
+            profissional_existente is not None,
+        )
+        if profissional_existente is None:
+            supervisor_user_id = self.repository_supervisor.find_user_id_by_id(create_data.id_profissional_responsavel)
+            logger.info(
+                "Fallback supervisor.id=%s -> user_id=%s",
+                create_data.id_profissional_responsavel,
+                supervisor_user_id,
+            )
+            if supervisor_user_id is not None:
+                profissional_existente = self.repository_user.find_by_id(supervisor_user_id)
+                logger.info(
+                    "Lookup via supervisor.user_id=%s encontrado=%s",
+                    supervisor_user_id,
+                    profissional_existente is not None,
+                )
 
         #valida nome e formata nome
         nome_formatado = self.string_sem_numero_validator.formatar_string_sem_numero(create_data.nome).title()
@@ -50,9 +81,25 @@ class CriarColaboradorUseCase:
         if not self.string_sem_numero_validator.validar_string_sem_numero(nome_formatado):
             raise ValueError(f"Nome deve incluir apenas letras")
 
-        #valida identificador do supervisor
-        if supervisor_existente == None:
-            raise ValueError(f"Supervisor com identificador: {create_data.id_profissional_responsavel} não cadastrado no sistema")
+        # valida se o profissional responsável existe na tabela user e é supervisor/técnico
+        if profissional_existente is None:
+            raise ValueError(
+                f"Profissional com identificador: {create_data.id_profissional_responsavel} não cadastrado no sistema"
+            )
+
+        cargo_profissional = profissional_existente.cargo.value if hasattr(profissional_existente.cargo, "value") else str(profissional_existente.cargo)
+        logger.info(
+            "Profissional responsável resolvido: id=%s cargo=%s",
+            profissional_existente.id,
+            cargo_profissional,
+        )
+        if cargo_profissional not in {CargoEnum.SUPERVISOR.value, CargoEnum.TECNICO.value}:
+            raise ValueError(
+                f"Profissional com identificador: {create_data.id_profissional_responsavel} não pode ser usado como responsável"
+            )
+
+        # Normalizar o ID salvo para sempre referenciar user.id
+        create_data.id_profissional_responsavel = int(profissional_existente.id)
         
         # Validar formato do email
         email_formatado = create_data.email.strip().lower()

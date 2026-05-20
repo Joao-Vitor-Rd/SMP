@@ -3,6 +3,7 @@ from src.shared.enums.uf_enum import UFEnum
 from sqlalchemy import Column, Integer, Boolean
 from sqlalchemy import ForeignKey
 from sqlalchemy import DateTime
+from sqlalchemy.orm import relationship
 from src.shared.infrastructure.db import Base
 from pydantic import BaseModel
 from typing import Optional
@@ -15,11 +16,14 @@ class ColaboradorORM(Base):
 
     user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
 
+    # Relacionamento com tabela central `user` (contém telefone único)
+    user = relationship("UserORM", foreign_keys=[user_id], lazy="joined")
+
     nome = Column(String(150), nullable=False)
 
     id_profissional_responsavel = Column(
         Integer,
-        ForeignKey("supervisor.id"),
+        ForeignKey("user.id"),
         nullable=False
     )
 
@@ -35,7 +39,11 @@ class ColaboradorORM(Base):
 
     empresa_ou_orgao = Column(String(255), nullable=True)
 
-    telefone = Column(String(20), nullable=True)
+    @property
+    def telefone(self) -> Optional[str]:
+        if hasattr(self, "user") and self.user is not None:
+            return getattr(self.user, "telefone", None)
+        return None
 
     is_tecnico = Column(Boolean, default=False, nullable=False)
 
@@ -54,6 +62,7 @@ class Colaborador(BaseModel):
     model_config = {"from_attributes": True}
     
     id: Optional[int] = None
+    user_id: Optional[int] = None
     nome: str
     email: str
     is_tecnico: bool

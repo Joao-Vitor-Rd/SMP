@@ -11,7 +11,7 @@ from src.modules.colaborador.application.dtos.colaborador_dto import ListarColab
 from src.modules.supervisor.infrastructure.repositories.SupervisorRepository import SupervisorRepository
 from src.modules.supervisor.infrastructure.gateway.validador_crea_api import ValidadorCREAApi
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
-from src.shared.auth.dependencies import verify_supervisor_role
+from src.shared.auth.dependencies import verify_supervisor_role, verify_supervisor_ou_tecnico
 from src.shared.validators.email_validator import EmailValidator
 from src.shared.infrastructure.email_unico_validator import EmailUnicoValidator
 from src.shared.validators.string_sem_numero_validator import StringSemNumeroValidator
@@ -151,10 +151,10 @@ async def atualizar_supervisor(
     "/me/colaboradores",
     response_model=list[ListarColaboradoresDTO],
     summary="Listar meus colaboradores",
-    description="Retorna lista de colaboradores do supervisor autenticado com nome, email, tempo limite e status ativo"
+    description="Retorna lista de colaboradores vinculados ao usuário autenticado (supervisor ou técnico) com nome, email, tempo limite e status ativo"
 )
 async def listar_meus_colaboradores(
-    payload: Annotated[dict, Depends(verify_supervisor_role)],
+    payload: Annotated[dict, Depends(verify_supervisor_ou_tecnico)],
     repository = Depends(get_repository)
 ):
     try:
@@ -162,9 +162,9 @@ async def listar_meus_colaboradores(
         if not user_id_raw:
             raise HTTPException(status_code=401, detail="Token inválido")
 
-        supervisor_id = int(str(user_id_raw))
+        user_id = int(str(user_id_raw))
         use_case = ListarMeusColaboradores(repository)
-        return use_case.execute(supervisor_id)
+        return use_case.execute(user_id)
     except HTTPException:
         raise
     except ValueError as e:

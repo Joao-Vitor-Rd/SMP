@@ -26,15 +26,24 @@ class AtualizarColaboradorUseCase:
         if colaborador_atual is None:
             raise ValueError("Colaborador não encontrado")
 
-        nome_formatado = self.string_sem_numero_validator.formatar_string_sem_numero(update_data.nome).title()
-        if not self.string_sem_numero_validator.validar_string_sem_numero(nome_formatado):
-            raise ValueError("Nome deve incluir apenas letras")
+        nome_formatado = colaborador_atual.nome
+        if update_data.nome is not None:
+            nome_limpo = update_data.nome.strip()
+            if not nome_limpo:
+                raise ValueError("Nome não pode ser vazio")
+            nome_formatado = self.string_sem_numero_validator.formatar_string_sem_numero(nome_limpo).title()
+            if not self.string_sem_numero_validator.validar_string_sem_numero(nome_formatado):
+                raise ValueError("Nome deve incluir apenas letras")
 
         cidade_formatada = colaborador_atual.cidade
         if update_data.cidade is not None:
-            cidade_formatada = self.string_sem_numero_validator.formatar_string_sem_numero(update_data.cidade).title()
-            if not self.string_sem_numero_validator.validar_string_sem_numero(cidade_formatada):
-                raise ValueError("Cidade deve incluir apenas letras")
+            cidade_limpa = update_data.cidade.strip()
+            if cidade_limpa:
+                cidade_formatada = self.string_sem_numero_validator.formatar_string_sem_numero(cidade_limpa).title()
+                if not self.string_sem_numero_validator.validar_string_sem_numero(cidade_formatada):
+                    raise ValueError("Cidade deve incluir apenas letras")
+            else:
+                cidade_formatada = None
 
         uf = colaborador_atual.uf
         if update_data.uf is not None:

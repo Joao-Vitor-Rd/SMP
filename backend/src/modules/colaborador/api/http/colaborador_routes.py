@@ -13,20 +13,26 @@ from src.modules.colaborador.application.dtos.colaborador_dto import (
     AtualizarLimiteAcessoDTO
 )
 from src.modules.colaborador.infrastructure.repositories.ColaboradorRepository import ColaboradorRepository
+from src.modules.auth.infrastructure.repositories.generic_user_repository import GenericUserRepository
 from src.modules.supervisor.infrastructure.repositories.SupervisorRepository import SupervisorRepository
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
 from src.shared.infrastructure.secret_criador_senha import SecretCriadorSenha 
 from src.modules.noticacao.infrastructure.SmtpEmailNotificacao import SmtpEmailNotificacaoService
-from src.shared.auth.dependencies import verify_supervisor_role, verify_any_user
+from src.shared.auth.dependencies import verify_supervisor_role, verify_any_user, verify_supervisor_ou_tecnico
 from src.shared.validators.email_validator import EmailValidator
 from src.shared.validators.telefone_validator import TelefoneValidator
 from src.shared.infrastructure.email_unico_validator import EmailUnicoValidator
 from src.shared.validators.string_sem_numero_validator import StringSemNumeroValidator
+import logging
 
 router = APIRouter(tags=["Colaboradores"])
+logger = logging.getLogger(__name__)
 
 def get_colaborador_repository(session: Annotated[Session, Depends(get_session)]):
     return ColaboradorRepository(session)
+
+def get_user_repository(session: Annotated[Session, Depends(get_session)]):
+    return GenericUserRepository(session)
 
 def get_supervisor_repository(session: Annotated[Session, Depends(get_session)]):
     return SupervisorRepository(session)
@@ -57,12 +63,13 @@ def get_email_unico_validator(session: Annotated[Session, Depends(get_session)])
     response_model=ColaboradorResponseDTO,
     status_code=201,
     summary="Criar novo Colaborador",
-    description="Cria um novo colaborador vinculado a um supervisor, gerando senha automática e enviando por email"
+    description="Cria um novo colaborador vinculado ao usuário autenticado (supervisor ou técnico), gerando senha automática e enviando por email"
 )
 async def criar_colaborador(
     create_data: CreateColaboradorDTO,
-    _: Annotated[dict, Depends(verify_supervisor_role)],
+    payload: Annotated[dict, Depends(verify_supervisor_ou_tecnico)],
     colaborador_repo = Depends(get_colaborador_repository),
+    user_repo = Depends(get_user_repository),
     supervisor_repo = Depends(get_supervisor_repository),
     hasher = Depends(get_hasher),
     criador_senha = Depends(get_criador_senha),
@@ -73,8 +80,31 @@ async def criar_colaborador(
     string_validator = Depends(get_string_validator)
 ):
     try:
+        logger.info(
+            "Criar colaborador solicitado: role=%s sub=%s body_responsavel=%s nome=%s email=%s is_tecnico=%s",
+            payload.get("role"),
+            payload.get("sub"),
+            create_data.id_profissional_responsavel,
+            create_data.nome,
+            create_data.email,
+            create_data.is_tecnico,
+        )
+
+        if payload.get("role") == "tecnico":
+            tecnico_logado = colaborador_repo.find_by_user_id(int(str(payload.get("sub"))))
+            if not tecnico_logado:
+                raise ValueError("Técnico logado não encontrado")
+
+            create_data.id_profissional_responsavel = tecnico_logado.user_id
+            logger.info(
+                "Responsável normalizado para tecnico usando user_id=%s do colaborador.id=%s",
+                create_data.id_profissional_responsavel,
+                tecnico_logado.id,
+            )
+
         use_case = CriarColaboradorUseCase(
             repository=colaborador_repo,
+            repository_user=user_repo,
             repository_supervisor=supervisor_repo,
             criador_senha=criador_senha,
             hasher=hasher,

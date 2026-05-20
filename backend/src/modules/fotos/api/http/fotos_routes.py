@@ -15,7 +15,7 @@ from src.modules.fotos.application.use_case.uc_09 import Uc09UploadMultiplasImag
 from src.modules.fotos.infrastructure.repositories.foto_repository import FotoRepository
 from src.modules.fotos.infrastructure.services.minio_adapter import MinioAdapter
 from src.modules.fotos.infrastructure.services.minio_client import ensure_bucket_exists, get_minio_client
-from src.shared.auth.dependencies import verify_any_user, verify_supervisor_role
+from src.shared.auth.dependencies import verify_any_user, verify_supervisor_ou_tecnico
 from src.shared.infrastructure.db import get_session
 
 router = APIRouter(tags=["Fotos"])
@@ -104,7 +104,7 @@ async def upload_multiplas_imagens(
 )
 async def salvar_foto(
     file: UploadFile = File(...),
-    _: dict = Depends(verify_supervisor_role),
+    _: dict = Depends(verify_supervisor_ou_tecnico),
     foto_storage: MinioAdapter = Depends(get_foto_storage),
 ):
     try:
@@ -142,7 +142,7 @@ async def salvar_foto(
 )
 async def deletar_foto(
     caminho_arquivo: str,
-    _: dict = Depends(verify_supervisor_role),
+    _: dict = Depends(verify_supervisor_ou_tecnico),
     foto_storage: MinioAdapter = Depends(get_foto_storage),
 ):
     try:
