@@ -12,6 +12,7 @@ class UserORM(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     nome = Column(String(150), nullable=False)
     email = Column(String(150), unique=True, nullable=False)
+    telefone = Column(String(20), unique=True, nullable=True)
     cargo = Column(
         Enum(CargoEnum, values_callable=lambda x: [e.value for e in x], name="cargoenum"),
         nullable=False
@@ -25,4 +26,5 @@ class User(BaseModel):
     id: Optional[int] = None
     nome: str
     email: str
+    telefone: Optional[str] = None
     cargo: CargoEnum

@@ -12,6 +12,8 @@ class EmailUnicoValidator(IEmailUnicoValidator):
             SELECT email FROM supervisor WHERE email = :email
             UNION
             SELECT email FROM colaborador WHERE email = :email
+            UNION
+            SELECT email FROM "user" WHERE email = :email
             LIMIT 1
         """)
         

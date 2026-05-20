@@ -212,11 +212,11 @@ async def get_logged_user(
         
         # Retornar dados baseado no role
         if role == "supervisor":
-            supervisor = await asyncio.to_thread(supervisor_repo.find_by_id, user_id)
+            supervisor = await asyncio.to_thread(supervisor_repo.find_by_user_id, user_id)
             if not supervisor:
                 raise HTTPException(status_code=404, detail="Supervisor não encontrado")
             return SupervisorResponseDTO(
-                id=supervisor.id,
+                id=user_id,
                 nome=supervisor.name,
                 identificador_profissional=supervisor.idendificador_profissional,
                 uf=supervisor.uf,
@@ -226,11 +226,11 @@ async def get_logged_user(
                 empresa=supervisor.empresa_ou_orgao
             )
         elif role in ["colaborador", "tecnico"]:
-            colaborador = await asyncio.to_thread(colaborador_repo.find_by_id, user_id)
+            colaborador = await asyncio.to_thread(colaborador_repo.find_by_user_id, user_id)
             if not colaborador:
                 raise HTTPException(status_code=404, detail="Colaborador não encontrado")
             return ColaboradorResponseDTO(
-                id=colaborador.id,
+                id=user_id,
                 nome=colaborador.nome,
                 id_profissional_responsavel=colaborador.id_profissional_responsavel,
                 is_tecnico=colaborador.is_tecnico,

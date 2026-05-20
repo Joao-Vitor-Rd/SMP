@@ -16,6 +16,8 @@ class SupervisorORM(Base):
 
     user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     
+    # Relacionamento com tabela central `user` (contém telefone único)
+    user = relationship("UserORM", lazy="joined")
     name = Column(String(150), nullable=False)
 
     idendificador_profissional = Column(String(20), unique=True, nullable=False)
@@ -26,9 +28,13 @@ class SupervisorORM(Base):
     
     email = Column(String(150), unique=True, nullable=False)
 
-    telefone = Column(String(20), nullable=True)
 
     empresa_ou_orgao = Column(String(255), nullable=True)
+    @property
+    def telefone(self) -> Optional[str]:
+        if hasattr(self, "user") and self.user is not None:
+            return getattr(self.user, "telefone", None)
+        return None
     
     password = Column(String(255), nullable=False)
 

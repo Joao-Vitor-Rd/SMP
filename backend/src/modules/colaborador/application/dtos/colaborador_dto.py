@@ -16,7 +16,7 @@ class CreateColaboradorDTO(BaseModel):
 class UpdateColaboradorDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    nome: str
+    nome: Optional[str] = None
     uf: Optional[str] = None
     cidade: Optional[str] = None
     empresa_ou_orgao: Optional[str] = None
