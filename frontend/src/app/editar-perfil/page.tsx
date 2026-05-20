@@ -195,7 +195,7 @@ function obterFeedbackErro(message: string) {
   if (/telefone.*inválid|celular.*inválid/i.test(message)) {
     return {
       title: 'Telefone inválido',
-      message: 'Informe um telefone válido no formato (31) 99781-4542.',
+      message: 'Informe um telefone válido no formato (xx) xxxxx-xxxx.',
     };
   }
 
@@ -503,7 +503,7 @@ export default function EditarPerfilPage() {
       }
 
       if (!telefoneEhValido(perfil.telefone)) {
-        mostrarFeedback('Telefone inválido. Informe um telefone válido no formato (31) 99781-4542.', 'error', 'Telefone inválido');
+        mostrarFeedback('Telefone inválido. Informe um telefone válido no formato (xx) xxxxx-xxxx.', 'error', 'Telefone inválido');
         return;
       }
 
@@ -801,7 +801,7 @@ export default function EditarPerfilPage() {
                   value={formatarTelefoneParaExibicao(perfil.telefone)}
                   onChange={(e) => setPerfil((current) => ({ ...current, telefone: normalizarTelefone(e.target.value) }))}
                   onBlur={() => setPerfil((current) => ({ ...current, telefone: current.telefone ? formatarTelefonePadrao(current.telefone) : '' }))}
-                  placeholder="(31) 99781-4542"
+                  placeholder="(xx) xxxxx-xxxx"
                   inputMode="numeric"
                   maxLength={15}
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
