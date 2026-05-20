@@ -8,9 +8,6 @@ class TelefoneValidator(ITelefoneValidator):
     - (11) 9xxxx-xxxx (celular com formatação)
     - 11 9xxxx-xxxx (celular sem parênteses)
     - 119xxxxxxxx (celular sem formatação)
-    - (11) xxxx-xxxx (fixo com formatação)
-    - 11 xxxx-xxxx (fixo sem parênteses)
-    - 11xxxxxxxx (fixo sem formatação)
     """
     
     def validar_telefone(self, telefone: str) -> bool:
@@ -18,7 +15,7 @@ class TelefoneValidator(ITelefoneValidator):
             return False
         
         apenas_numeros = re.sub(r'\D', '', telefone)
-        return len(apenas_numeros) in {10, 11}
+        return len(apenas_numeros) == 11
     
     def validar_celular(self, telefone: str) -> bool:
         if not telefone or not isinstance(telefone, str):
@@ -32,10 +29,4 @@ class TelefoneValidator(ITelefoneValidator):
             return ""
         
         apenas_numeros = re.sub(r'\D', '', telefone)
-        
-        if len(apenas_numeros) == 11:  # Celular
-            return f"({apenas_numeros[:2]}) {apenas_numeros[2:7]}-{apenas_numeros[7:]}"
-        elif len(apenas_numeros) == 10:  # Telefone fixo
-            return f"({apenas_numeros[:2]}) {apenas_numeros[2:6]}-{apenas_numeros[6:]}"
-        
-        return ""
+        return f"({apenas_numeros[:2]}) {apenas_numeros[2:7]}-{apenas_numeros[7:]}"
