@@ -10,6 +10,7 @@ from src.modules.colaborador.api.http.colaborador_routes import router as colabo
 from src.modules.auth.api.http.auth_routes import router as auth_router
 from src.modules.upload.api.http.upload_routes import router as upload_router
 from src.modules.fotos.api.http.fotos_routes import router as fotos_router
+from src.modules.trechos.api.http.trechos_routes import router as trechos_router
 from src.modules.fotos.infrastructure.services.minio_client import ensure_bucket_exists
 import os
 
@@ -69,6 +70,7 @@ app.include_router(auth_router)
 app.include_router(supervisor_router, prefix="/api/supervisores", tags=["Supervisores"])
 app.include_router(colaborador_router, prefix="/api/colaboradores", tags=["Colaboradores"])
 app.include_router(fotos_router, prefix="/api/fotos", tags=["Fotos"])
+app.include_router(trechos_router, prefix="/api/trechos", tags=["Trechos"])
 app.include_router(upload_router, prefix="/api/uploads", tags=["Uploads"])
 app.include_router(fotos_router, prefix="/api/fotos", tags=["Fotos"])
 
