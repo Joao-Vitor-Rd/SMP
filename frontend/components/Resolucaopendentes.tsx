@@ -1,273 +1,341 @@
 "use client";
 
-import Image from "next/image";
-import { useMemo, useState, useEffect } from "react";
-import { AlertCircle, CheckCircle2, ChevronRight, Image as ImageIcon, Map, X } from "lucide-react";
+import React, { useState, useMemo } from 'react';
+import { 
+  Activity, 
+  Bell, 
+  Folder, 
+  Upload, 
+  Maximize, 
+  FileText, 
+  Map as MapIcon, 
+  History, 
+  User, 
+  LogOut, 
+  AlertCircle,
+  MapPin,
+  ImageIcon,
+  CheckCircle2,
+  Navigation,
+  AlertTriangle,
+  ArrowRight,
+  ArrowUpCircle
+} from 'lucide-react';
 
-// Estes tipos devem ser os mesmos usados pela equipe na US-10
-type QueueStatus = "pending" | "uploading" | "completed" | "rejected";
-type LocationException = "sem_gps" | "exif_corrompido";
+type PriorityLevel = 'Alta' | 'Média' | 'Baixa';
 
-export type UploadItem = {
+interface ImageMetadataTask {
   id: string;
-  file: File;
-  previewUrl: string;
-  status: QueueStatus;
-  progress: number;
-  message: string;
-  hasLocation: boolean | null;
-  manualLat: string;
-  manualLng: string;
-  locationException: LocationException | null;
-};
-
-interface ResolucaoPendentesProps {
-  items: UploadItem[];
-  updateQueueItem: (itemId: string, updater: (current: UploadItem) => UploadItem) => void;
-  onProceedToMap: () => void;
+  fileName: string;
+  uploadDate: string;
+  prioridade: PriorityLevel;
 }
 
-function filterCoordInput(value: string) {
-  let v = value.replace(/,/g, ".").replace(/[^\d.\-]/g, "");
-  const firstMinus = v.indexOf("-");
-  if (firstMinus > 0) {
-    v = v.replace(/-/g, "");
-  } else if (firstMinus === 0) {
-    v = "-" + v.slice(1).replace(/-/g, "");
-  }
-  const dot = v.indexOf(".");
-  if (dot !== -1) {
-    v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "");
-  }
-  return v;
-}
+export default function MetadadosPendentes() {
+  const [tasks, setTasks] = useState<ImageMetadataTask[]>([
+    { id: '1', fileName: 'IMG_20240510_1420.jpg', uploadDate: '10/05/2026', prioridade: 'Média' },
+    { id: '2', fileName: 'IMG_20240510_1421.jpg', uploadDate: '10/05/2026', prioridade: 'Alta' },
+    { id: '3', fileName: 'IMG_20240510_1422.jpg', uploadDate: '10/05/2026', prioridade: 'Baixa' },
+  ]);
+  
+  const [selectedTask, setSelectedTask] = useState<ImageMetadataTask | null>(null);
+  const [coords, setCoords] = useState({ lat: '', lng: '' });
+  const [showSuccess, setShowSuccess] = useState(false);
 
-function parseLatitude(s: string): number | null {
-  const t = s.trim();
-  if (t === "" || t === "-" || t === "." || t === "-.") return null;
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < -90 || n > 90) return null;
-  return n;
-}
+  const priorityWeight = { 'Alta': 3, 'Média': 2, 'Baixa': 1 };
 
-function parseLongitude(s: string): number | null {
-  const t = s.trim();
-  if (t === "" || t === "-" || t === "." || t === "-.") return null;
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < -180 || n > 180) return null;
-  return n;
-}
+  const orderedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => priorityWeight[b.prioridade] - priorityWeight[a.prioridade]);
+  }, [tasks]);
 
-function isManualLocationResolved(item: UploadItem) {
-  if (item.locationException) return true;
-  return parseLatitude(item.manualLat) !== null && parseLongitude(item.manualLng) !== null;
-}
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    setShowSuccess(true);
+    
+    setTimeout(() => {
+      const updatedTasks = tasks.filter(t => t.id !== selectedTask?.id);
+      setTasks(updatedTasks);
+      
+      const nextOrderedTasks = updatedTasks.sort((a, b) => priorityWeight[b.prioridade] - priorityWeight[a.prioridade]);
+      
+      if (nextOrderedTasks.length > 0) {
+        setSelectedTask(nextOrderedTasks[0]);
+      } else {
+        setSelectedTask(null);
+      }
+      
+      setCoords({ lat: '', lng: '' });
+      setShowSuccess(false);
+    }, 1200);
+  };
 
-function ToastSucesso({ mensagem, visivel, onClose }: { mensagem: string; visivel: boolean; onClose: () => void }) {
-  useEffect(() => {
-    if (visivel) {
-      const timer = setTimeout(() => onClose(), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [visivel, onClose]);
+  const getPriorityBadgeColor = (priority: PriorityLevel) => {
+    if (priority === 'Alta') return 'bg-red-50 text-red-700 border-red-200';
+    if (priority === 'Média') return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-gray-50 text-gray-600 border-gray-200';
+  };
 
-  if (!visivel) return null;
-
-  return (
-    <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
-      <div className="relative flex items-center gap-3 rounded-lg border border-green-200 bg-[#eefaf2] px-6 py-4 shadow-lg min-w-[320px]">
-        <button
-          onClick={onClose}
-          className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-green-200 bg-white text-green-600 transition-colors hover:bg-green-50 shadow-sm"
-        >
-          <X size={14} strokeWidth={2.5} />
-        </button>
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-700 text-white">
-          <CheckCircle2 size={16} strokeWidth={3} />
-        </div>
-        <span className="text-sm font-medium text-green-800">{mensagem}</span>
-      </div>
-    </div>
-  );
-}
-
-export default function ResolucaoPendentes({ items, updateQueueItem, onProceedToMap }: ResolucaoPendentesProps) {
-  const [mostrarToast, setMostrarToast] = useState(false);
-  const pendentes = useMemo(() => items.filter((item) => item.hasLocation === false), [items]);
-  const todasResolvidas = useMemo(() => pendentes.every(isManualLocationResolved), [pendentes]);
-
-  if (pendentes.length === 0) return null;
-
-  const handleInputBlur = (item: UploadItem) => {
-    const latValida = parseLatitude(item.manualLat) !== null;
-    const lngValida = parseLongitude(item.manualLng) !== null;
-    if (latValida && lngValida && !item.locationException) {
-      setMostrarToast(true);
-    }
+  const getPriorityIconColor = (priority: PriorityLevel) => {
+    if (priority === 'Alta') return 'text-red-500';
+    if (priority === 'Média') return 'text-amber-500';
+    return 'text-gray-400';
   };
 
   return (
-    <div className="space-y-6">
-      <ToastSucesso 
-        mensagem="Localização ajustada manualmente!" 
-        visivel={mostrarToast} 
-        onClose={() => setMostrarToast(false)} 
-      />
-
-      <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <AlertCircle className="text-amber-500" size={24} />
-            Resolução de Coordenadas Pendentes
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            {pendentes.length} imagem(ns) não possuem metadados geográficos. Por favor, insira as coordenadas ou informe o status.
-          </p>
+    <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
+      <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
+        <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
+          <Activity size={26} strokeWidth={2.5} />
         </div>
-      </div>
+        <div className="flex flex-col gap-9 items-center w-full mb-auto">
+          <Folder className="text-gray-400 hover:text-white cursor-pointer" size={22} />
+          <Upload className="text-gray-400 hover:text-white cursor-pointer" size={22} />
+          <Maximize className="text-gray-400 hover:text-white cursor-pointer" size={22} />
+          <FileText className="text-gray-400 hover:text-white cursor-pointer" size={22} />
+          <MapIcon className="text-gray-400 hover:text-white cursor-pointer" size={22} />
+          <History className="text-gray-400 hover:text-white cursor-pointer" size={22} />
+        </div>
+        <div className="relative pb-4">
+          <Bell size={26} className="text-white" strokeWidth={1.5} />
+          {tasks.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#1e2235]">
+              {tasks.length}
+            </span>
+          )}
+        </div>
+      </aside>
 
-      <div className="grid grid-cols-1 gap-6">
-        {pendentes.map((item) => {
-          const latInvalid = !item.locationException && item.manualLat.trim() !== "" && parseLatitude(item.manualLat) === null;
-          const lngInvalid = !item.locationException && item.manualLng.trim() !== "" && parseLongitude(item.manualLng) === null;
-          const isResolved = isManualLocationResolved(item);
+      <main className="flex-1 p-8 overflow-y-auto">
+        <header className="flex justify-between items-start mb-10">
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">RoadSense AI</h1>
+            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Correção de Metadados Geográficos</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 bg-white p-2 px-4 rounded-xl border border-gray-200">
+              <div className="text-right text-sm">
+                <p className="font-bold text-gray-900">Douglas Teófilo</p>
+                <p className="text-xs text-gray-500 font-medium">Engenheiro</p>
+              </div>
+              <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 border border-blue-100">
+                <User size={20} />
+              </div>
+            </div>
+            <button className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-100 px-4 py-2 rounded-xl text-sm font-bold">
+              <LogOut size={16} /> Sair
+            </button>
+          </div>
+        </header>
 
-          return (
-            <div
-              key={item.id}
-              className={`flex flex-col gap-4 rounded-2xl border p-5 transition-all ${
-                isResolved ? "border-emerald-200 bg-emerald-50/30" : "border-amber-200 bg-amber-50"
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-white">
-                  {item.previewUrl ? (
-                    <Image src={item.previewUrl} alt={item.file.name} width={64} height={64} unoptimized className="h-full w-full object-cover" />
-                  ) : (
-                    <ImageIcon size={24} className="text-gray-400" />
+        <div className="max-w-5xl mx-auto space-y-6">
+          {tasks.length > 0 ? (
+            <div className="bg-amber-50 border-l-4 border-amber-500 rounded-r-xl p-4 flex items-start gap-3 text-amber-900 shadow-sm transition-all">
+              <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="font-bold text-sm">Ação necessária</p>
+                <p className="text-xs text-amber-700 mt-0.5 font-medium">
+                  ⚠️ Ainda existem imagens pendentes de localização. Trate todas as imagens antes de prosseguir para a revisão geral.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-green-50 border-l-4 border-green-500 rounded-r-xl p-4 flex items-start gap-3 text-green-950 shadow-sm transition-all">
+              <CheckCircle2 className="text-green-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="font-bold text-sm">Tudo pronto!</p>
+                <p className="text-xs text-green-700 mt-0.5 font-medium">
+                  Todas as imagens foram localizadas com sucesso. O avanço para a revisão geral está liberado.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1 space-y-4">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <ImageIcon size={20} className="text-gray-500" />
+                    <h2 className="font-bold text-sm uppercase tracking-wider">Fila por Prioridade</h2>
+                  </div>
+                  {tasks.length > 0 && (
+                    <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">
+                      {tasks.length} restante{tasks.length > 1 ? 's' : ''}
+                    </span>
                   )}
                 </div>
                 
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-gray-900">{item.file.name}</p>
-                    {isResolved && <CheckCircle2 size={16} className="text-emerald-600" />}
-                  </div>
-                  <p className="text-xs text-gray-500 mb-3">Tamanho: {(item.file.size / 1024 / 1024).toFixed(2)} MB</p>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">Latitude</label>
-                      <input
-                        id={`lat-${item.id}`}
-                        type="text"
-                        inputMode="decimal"
-                        autoComplete="off"
-                        disabled={!!item.locationException}
-                        value={item.manualLat}
-                        onChange={(e) => {
-                          const v = filterCoordInput(e.target.value);
-                          updateQueueItem(item.id, (c) => ({ ...c, manualLat: v, locationException: null }));
-                        }}
-                        onBlur={() => handleInputBlur(item)}
-                        placeholder="-23.5505"
-                        className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 ${
-                          latInvalid ? "border-red-400" : "border-gray-300"
-                        }`}
-                      />
+                <div className="space-y-3">
+                  {orderedTasks.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <CheckCircle2 size={32} className="mx-auto text-green-500 mb-2" />
+                      <p className="text-xs font-bold text-gray-500">Nenhuma pendência</p>
                     </div>
-                    <div>
-                      <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">Longitude</label>
-                      <input
-                        id={`lng-${item.id}`}
-                        type="text"
-                        inputMode="decimal"
-                        autoComplete="off"
-                        disabled={!!item.locationException}
-                        value={item.manualLng}
-                        onChange={(e) => {
-                          const v = filterCoordInput(e.target.value);
-                          updateQueueItem(item.id, (c) => ({ ...c, manualLng: v, locationException: null }));
-                        }}
-                        onBlur={() => handleInputBlur(item)}
-                        placeholder="-46.6333"
-                        className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 ${
-                          lngInvalid ? "border-red-400" : "border-gray-300"
+                  ) : (
+                    orderedTasks.map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => setSelectedTask(task)}
+                        className={`w-full text-left p-4 rounded-xl border transition-all ${
+                          selectedTask?.id === task.id 
+                          ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500 shadow-sm' 
+                          : 'border-gray-100 hover:border-gray-300 bg-gray-50/30'
                         }`}
-                      />
-                    </div>
-                  </div>
-
-                  {(latInvalid || lngInvalid) && (
-                    <p className="mt-2 text-xs font-medium text-red-600">
-                      Entrada inválida. Use decimais (Lat: -90 a 90, Lng: -180 a 180).
-                    </p>
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-lg shrink-0 ${selectedTask?.id === task.id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                            <ImageIcon size={16} />
+                          </div>
+                          <div className="truncate flex-1 min-w-0">
+                            <p className="text-sm font-bold text-gray-800 truncate">{task.fileName}</p>
+                            <p className="text-[10px] text-gray-500 mb-2">Enviado em {task.uploadDate}</p>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${getPriorityBadgeColor(task.prioridade)}`}>
+                              <ArrowUpCircle size={10} className={getPriorityIconColor(task.prioridade)} />
+                              {task.prioridade}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))
                   )}
-
-                  <div className="mt-4 border-t border-amber-200/50 pt-3">
-                    <p className="mb-2 text-xs font-semibold text-gray-600">Não possui as coordenadas?</p>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateQueueItem(item.id, (c) => ({
-                            ...c,
-                            locationException: c.locationException === "sem_gps" ? null : "sem_gps",
-                            manualLat: "",
-                            manualLng: "",
-                          }))
-                        }
-                        className={`rounded-lg border px-4 py-2 text-xs font-bold transition-all ${
-                          item.locationException === "sem_gps"
-                            ? "border-amber-600 bg-amber-600 text-white shadow-sm"
-                            : "border-gray-300 bg-white text-gray-700 hover:border-amber-400 hover:bg-amber-50"
-                        }`}
-                      >
-                        Sem GPS
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateQueueItem(item.id, (c) => ({
-                            ...c,
-                            locationException: c.locationException === "exif_corrompido" ? null : "exif_corrompido",
-                            manualLat: "",
-                            manualLng: "",
-                          }))
-                        }
-                        className={`rounded-lg border px-4 py-2 text-xs font-bold transition-all ${
-                          item.locationException === "exif_corrompido"
-                            ? "border-amber-600 bg-amber-600 text-white shadow-sm"
-                            : "border-gray-300 bg-white text-gray-700 hover:border-amber-400 hover:bg-amber-50"
-                        }`}
-                      >
-                        EXIF Corrompido
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
-          );
-        })}
-      </div>
 
-      <div className="mt-8 flex justify-end">
-        <button
-          type="button"
-          disabled={!todasResolvidas}
-          onClick={onProceedToMap}
-          className={`flex items-center gap-2 rounded-xl px-6 py-4 text-sm font-bold uppercase tracking-wide transition-all ${
-            todasResolvidas
-              ? "bg-[#0a5483] text-white shadow-lg hover:bg-[#083d61]"
-              : "cursor-not-allowed bg-gray-200 text-gray-400"
-          }`}
-        >
-          <Map size={18} strokeWidth={2.5} />
-          {todasResolvidas ? "Revisão Geral no Mapa (US-12)" : "Resolva as pendências para prosseguir"}
-          <ChevronRight size={18} strokeWidth={2.5} />
-        </button>
-      </div>
+            <div className="lg:col-span-2">
+              {selectedTask ? (
+                <div className="bg-white rounded-2xl shadow-md border border-gray-200 overflow-hidden">
+                  <div className="bg-[#0a3d62] p-6 text-white flex justify-between items-center">
+                    <div>
+                      <h2 className="text-lg font-bold">Informar Coordenadas Manuais</h2>
+                      <p className="text-blue-200 text-xs mt-0.5 truncate max-w-md">{selectedTask.fileName}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[11px] font-bold px-3 py-1 rounded-full border bg-white/10 border-white/20`}>
+                        Prioridade {selectedTask.prioridade}
+                      </span>
+                      <span className="text-xs bg-white/20 px-3 py-1 rounded-full uppercase font-bold tracking-widest">US-11</span>
+                    </div>
+                  </div>
+
+                  <div className="p-8">
+                    <div className="aspect-video bg-gray-900 rounded-xl mb-8 flex items-center justify-center border border-gray-800 relative overflow-hidden group shadow-inner">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent z-10" />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 z-0">
+                          <ImageIcon size={48} strokeWidth={1} className="text-gray-700" />
+                          <p className="text-xs mt-2 font-medium text-gray-600">Imagem do Ponto do Pavimento</p>
+                      </div>
+                    </div>
+
+                    {showSuccess ? (
+                      <div className="bg-green-50 border border-green-200 text-green-700 p-6 rounded-xl flex items-center gap-4 shadow-sm">
+                        <CheckCircle2 size={32} className="text-green-600" />
+                        <div>
+                          <p className="font-bold">Coordenadas vinculadas!</p>
+                          <p className="text-sm text-green-600/90">Reordenando fila por criticidade...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleSave} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="text-[12px] font-bold text-gray-700 flex items-center gap-2 mb-2 uppercase tracking-tight">
+                              <Navigation size={14} className="text-gray-500" /> Latitude
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Ex: -3.7899"
+                              value={coords.lat}
+                              onChange={(e) => setCoords({...coords, lat: e.target.value})}
+                              className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[12px] font-bold text-gray-700 flex items-center gap-2 mb-2 uppercase tracking-tight">
+                              <Navigation size={14} className="text-gray-500" /> Longitude
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Ex: -38.5243"
+                              value={coords.lng}
+                              onChange={(e) => setCoords({...coords, lng: e.target.value})}
+                              className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex gap-4 pt-4 border-t border-gray-100">
+                          <button 
+                            type="submit"
+                            className="flex-1 bg-[#003e68] text-white py-4 rounded-xl font-bold text-sm shadow-md hover:bg-[#002d4d] transition-all flex items-center justify-center gap-2"
+                          >
+                            <MapPin size={18} /> Salvar Localização
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedTask(null)}
+                            className="px-8 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 border border-gray-300 transition-all"
+                          >
+                            Voltar
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-gray-200 p-8 flex flex-col items-center justify-between min-h-[460px] shadow-sm">
+                  <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-center">
+                    {tasks.length > 0 ? (
+                      <>
+                        <div className="bg-amber-50 p-6 rounded-full mb-4">
+                            <AlertCircle size={40} className="text-amber-500" />
+                        </div>
+                        <h3 className="font-bold text-gray-700">Aguardando Resolução</h3>
+                        <p className="text-sm max-w-xs mt-2 text-gray-500">Selecione uma imagem na lista lateral esquerda para inserir os dados de geolocalização faltantes.</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="bg-green-50 p-6 rounded-full mb-4">
+                            <CheckCircle2 size={40} className="text-green-500" />
+                        </div>
+                        <h3 className="font-bold text-gray-800">Processo Concluído</h3>
+                        <p className="text-sm max-w-xs mt-2 text-gray-500">Normas DNIT atendidas. Não restam inconformidades de metadados nesta seção.</p>
+                      </>
+                    )}
+                  </div>
+                  
+                  <div className="w-full border-t border-gray-100 pt-6 mt-6">
+                    <button
+                      type="button"
+                      disabled={tasks.length > 0}
+                      className={`w-full py-4 rounded-xl font-bold text-sm transition-all text-center flex items-center justify-center gap-2 ${
+                        tasks.length > 0 
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200" 
+                        : "bg-green-600 text-white hover:bg-green-700 shadow-md cursor-pointer"
+                      }`}
+                    >
+                      {tasks.length > 0 ? (
+                        <>
+                          <AlertTriangle size={16} className="text-amber-500" />
+                          Resolva as pendências para obrigação ({tasks.length} restantes)
+                        </>
+                      ) : (
+                        <>
+                          Prosseguir para Revisão Geral
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
