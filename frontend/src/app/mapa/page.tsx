@@ -77,7 +77,7 @@ function getInitialUserState(): UserState {
 
 function buildUploadSnapshotFromReview(items: MapReviewInspection[]) {
   return items.map((item) => ({
-    id: item.id,
+    id: item.fotoId !== null ? String(item.fotoId) : item.id,
     fotoId: item.fotoId,
     fileName: item.fileName,
     imageUrl: item.imageUrl,
