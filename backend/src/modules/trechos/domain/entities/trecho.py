@@ -25,9 +25,19 @@ class TrechoORM(Base):
         return [foto.id for foto in self.fotos if foto.id is not None]
 
 
+class TrechoFotoInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    caminho_arquivo: str
+    latitude: float | None = None
+    longitude: float | None = None
+
+
 class Trecho(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id_trecho: str
     foto_ids: list[int] = Field(default_factory=list)
+    fotos: list[TrechoFotoInfo] = Field(default_factory=list)
     criado_em: datetime | None = None

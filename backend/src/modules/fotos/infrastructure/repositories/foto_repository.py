@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 
 from src.modules.fotos.domain.entities.fotos import Foto, fotosORM
 from src.modules.fotos.domain.repositories.i_foto_repository import IFotoRepository
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FotoRepository(IFotoRepository):
@@ -54,3 +57,77 @@ class FotoRepository(IFotoRepository):
 			synchronize_session=False,
 		)
 		self.session.commit()
+
+	def find_by_path_or_name(self, identifier: str) -> Foto | None:
+			# busca por caminho armazenado no MinIO ou pelo nome gerado/nome original do arquivo
+			from sqlalchemy import or_, text
+
+			candidate = (identifier or "").strip()
+			logger.info("find_by_path_or_name called with identifier=%s (normalized start)", identifier)
+
+			# Normalizar: se for URL pública, extrair bucket/objeto
+			if candidate.startswith("http://") or candidate.startswith("https://"):
+				parts = candidate.split("/", 3)
+				if len(parts) >= 4:
+					candidate = parts[3]
+
+			candidate = candidate.strip()
+			if not candidate:
+				logger.debug("find_by_path_or_name: empty candidate after normalization")
+				return None
+
+			logger.debug("find_by_path_or_name: searching for candidate=%s", candidate)
+
+			# 1) tentativas diretas: caminho, nome_aquivo, nome_original_arquivo
+			like_expr = f"%{candidate}"
+
+			foto_orm = (
+				self.session.query(fotosORM)
+				.filter(
+					or_(
+						fotosORM.caminho_arquivo == candidate,
+						fotosORM.caminho_arquivo.like(like_expr),
+						fotosORM.nome_aquivo == candidate,
+						fotosORM.nome_original_arquivo == candidate,
+					)
+				)
+				.first()
+			)
+
+			if foto_orm:
+				logger.info("find_by_path_or_name: found foto id=%s for candidate=%s", getattr(foto_orm, 'id', None), candidate)
+				logger.debug("find_by_path_or_name: found foto id=%s for candidate=%s", getattr(foto_orm, 'id', None), candidate)
+				return Foto.model_validate(foto_orm)
+
+			# 2) se client gerou id composto como 'originalName-<size>-<lastModified>-<random>',
+			#    tentar extrair prefix antes do primeiro '-' e comparar com nome_original_arquivo
+			if "-" in candidate and "." in candidate:
+				prefix = candidate.split("-", 1)[0]
+				if prefix:
+					foto_orm = self.session.query(fotosORM).filter(fotosORM.nome_original_arquivo == prefix).first()
+					if foto_orm:
+						logger.info("find_by_path_or_name: prefix match prefix=%s -> id=%s", prefix, foto_orm.id)
+						logger.debug("find_by_path_or_name: prefix match prefix=%s -> id=%s", prefix, foto_orm.id)
+						return Foto.model_validate(foto_orm)
+
+			# 3) fallback: varrer os N registros mais recentes e verificar substring matching no Python
+			recent = self.session.query(fotosORM).order_by(fotosORM.id.desc()).limit(200).all()
+			for r in recent:
+				# r.nome_original_arquivo costuma ser algo como '20260423_204123.jpg'
+				if r.nome_original_arquivo and r.nome_original_arquivo in candidate:
+					logger.info("find_by_path_or_name: recent match by nome_original_arquivo candidate=%s contains %s -> id=%s", candidate, r.nome_original_arquivo, r.id)
+					logger.debug("recent match by nome_original_arquivo: candidate=%s contains %s -> id=%s", candidate, r.nome_original_arquivo, r.id)
+					return Foto.model_validate(r)
+				if r.nome_aquivo and r.nome_aquivo in candidate:
+					logger.info("find_by_path_or_name: recent match by nome_aquivo substring candidate=%s contains %s -> id=%s", candidate, r.nome_aquivo, r.id)
+					logger.debug("recent match by nome_aquivo substring: candidate=%s contains %s -> id=%s", candidate, r.nome_aquivo, r.id)
+					return Foto.model_validate(r)
+				if r.caminho_arquivo and r.caminho_arquivo.endswith(candidate):
+					logger.info("find_by_path_or_name: recent match by caminho suffix candidate=%s -> caminho=%s id=%s", candidate, r.caminho_arquivo, r.id)
+					logger.debug("recent match by caminho suffix: candidate=%s -> caminho=%s id=%s", candidate, r.caminho_arquivo, r.id)
+					return Foto.model_validate(r)
+
+			logger.info("find_by_path_or_name: no foto found for candidate=%s", candidate)
+			logger.debug("find_by_path_or_name: no foto found for candidate=%s", candidate)
+			# nada encontrado
+			return None

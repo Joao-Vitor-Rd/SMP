@@ -656,7 +656,7 @@ export default function UploadImagensPage() {
         if (fotoEnviada) {
           updateQueueItem(item.id, (current) => ({
             ...current,
-            serverFotoId: typeof fotoEnviada.id === "number" ? fotoEnviada.id : current.serverFotoId,
+            serverFotoId: current.serverFotoId,
             serverImageUrl: fotoEnviada.caminho_arquivo ?? current.serverImageUrl,
             serverLatitude: typeof fotoEnviada.latitude === "number" ? fotoEnviada.latitude : current.serverLatitude,
             serverLongitude: typeof fotoEnviada.longitude === "number" ? fotoEnviada.longitude : current.serverLongitude,
@@ -672,7 +672,7 @@ export default function UploadImagensPage() {
         failedByFilename.set(item.file.name, failedBucket);
         updateQueueItem(item.id, (current) => ({
           ...current,
-          serverFotoId: typeof falhaUpload?.id === "number" ? falhaUpload.id : current.serverFotoId,
+          serverFotoId: current.serverFotoId,
           serverImageUrl: falhaUpload?.image_url ?? current.serverImageUrl,
           status: "rejected",
           progress: 0,

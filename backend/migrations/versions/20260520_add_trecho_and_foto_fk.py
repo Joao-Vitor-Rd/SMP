@@ -19,30 +19,62 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "trechos",
-        sa.Column("id_trecho", sa.String(length=36), nullable=False),
-        sa.Column("criado_em", sa.DateTime(timezone=True), nullable=False),
-        sa.PrimaryKeyConstraint("id_trecho"),
-    )
-    op.create_index(op.f("ix_trechos_id_trecho"), "trechos", ["id_trecho"], unique=False)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    op.add_column("fotos", sa.Column("trecho_id", sa.String(length=36), nullable=True))
-    op.create_index(op.f("ix_fotos_trecho_id"), "fotos", ["trecho_id"], unique=False)
-    op.create_foreign_key(
-        "fk_fotos_trecho_id_trechos",
-        "fotos",
-        "trechos",
-        ["trecho_id"],
-        ["id_trecho"],
-        ondelete="SET NULL",
-    )
+    table_names = inspector.get_table_names()
+    if "trechos" not in table_names:
+        op.create_table(
+            "trechos",
+            sa.Column("id_trecho", sa.String(length=36), nullable=False),
+            sa.Column("criado_em", sa.DateTime(timezone=True), nullable=False),
+            sa.PrimaryKeyConstraint("id_trecho"),
+        )
+
+    trecho_indexes = {index["name"] for index in inspector.get_indexes("trechos")}
+    if op.f("ix_trechos_id_trecho") not in trecho_indexes:
+        op.create_index(op.f("ix_trechos_id_trecho"), "trechos", ["id_trecho"], unique=False)
+
+    fotos_columns = {column["name"] for column in inspector.get_columns("fotos")}
+    if "trecho_id" not in fotos_columns:
+        op.add_column("fotos", sa.Column("trecho_id", sa.String(length=36), nullable=True))
+
+    fotos_indexes = {index["name"] for index in inspector.get_indexes("fotos")}
+    if op.f("ix_fotos_trecho_id") not in fotos_indexes:
+        op.create_index(op.f("ix_fotos_trecho_id"), "fotos", ["trecho_id"], unique=False)
+
+    fotos_fks = {fk["name"] for fk in inspector.get_foreign_keys("fotos")}
+    if "fk_fotos_trecho_id_trechos" not in fotos_fks:
+        op.create_foreign_key(
+            "fk_fotos_trecho_id_trechos",
+            "fotos",
+            "trechos",
+            ["trecho_id"],
+            ["id_trecho"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade() -> None:
-    op.drop_constraint("fk_fotos_trecho_id_trechos", "fotos", type_="foreignkey")
-    op.drop_index(op.f("ix_fotos_trecho_id"), table_name="fotos")
-    op.drop_column("fotos", "trecho_id")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    op.drop_index(op.f("ix_trechos_id_trecho"), table_name="trechos")
-    op.drop_table("trechos")
+    fotos_fks = {fk["name"] for fk in inspector.get_foreign_keys("fotos")}
+    if "fk_fotos_trecho_id_trechos" in fotos_fks:
+        op.drop_constraint("fk_fotos_trecho_id_trechos", "fotos", type_="foreignkey")
+
+    fotos_indexes = {index["name"] for index in inspector.get_indexes("fotos")}
+    if op.f("ix_fotos_trecho_id") in fotos_indexes:
+        op.drop_index(op.f("ix_fotos_trecho_id"), table_name="fotos")
+
+    fotos_columns = {column["name"] for column in inspector.get_columns("fotos")}
+    if "trecho_id" in fotos_columns:
+        op.drop_column("fotos", "trecho_id")
+
+    table_names = inspector.get_table_names()
+    if "trechos" in table_names:
+        trecho_indexes = {index["name"] for index in inspector.get_indexes("trechos")}
+        if op.f("ix_trechos_id_trecho") in trecho_indexes:
+            op.drop_index(op.f("ix_trechos_id_trecho"), table_name="trechos")
+
+        op.drop_table("trechos")

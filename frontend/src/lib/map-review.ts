@@ -349,8 +349,44 @@ export async function saveInspectionPosition(itemId: string, latitude: number, l
       await authApi.patch(`/api/fotos/revisao-mapa/${fotoId}`, { latitude, longitude });
       return;
     }
+    // Se não houver `fotoId` numérico, evitar enviar o identificador do cliente
+    // ao backend (que resultaria em 422/404). Persistimos localmente a revisão
+    // para ser aplicada quando a foto receber `serverFotoId`.
+    const stored = readPersistedReviewItems();
+    const idx = stored.findIndex((it) => it.id === itemId);
+    const now = new Date().toISOString();
+    if (idx !== -1) {
+      const current = stored[idx];
+      stored[idx] = {
+        ...current,
+        latitude,
+        longitude,
+        locationSource: "manual",
+        status: "ready",
+        updatedAt: now,
+        note: "Coordenadas ajustadas manualmente (aguardando confirmação no servidor)",
+      };
+      persistReviewItems(stored);
+      return;
+    }
 
-    await authApi.patch(`${MAP_REVIEW_API_ENDPOINT}/${itemId}`, { latitude, longitude });
+    // Se o item ainda não estiver no storage local, apenas adicionar um registro mínimo.
+    persistReviewItems([
+      ...stored,
+      {
+        id: itemId,
+        fotoId: null,
+        fileName: "",
+        imageUrl: "",
+        latitude,
+        longitude,
+        locationSource: "manual",
+        locationException: null,
+        status: "ready",
+        note: "Coordenadas ajustadas manualmente (aguardando confirmação no servidor)",
+        updatedAt: now,
+      },
+    ]);
   } catch (error) {
     if (error instanceof SessionExpiredError) {
       throw error;
@@ -362,8 +398,18 @@ export async function saveInspectionPosition(itemId: string, latitude: number, l
 
 export async function confirmReviewOnServer(items: MapReviewInspection[]) {
   try {
+    // Prefer numeric server-side fotoId when available to avoid ambiguous identifiers
+    const payloadItems = items.map((it) => {
+      const idToSend = typeof it.fotoId === "number" && Number.isFinite(it.fotoId) ? it.fotoId : it.id;
+      return {
+        ...it,
+        id: idToSend,
+        fotoId: typeof it.fotoId === "number" && Number.isFinite(it.fotoId) ? it.fotoId : null,
+      };
+    });
+
     await authApi.post(`${MAP_REVIEW_API_ENDPOINT}/confirmar`, {
-      items,
+      items: payloadItems,
       confirmedAt: new Date().toISOString(),
     });
   } catch (error) {

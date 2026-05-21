@@ -19,3 +19,12 @@ class IFotoRepository(ABC):
     @abstractmethod
     def associate_to_trecho(self, foto_ids: list[int], trecho_id: str) -> None:
         raise NotImplementedError
+
+    @abstractmethod
+    def find_by_path_or_name(self, identifier: str) -> Foto | None:
+        """Retorna uma foto buscando por `caminho_arquivo`, `nome_aquivo` ou `nome_original_arquivo`.
+
+        Usado para compatibilidade quando o cliente envia o identificador como string
+        (ex: nome do objeto no storage) em vez do id inteiro.
+        """
+        raise NotImplementedError
