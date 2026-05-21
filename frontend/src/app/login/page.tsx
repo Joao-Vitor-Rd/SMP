@@ -7,6 +7,74 @@ import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { getPublicApiBaseUrl } from "../../lib/authApi";
 
+const MENSAGEM_CREDENCIAIS_INVALIDAS =
+  "Credenciais inválidas. Verifique seu e-mail e senha.";
+const MENSAGEM_CONTA_BLOQUEADA =
+  "Muitas tentativas falhas. Conta bloqueada temporariamente. Tente novamente mais tarde.";
+const LIMITE_TENTATIVAS_LOGIN = 5;
+
+async function mensagemErroLogin(res: Response): Promise<string> {
+  if (res.status !== 401 && res.status !== 400) {
+    return MENSAGEM_CREDENCIAIS_INVALIDAS;
+  }
+
+  try {
+    const body = await res.json();
+    const detail = body?.detail;
+
+    if (detail && typeof detail === "object") {
+      const { tentativas, mensagem } = detail as {
+        tentativas?: number;
+        mensagem?: string;
+      };
+
+      if (typeof tentativas === "number") {
+        const restantes = LIMITE_TENTATIVAS_LOGIN - tentativas;
+        if (restantes > 0) {
+          return `Credenciais inválidas. Tentativas restantes: ${restantes}`;
+        }
+        if (typeof mensagem === "string" && mensagem) {
+          return mensagem;
+        }
+      }
+
+      if (typeof mensagem === "string" && mensagem) {
+        return mensagem;
+      }
+    }
+
+    if (typeof detail === "string" && detail) {
+      return detail;
+    }
+  } catch {
+    // corpo ausente ou JSON inválido — usa fallback
+  }
+
+  return MENSAGEM_CREDENCIAIS_INVALIDAS;
+}
+
+async function mensagemErroBloqueio(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    const detail = body?.detail;
+
+    if (detail && typeof detail === "object") {
+      const { mensagem } = detail as { mensagem?: string };
+      if (typeof mensagem === "string" && mensagem.trim()) {
+        return mensagem.trim();
+      }
+    }
+
+    if (typeof detail === "string" && detail.trim()) {
+      return detail.trim();
+    }
+  } catch {
+    // corpo ausente ou JSON inválido — usa fallback
+  }
+
+  return MENSAGEM_CONTA_BLOQUEADA;
+}
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -31,8 +99,13 @@ export default function LoginPage() {
         body: JSON.stringify({ email, senha, lembrar_me: lembrarMe }),
       });
 
-      if (res.status === 401) {
-        setErro("Credenciais inválidas. Verifique seu e-mail e senha.");
+      if (res.status === 401 || res.status === 400) {
+        setErro(await mensagemErroLogin(res));
+        return;
+      }
+
+      if (res.status === 429) {
+        setErro(await mensagemErroBloqueio(res));
         return;
       }
 
@@ -91,9 +164,26 @@ export default function LoginPage() {
 
         {/* Erro */}
         {erro && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm text-center flex items-center justify-center gap-2">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#e53e3e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            {erro}
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm text-center break-words">
+            <div className="flex items-start justify-center gap-2">
+              <svg
+                width="18"
+                height="18"
+                fill="none"
+                viewBox="0 0 24 24"
+                className="shrink-0 mt-0.5"
+                aria-hidden
+              >
+                <path
+                  d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  stroke="#e53e3e"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="min-w-0 break-words">{erro}</span>
+            </div>
           </div>
         )}
 
