@@ -32,6 +32,7 @@ import {
   loadReviewItems,
   persistReviewItems,
   readConfirmationSummary,
+  resolveNumericFotoId,
   saveInspectionPosition,
   type MapReviewInspection,
 } from "../../lib/map-review";
@@ -208,7 +209,7 @@ export default function MapaRevisaoPage() {
         return next;
       });
 
-      await saveInspectionPosition(itemId, latitude, longitude, itemAtual?.fotoId ?? null);
+      await saveInspectionPosition(itemId, latitude, longitude, itemAtual ? resolveNumericFotoId(itemAtual) : null);
     } catch (error) {
       if (error instanceof SessionExpiredError) {
         setErrorMessage("Sua sessão expirou. Faça login novamente para continuar a revisão.");
@@ -231,7 +232,7 @@ export default function MapaRevisaoPage() {
           continue;
         }
 
-        await saveInspectionPosition(item.id, item.latitude, item.longitude, item.fotoId);
+        await saveInspectionPosition(item.id, item.latitude, item.longitude, resolveNumericFotoId(item));
       }
 
       persistReviewItems(items);
