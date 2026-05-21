@@ -6,6 +6,7 @@ export type MapReviewLocationSource = "gps" | "manual" | "fallback" | "mock";
 
 export type MapReviewInspection = {
   id: string;
+  fotoId: number | null;
   fileName: string;
   imageUrl: string;
   latitude: number | null;
@@ -19,6 +20,7 @@ export type MapReviewInspection = {
 
 export type MapReviewUploadSnapshot = {
   id: string;
+  fotoId?: number | null;
   fileName: string;
   imageUrl: string | null;
   latitude: number | string | null;
@@ -102,6 +104,7 @@ function buildMockData(): MapReviewInspection[] {
   return [
     {
       id: "mock-1",
+      fotoId: null,
       fileName: "inspecao-br101-001.jpg",
       imageUrl: createMockPreview("BR-101", "#0f766e", "#cdeef2"),
       latitude: -23.5644,
@@ -114,6 +117,7 @@ function buildMockData(): MapReviewInspection[] {
     },
     {
       id: "mock-2",
+      fotoId: null,
       fileName: "inspecao-br101-002.jpg",
       imageUrl: createMockPreview("Manual", "#7c3aed", "#ece2ff"),
       latitude: -23.5688,
@@ -126,6 +130,7 @@ function buildMockData(): MapReviewInspection[] {
     },
     {
       id: "mock-3",
+      fotoId: null,
       fileName: "inspecao-br101-003.jpg",
       imageUrl: createMockPreview("IA", "#1d4ed8", "#dbeafe"),
       latitude: -23.5597,
@@ -158,6 +163,12 @@ export function normalizeReviewItems(input: unknown): MapReviewInspection[] {
 
       const raw = item as Record<string, unknown>;
       const id = String(raw.id ?? raw.identifier ?? `map-item-${index + 1}`);
+      const fotoIdCandidate = raw.fotoId ?? raw.foto_id;
+      const fotoId = typeof fotoIdCandidate === "number" && Number.isFinite(fotoIdCandidate)
+        ? fotoIdCandidate
+        : typeof fotoIdCandidate === "string" && fotoIdCandidate.trim() !== "" && Number.isFinite(Number(fotoIdCandidate))
+          ? Number(fotoIdCandidate)
+          : null;
       const fileName = String(raw.fileName ?? raw.filename ?? raw.nome_original_arquivo ?? `inspecao-${index + 1}`);
       const imageUrl = String(raw.imageUrl ?? raw.image_url ?? raw.caminho_arquivo ?? "");
       const latitude = clampLatitude(parseCoordinate(raw.latitude as number | string | null | undefined));
@@ -182,6 +193,7 @@ export function normalizeReviewItems(input: unknown): MapReviewInspection[] {
 
       return {
         id,
+        fotoId,
         fileName,
         imageUrl,
         latitude,
@@ -218,6 +230,7 @@ export function buildReviewPayloadFromUpload(items: MapReviewUploadSnapshot[]): 
 
       return {
         id: item.id,
+        fotoId: typeof item.fotoId === "number" && Number.isFinite(item.fotoId) ? item.fotoId : null,
         fileName: item.fileName,
         imageUrl,
         latitude,
@@ -330,8 +343,13 @@ export async function loadReviewItems(): Promise<MapReviewInspection[]> {
   return fallback;
 }
 
-export async function saveInspectionPosition(itemId: string, latitude: number, longitude: number) {
+export async function saveInspectionPosition(itemId: string, latitude: number, longitude: number, fotoId?: number | null) {
   try {
+    if (typeof fotoId === "number" && Number.isFinite(fotoId)) {
+      await authApi.patch(`/api/fotos/revisao-mapa/${fotoId}`, { latitude, longitude });
+      return;
+    }
+
     await authApi.patch(`${MAP_REVIEW_API_ENDPOINT}/${itemId}`, { latitude, longitude });
   } catch (error) {
     if (error instanceof SessionExpiredError) {

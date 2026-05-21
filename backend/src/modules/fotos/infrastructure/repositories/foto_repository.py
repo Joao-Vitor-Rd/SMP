@@ -16,6 +16,7 @@ class FotoRepository(IFotoRepository):
 			caminho_arquivo=foto.caminho_arquivo,
 			latitude=foto.latitude,
 			longitude=foto.longitude,
+			trecho_id=foto.trecho_id,
 			tipo_arquivo=foto.tipo_arquivo,
 		)
 
@@ -28,3 +29,28 @@ class FotoRepository(IFotoRepository):
 
 		self.session.refresh(foto_orm)
 		return Foto.model_validate(foto_orm)
+
+	def find_by_id(self, foto_id: int) -> Foto | None:
+		foto_orm = self.session.query(fotosORM).filter(fotosORM.id == foto_id).first()
+		return Foto.model_validate(foto_orm) if foto_orm else None
+
+	def update_localizacao(self, foto_id: int, latitude: float, longitude: float) -> Foto | None:
+		foto_orm = self.session.query(fotosORM).filter(fotosORM.id == foto_id).first()
+		if foto_orm is None:
+			return None
+
+		foto_orm.latitude = latitude
+		foto_orm.longitude = longitude
+		self.session.commit()
+		self.session.refresh(foto_orm)
+		return Foto.model_validate(foto_orm)
+
+	def associate_to_trecho(self, foto_ids: list[int], trecho_id: str) -> None:
+		if not foto_ids:
+			return
+
+		self.session.query(fotosORM).filter(fotosORM.id.in_(foto_ids)).update(
+			{fotosORM.trecho_id: trecho_id},
+			synchronize_session=False,
+		)
+		self.session.commit()

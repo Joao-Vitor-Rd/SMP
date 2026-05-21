@@ -6,15 +6,21 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from src.modules.fotos.application.dtos.foto_dto import (
+    AtualizarLocalizacaoFotoInputDTO,
     FotoDeleteResponseDTO,
+    FotoLocalizacaoResponseDTO,
     FotoUploadResponseDTO,
     ImagemUploadInputDTO,
     ProcessamentoFotosResponseDTO,
 )
 from src.modules.fotos.application.use_case.uc_09 import Uc09UploadMultiplasImagensUseCase
+from src.modules.fotos.application.use_case.uc_10_atualizar_localizacao_foto import (
+    Uc10AtualizarLocalizacaoFotoUseCase,
+)
 from src.modules.fotos.infrastructure.repositories.foto_repository import FotoRepository
 from src.modules.fotos.infrastructure.services.minio_adapter import MinioAdapter
 from src.modules.fotos.infrastructure.services.minio_client import ensure_bucket_exists, get_minio_client
+from src.modules.trechos.infrastructure.repositories.trecho_repository import TrechoRepository
 from src.shared.auth.dependencies import verify_any_user, verify_supervisor_ou_tecnico
 from src.shared.infrastructure.db import get_session
 
@@ -31,11 +37,26 @@ def get_foto_repository(session=Depends(get_session)) -> FotoRepository:
     return FotoRepository(session)
 
 
+def get_trecho_repository(session=Depends(get_session)) -> TrechoRepository:
+    return TrechoRepository(session)
+
+
 def get_uc09(
     foto_repository: FotoRepository = Depends(get_foto_repository),
     foto_storage: MinioAdapter = Depends(get_foto_storage),
+    trecho_repository: TrechoRepository = Depends(get_trecho_repository),
 ) -> Uc09UploadMultiplasImagensUseCase:
-    return Uc09UploadMultiplasImagensUseCase(foto_repository=foto_repository, foto_storage=foto_storage)
+    return Uc09UploadMultiplasImagensUseCase(
+        foto_repository=foto_repository,
+        foto_storage=foto_storage,
+        trecho_repository=trecho_repository,
+    )
+
+
+def get_uc10(
+    foto_repository: FotoRepository = Depends(get_foto_repository),
+) -> Uc10AtualizarLocalizacaoFotoUseCase:
+    return Uc10AtualizarLocalizacaoFotoUseCase(foto_repository=foto_repository)
 
 
 @router.post(
@@ -155,3 +176,29 @@ async def deletar_foto(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao deletar foto: {str(e)}")
+
+
+@router.patch(
+    "/revisao-mapa/{foto_id}",
+    response_model=FotoLocalizacaoResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Atualizar localização de foto para revisão de mapa",
+    description="Atualiza latitude/longitude da foto, com ou sem georreferenciamento original",
+)
+@router.patch(
+    "/{foto_id}/localizacao",
+    response_model=FotoLocalizacaoResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Atualizar localização de foto",
+    description="Atualiza latitude/longitude da foto, com ou sem georreferenciamento original",
+)
+async def atualizar_localizacao_foto(
+    foto_id: int,
+    payload: AtualizarLocalizacaoFotoInputDTO,
+    _: dict = Depends(verify_any_user),
+    use_case: Uc10AtualizarLocalizacaoFotoUseCase = Depends(get_uc10),
+):
+    try:
+        return use_case.execute(foto_id=foto_id, input_dto=payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
