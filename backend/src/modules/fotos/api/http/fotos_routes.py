@@ -1,11 +1,15 @@
 import os
+from datetime import datetime, timezone
 from typing import List
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.modules.fotos.application.dtos.foto_dto import (
+    ConfirmarRevisaoMapaDTO,
+    MapReviewInspectionDTO,
     FotoDeleteResponseDTO,
     FotoUploadResponseDTO,
     ImagemUploadInputDTO,
@@ -36,6 +40,37 @@ def get_uc09(
     foto_storage: MinioAdapter = Depends(get_foto_storage),
 ) -> Uc09UploadMultiplasImagensUseCase:
     return Uc09UploadMultiplasImagensUseCase(foto_repository=foto_repository, foto_storage=foto_storage)
+
+
+@router.get(
+    "/revisao-mapa",
+    response_model=list[MapReviewInspectionDTO],
+    status_code=status.HTTP_200_OK,
+    summary="Listar fotos para revisão de mapa",
+    description="Retorna as fotos persistidas com dados suficientes para a tela de revisão do mapa",
+)
+async def listar_revisao_mapa(
+    _: dict = Depends(verify_any_user),
+    foto_repository: FotoRepository = Depends(get_foto_repository),
+):
+    fotos = foto_repository.list_all()
+
+    return [
+        MapReviewInspectionDTO(
+            id=str(foto.id),
+            foto_id=foto.id,
+            file_name=foto.nome_original_arquivo,
+            image_url=foto.caminho_arquivo,
+            latitude=foto.latitude,
+            longitude=foto.longitude,
+            location_source="gps" if foto.latitude is not None and foto.longitude is not None else "fallback",
+            location_exception=None if foto.latitude is not None and foto.longitude is not None else "sem_gps",
+            status="ready" if foto.latitude is not None and foto.longitude is not None else "pending",
+            note="Foto pronta para revisão." if foto.latitude is not None and foto.longitude is not None else "Foto sem localização (EXIF GPS não encontrado)",
+            updated_at=foto.criado_em or datetime.now(timezone.utc),
+        )
+        for foto in fotos
+    ]
 
 
 @router.post(
@@ -93,6 +128,46 @@ async def upload_multiplas_imagens(
         status_code = status.HTTP_400_BAD_REQUEST
 
     return JSONResponse(status_code=status_code, content=resultado.model_dump(mode="json"))
+
+
+@router.post(
+    "/revisao-mapa/confirmar",
+    status_code=status.HTTP_200_OK,
+    summary="Confirmar revisão de mapa",
+    description="Atualiza em lote a localização das fotos revisadas no mapa",
+)
+async def confirmar_revisao_mapa(
+    payload: ConfirmarRevisaoMapaDTO,
+    _: dict = Depends(verify_any_user),
+    foto_repository: FotoRepository = Depends(get_foto_repository),
+):
+    updated = 0
+
+    for item in payload.items:
+        foto = None
+
+        if item.foto_id is not None:
+            foto = foto_repository.find_by_id(item.foto_id)
+
+        if foto is None and item.id is not None:
+            try:
+                foto = foto_repository.find_by_id(int(str(item.id)))
+            except (TypeError, ValueError):
+                foto = None
+
+        if foto is None and item.file_name:
+            foto = foto_repository.find_by_path_or_name(item.file_name)
+
+        if foto is None or foto.id is None:
+            continue
+
+        try:
+            foto_repository.update_localizacao(foto.id, item.latitude, item.longitude)
+            updated += 1
+        except SQLAlchemyError:
+            continue
+
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"updated": updated, "confirmed_at": payload.confirmed_at.isoformat() if payload.confirmed_at else None})
 
 
 @router.post(

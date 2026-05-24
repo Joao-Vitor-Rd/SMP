@@ -28,3 +28,39 @@ class FotoRepository(IFotoRepository):
 
 		self.session.refresh(foto_orm)
 		return Foto.model_validate(foto_orm)
+
+	def list_all(self) -> list[Foto]:
+		fotos_orm = self.session.query(fotosORM).order_by(fotosORM.id.desc()).all()
+		return [Foto.model_validate(foto_orm) for foto_orm in fotos_orm]
+
+	def find_by_id(self, foto_id: int) -> Foto | None:
+		foto_orm = self.session.query(fotosORM).filter(fotosORM.id == foto_id).first()
+		return Foto.model_validate(foto_orm) if foto_orm else None
+
+	def update_localizacao(self, foto_id: int, latitude: float, longitude: float) -> Foto | None:
+		foto_orm = self.session.query(fotosORM).filter(fotosORM.id == foto_id).first()
+		if foto_orm is None:
+			return None
+
+		foto_orm.latitude = latitude
+		foto_orm.longitude = longitude
+		self.session.commit()
+		self.session.refresh(foto_orm)
+		return Foto.model_validate(foto_orm)
+
+	def find_by_path_or_name(self, identifier: str) -> Foto | None:
+		candidate = (identifier or "").strip()
+		if not candidate:
+			return None
+
+		foto_orm = (
+			self.session.query(fotosORM)
+			.filter(
+				(fotosORM.caminho_arquivo == candidate)
+				| (fotosORM.nome_aquivo == candidate)
+				| (fotosORM.nome_original_arquivo == candidate)
+			)
+			.first()
+		)
+
+		return Foto.model_validate(foto_orm) if foto_orm else None
