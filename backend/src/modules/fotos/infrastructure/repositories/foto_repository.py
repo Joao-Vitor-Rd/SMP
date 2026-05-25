@@ -1,4 +1,4 @@
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.modules.fotos.domain.entities.fotos import Foto, fotosORM
@@ -33,6 +33,10 @@ class FotoRepository(IFotoRepository):
 		self.session.refresh(foto_orm)
 		return Foto.model_validate(foto_orm)
 
+	def list_all(self) -> list[Foto]:
+		fotos = self.session.query(fotosORM).order_by(fotosORM.id.asc()).all()
+		return [Foto.model_validate(foto_orm) for foto_orm in fotos]
+
 	def find_by_id(self, foto_id: int) -> Foto | None:
 		foto_orm = self.session.query(fotosORM).filter(fotosORM.id == foto_id).first()
 		return Foto.model_validate(foto_orm) if foto_orm else None
@@ -44,7 +48,11 @@ class FotoRepository(IFotoRepository):
 
 		foto_orm.latitude = latitude
 		foto_orm.longitude = longitude
-		self.session.commit()
+		try:
+			self.session.commit()
+		except SQLAlchemyError as exc:
+			self.session.rollback()
+			raise exc
 		self.session.refresh(foto_orm)
 		return Foto.model_validate(foto_orm)
 
