@@ -3,6 +3,7 @@ from src.modules.trechos.application.dtos.trecho_dto import (
     TrechoListItemDTO,
     TrechoListResponseDTO,
 )
+from src.modules.trechos.application.dtos.trecho_filter_dto import TrechoBoundingBoxFilterDTO
 from src.modules.trechos.domain.repositories.i_trecho_repository import ITrechoRepository
 
 
@@ -10,8 +11,8 @@ class UcListarTrechosUseCase:
     def __init__(self, trecho_repository: ITrechoRepository):
         self.trecho_repository = trecho_repository
 
-    def execute(self) -> TrechoListResponseDTO:
-        trechos = self.trecho_repository.list_all()
+    def execute(self, bbox_filter: TrechoBoundingBoxFilterDTO | None = None) -> TrechoListResponseDTO:
+        trechos = self.trecho_repository.list_all(bbox_filter=bbox_filter)
 
         trecho_items: list[TrechoListItemDTO] = []
         for trecho in trechos:

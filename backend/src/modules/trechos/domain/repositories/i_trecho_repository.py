@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from src.modules.trechos.application.dtos.trecho_filter_dto import TrechoBoundingBoxFilterDTO
 from src.modules.trechos.domain.entities.trecho import Trecho
 
 
@@ -9,5 +10,5 @@ class ITrechoRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list_all(self) -> list[Trecho]:
+    def list_all(self, bbox_filter: TrechoBoundingBoxFilterDTO | None = None) -> list[Trecho]:
         raise NotImplementedError
