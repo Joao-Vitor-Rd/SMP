@@ -16,6 +16,8 @@ from src.shared.infrastructure.db import Base
 from src.shared.domain.entities.user import UserORM
 from src.modules.supervisor.domain.entities.supervisor import SupervisorORM
 from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
+from src.modules.fotos.domain.entities.fotos import fotosORM
+from src.modules.trechos.domain.entities.trecho import TrechoORM
 
 config = context.config
 if config.config_file_name is not None:

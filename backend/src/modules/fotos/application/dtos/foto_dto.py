@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FotoUploadResponseDTO(BaseModel):
@@ -29,9 +29,11 @@ class FotoUploadSucessoDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: int
+    filename: str
     latitude: float
     longitude: float
     caminho_arquivo: str
+    trecho_id: str | None = None
 
 
 class FotoUploadFalhaDTO(BaseModel):
@@ -40,6 +42,14 @@ class FotoUploadFalhaDTO(BaseModel):
     filename: str
     reason: str
     image_url: str | None = None
+    id: int | None = None
+
+
+class TrechoCriadoDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id_trecho: str
+    foto_ids: list[int]
 
 
 class ProcessamentoFotosResponseDTO(BaseModel):
@@ -47,3 +57,20 @@ class ProcessamentoFotosResponseDTO(BaseModel):
 
     success: list[FotoUploadSucessoDTO]
     failed: list[FotoUploadFalhaDTO]
+    trecho: TrechoCriadoDTO | None = None
+
+
+class AtualizarLocalizacaoFotoInputDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+
+
+class FotoLocalizacaoResponseDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: int
+    latitude: float
+    longitude: float
+    trecho_id: str | None = None

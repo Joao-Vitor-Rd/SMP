@@ -6,6 +6,7 @@ export type MapReviewLocationSource = "gps" | "manual" | "fallback" | "mock";
 
 export type MapReviewInspection = {
   id: string;
+  fotoId: number | null;
   fileName: string;
   imageUrl: string;
   latitude: number | null;
@@ -19,6 +20,7 @@ export type MapReviewInspection = {
 
 export type MapReviewUploadSnapshot = {
   id: string;
+  fotoId?: number | null;
   fileName: string;
   imageUrl: string | null;
   latitude: number | string | null;
@@ -34,6 +36,24 @@ export type MapReviewUploadSnapshot = {
 const MAP_REVIEW_STORAGE_KEY = "smp:map-review-batch";
 const MAP_REVIEW_CONFIRMATION_KEY = "smp:map-review-confirmation";
 const MAP_REVIEW_API_ENDPOINT = "/api/fotos/revisao-mapa";
+
+export function resolveNumericFotoId(value: { id?: string | number | null; fotoId?: number | null }) {
+  if (typeof value.fotoId === "number" && Number.isFinite(value.fotoId)) {
+    return value.fotoId;
+  }
+
+  const candidate = value.id;
+  if (typeof candidate === "number" && Number.isFinite(candidate)) {
+    return candidate;
+  }
+
+  if (typeof candidate === "string" && candidate.trim() !== "") {
+    const parsed = Number(candidate);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
 
 function canUseStorage() {
   return typeof window !== "undefined";
@@ -102,6 +122,7 @@ function buildMockData(): MapReviewInspection[] {
   return [
     {
       id: "mock-1",
+      fotoId: null,
       fileName: "inspecao-br101-001.jpg",
       imageUrl: createMockPreview("BR-101", "#0f766e", "#cdeef2"),
       latitude: -23.5644,
@@ -114,6 +135,7 @@ function buildMockData(): MapReviewInspection[] {
     },
     {
       id: "mock-2",
+      fotoId: null,
       fileName: "inspecao-br101-002.jpg",
       imageUrl: createMockPreview("Manual", "#7c3aed", "#ece2ff"),
       latitude: -23.5688,
@@ -126,6 +148,7 @@ function buildMockData(): MapReviewInspection[] {
     },
     {
       id: "mock-3",
+      fotoId: null,
       fileName: "inspecao-br101-003.jpg",
       imageUrl: createMockPreview("IA", "#1d4ed8", "#dbeafe"),
       latitude: -23.5597,
@@ -158,6 +181,12 @@ export function normalizeReviewItems(input: unknown): MapReviewInspection[] {
 
       const raw = item as Record<string, unknown>;
       const id = String(raw.id ?? raw.identifier ?? `map-item-${index + 1}`);
+      const fotoIdCandidate = raw.fotoId ?? raw.foto_id ?? raw.id ?? raw.identifier;
+      const fotoId = typeof fotoIdCandidate === "number" && Number.isFinite(fotoIdCandidate)
+        ? fotoIdCandidate
+        : typeof fotoIdCandidate === "string" && fotoIdCandidate.trim() !== "" && Number.isFinite(Number(fotoIdCandidate))
+          ? Number(fotoIdCandidate)
+          : null;
       const fileName = String(raw.fileName ?? raw.filename ?? raw.nome_original_arquivo ?? `inspecao-${index + 1}`);
       const imageUrl = String(raw.imageUrl ?? raw.image_url ?? raw.caminho_arquivo ?? "");
       const latitude = clampLatitude(parseCoordinate(raw.latitude as number | string | null | undefined));
@@ -182,6 +211,7 @@ export function normalizeReviewItems(input: unknown): MapReviewInspection[] {
 
       return {
         id,
+        fotoId,
         fileName,
         imageUrl,
         latitude,
@@ -202,6 +232,7 @@ export function buildReviewPayloadFromUpload(items: MapReviewUploadSnapshot[]): 
       const latitude = clampLatitude(parseCoordinate(item.manualLat) ?? parseCoordinate(item.latitude));
       const longitude = clampLongitude(parseCoordinate(item.manualLng) ?? parseCoordinate(item.longitude));
       const imageUrl = item.imageUrl?.trim();
+      const numericId = Number(item.fotoId ?? item.id);
       const explicitLocationSource = item.locationSource === "manual"
         ? "manual"
         : item.locationSource === "gps"
@@ -218,6 +249,7 @@ export function buildReviewPayloadFromUpload(items: MapReviewUploadSnapshot[]): 
 
       return {
         id: item.id,
+        fotoId: Number.isFinite(numericId) ? numericId : null,
         fileName: item.fileName,
         imageUrl,
         latitude,
@@ -330,9 +362,50 @@ export async function loadReviewItems(): Promise<MapReviewInspection[]> {
   return fallback;
 }
 
-export async function saveInspectionPosition(itemId: string, latitude: number, longitude: number) {
+export async function saveInspectionPosition(itemId: string, latitude: number, longitude: number, fotoId?: number | null) {
   try {
-    await authApi.patch(`${MAP_REVIEW_API_ENDPOINT}/${itemId}`, { latitude, longitude });
+    if (typeof fotoId === "number" && Number.isFinite(fotoId)) {
+      await authApi.patch(`/api/fotos/revisao-mapa/${fotoId}`, { latitude, longitude });
+      return;
+    }
+    // Se não houver `fotoId` numérico, evitar enviar o identificador do cliente
+    // ao backend (que resultaria em 422/404). Persistimos localmente a revisão
+    // para ser aplicada quando a foto receber `serverFotoId`.
+    const stored = readPersistedReviewItems();
+    const idx = stored.findIndex((it) => it.id === itemId);
+    const now = new Date().toISOString();
+    if (idx !== -1) {
+      const current = stored[idx];
+      stored[idx] = {
+        ...current,
+        latitude,
+        longitude,
+        locationSource: "manual",
+        status: "ready",
+        updatedAt: now,
+        note: "Coordenadas ajustadas manualmente (aguardando confirmação no servidor)",
+      };
+      persistReviewItems(stored);
+      return;
+    }
+
+    // Se o item ainda não estiver no storage local, apenas adicionar um registro mínimo.
+    persistReviewItems([
+      ...stored,
+      {
+        id: itemId,
+        fotoId: null,
+        fileName: "",
+        imageUrl: "",
+        latitude,
+        longitude,
+        locationSource: "manual",
+        locationException: null,
+        status: "ready",
+        note: "Coordenadas ajustadas manualmente (aguardando confirmação no servidor)",
+        updatedAt: now,
+      },
+    ]);
   } catch (error) {
     if (error instanceof SessionExpiredError) {
       throw error;
@@ -344,8 +417,18 @@ export async function saveInspectionPosition(itemId: string, latitude: number, l
 
 export async function confirmReviewOnServer(items: MapReviewInspection[]) {
   try {
+    // Prefer numeric server-side fotoId when available to avoid ambiguous identifiers
+    const payloadItems = items.map((it) => {
+      const idToSend = resolveNumericFotoId(it) ?? it.id;
+      return {
+        ...it,
+        id: idToSend,
+        fotoId: resolveNumericFotoId(it),
+      };
+    });
+
     await authApi.post(`${MAP_REVIEW_API_ENDPOINT}/confirmar`, {
-      items,
+      items: payloadItems,
       confirmedAt: new Date().toISOString(),
     });
   } catch (error) {

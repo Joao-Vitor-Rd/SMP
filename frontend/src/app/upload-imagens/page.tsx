@@ -37,6 +37,7 @@ type UploadFileLike = Pick<File, "name" | "size" | "type" | "lastModified">;
 
 type UploadItem = {
   id: string;
+  serverFotoId: number | null;
   file: UploadFileLike;
   originalFile?: File;
   previewUrl: string;
@@ -180,6 +181,7 @@ function isUploadItemSnapshot(value: unknown): value is UploadItemSnapshot {
 
   return (
     typeof candidate.id === "string" &&
+    (candidate.serverFotoId === undefined || candidate.serverFotoId === null || typeof candidate.serverFotoId === "number") &&
     isUploadFileLike(candidate.file) &&
     typeof candidate.previewUrl === "string" &&
     typeof candidate.status === "string" &&
@@ -196,6 +198,7 @@ function createPreviewForRestoredItem(item: UploadItemSnapshot) {
 function serializeUploadItem(item: UploadItem): UploadItemSnapshot {
   return {
     id: item.id,
+    serverFotoId: item.serverFotoId,
     file: item.file,
     previewUrl: item.previewUrl,
     serverImageUrl: item.serverImageUrl,
@@ -217,6 +220,7 @@ function restoreUploadItem(snapshot: UploadItemSnapshot): UploadItem {
 
   return {
     ...snapshot,
+    serverFotoId: typeof snapshot.serverFotoId === "number" ? snapshot.serverFotoId : null,
     file: snapshot.file,
     originalFile: originalFileCache.get(snapshot.id),
     hasLocation: manualReady ? true : snapshot.hasLocation,
@@ -244,6 +248,7 @@ function hydrateUploadItemFromReview(item: UploadItem, review: ReturnType<typeof
 
   return {
     ...item,
+    serverFotoId: review.fotoId ?? item.serverFotoId,
     hasLocation: true,
     locationSource: review.locationSource === "manual" ? "manual" : "gps",
     status: review.status === "confirmed" || review.status === "ready" ? "completed" : item.status,
@@ -540,6 +545,7 @@ export default function UploadImagensPage() {
 
         return {
           id: item.id,
+          fotoId: persistedReview?.fotoId ?? item.serverFotoId,
           fileName: item.file.name,
           imageUrl: persistedReview?.imageUrl ?? durableImageUrl,
           latitude: persistedReview?.latitude ?? item.serverLatitude,
@@ -564,28 +570,39 @@ export default function UploadImagensPage() {
     return normalizedReviewItems;
   }, [items]);
 
-  const uploadQueueItem = useCallback(async (item: UploadItem) => {
-    const originalFile = resolveOriginalFile(item);
+  const uploadPendingBatch = useCallback(async (batchItems: UploadItem[]) => {
+    const selectedForUpload = batchItems
+      .map((item) => ({ item, file: resolveOriginalFile(item) }))
+      .filter((entry): entry is { item: UploadItem; file: File } => entry.file instanceof File);
 
-    if (!originalFile) {
-      updateQueueItem(item.id, (current) => ({
-        ...current,
-        status: "rejected",
-        progress: 0,
-        message: "Arquivo original indisponível para reenvio. Selecione a imagem novamente.",
-      }));
+    batchItems
+      .filter((item) => !selectedForUpload.some((entry) => entry.item.id === item.id))
+      .forEach((item) => {
+        updateQueueItem(item.id, (current) => ({
+          ...current,
+          status: "rejected",
+          progress: 0,
+          message: "Arquivo original indisponível para reenvio. Selecione a imagem novamente.",
+        }));
+      });
+
+    if (!selectedForUpload.length) {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("files", originalFile);
+    selectedForUpload.forEach(({ item }) => {
+      updateQueueItem(item.id, (current) => ({
+        ...current,
+        status: "uploading",
+        progress: 0,
+        message: "Enviando lote para processamento",
+      }));
+    });
 
-    updateQueueItem(item.id, (current) => ({
-      ...current,
-      status: "uploading",
-      progress: 0,
-      message: "Enviado com sucesso",
-    }));
+    const formData = new FormData();
+    selectedForUpload.forEach(({ file }) => {
+      formData.append("files", file);
+    });
 
     try {
       const response = await authApi.post(FOTO_UPLOAD_ENDPOINT, formData, {
@@ -595,65 +612,101 @@ export default function UploadImagensPage() {
           }
 
           const progress = Math.min(100, Math.round((progressEvent.loaded * 100) / progressEvent.total));
-          updateQueueItem(item.id, (current) => ({
-            ...current,
-            status: "uploading",
-            progress,
-            message: `Enviado com sucesso ${progress}%`,
-          }));
+          selectedForUpload.forEach(({ item }) => {
+            updateQueueItem(item.id, (current) => ({
+              ...current,
+              status: "uploading",
+              progress,
+              message: `Enviado com sucesso ${progress}%`,
+            }));
+          });
         },
       });
 
       const resultadoUpload = response.data as {
-        success?: Array<{ id?: number; caminho_arquivo?: string; latitude?: number; longitude?: number }>;
-        failed?: Array<{ filename?: string; reason?: string; image_url?: string }>;
+        success?: Array<{ id?: number; filename?: string; caminho_arquivo?: string; latitude?: number; longitude?: number; trecho_id?: string }>;
+        failed?: Array<{ id?: number; filename?: string; reason?: string; image_url?: string }>;
+        trecho?: { id_trecho?: string; foto_ids?: number[] };
       };
 
-      const fotoEnviada = resultadoUpload.success?.[0];
-      const falhaUpload = resultadoUpload.failed?.[0];
+      const successByFilename = new globalThis.Map<string, Array<{ id?: number; filename?: string; caminho_arquivo?: string; latitude?: number; longitude?: number; trecho_id?: string }>>();
+      (resultadoUpload.success ?? []).forEach((item) => {
+        if (typeof item.filename !== "string" || item.filename.trim() === "") {
+          return;
+        }
+        const bucket = successByFilename.get(item.filename) ?? [];
+        bucket.push(item);
+        successByFilename.set(item.filename, bucket);
+      });
 
-      if (fotoEnviada) {
+      const failedByFilename = new globalThis.Map<string, Array<{ id?: number; filename?: string; reason?: string; image_url?: string }>>();
+      (resultadoUpload.failed ?? []).forEach((item) => {
+        if (typeof item.filename !== "string" || item.filename.trim() === "") {
+          return;
+        }
+        const bucket = failedByFilename.get(item.filename) ?? [];
+        bucket.push(item);
+        failedByFilename.set(item.filename, bucket);
+      });
+
+      selectedForUpload.forEach(({ item }) => {
+        const successBucket = successByFilename.get(item.file.name) ?? [];
+        const fotoEnviada = successBucket.shift();
+        successByFilename.set(item.file.name, successBucket);
+        if (fotoEnviada) {
+          updateQueueItem(item.id, (current) => ({
+            ...current,
+            serverFotoId: typeof fotoEnviada.id === "number" && Number.isFinite(fotoEnviada.id) ? fotoEnviada.id : current.serverFotoId,
+            serverImageUrl: fotoEnviada.caminho_arquivo ?? current.serverImageUrl,
+            serverLatitude: typeof fotoEnviada.latitude === "number" ? fotoEnviada.latitude : current.serverLatitude,
+            serverLongitude: typeof fotoEnviada.longitude === "number" ? fotoEnviada.longitude : current.serverLongitude,
+            status: "completed",
+            progress: 100,
+            message: "Enviado com sucesso",
+          }));
+          return;
+        }
+
+        const failedBucket = failedByFilename.get(item.file.name) ?? [];
+        const falhaUpload = failedBucket.shift();
+        failedByFilename.set(item.file.name, failedBucket);
         updateQueueItem(item.id, (current) => ({
           ...current,
-          serverImageUrl: fotoEnviada.caminho_arquivo ?? current.serverImageUrl,
-          serverLatitude: typeof fotoEnviada.latitude === "number" ? fotoEnviada.latitude : current.serverLatitude,
-          serverLongitude: typeof fotoEnviada.longitude === "number" ? fotoEnviada.longitude : current.serverLongitude,
-          status: "completed",
-          progress: 100,
+          serverFotoId: typeof falhaUpload?.id === "number" && Number.isFinite(falhaUpload.id) ? falhaUpload.id : current.serverFotoId,
+          serverImageUrl: falhaUpload?.image_url ?? current.serverImageUrl,
+          status: "rejected",
+          progress: 0,
+          message: falhaUpload?.reason ?? "Falha ao enviar imagem.",
         }));
-        return;
-      }
-
-      updateQueueItem(item.id, (current) => ({
-        ...current,
-        serverImageUrl: falhaUpload?.image_url ?? current.serverImageUrl,
-        status: "rejected",
-        progress: 0,
-        message: falhaUpload?.reason ?? "Falha ao enviar imagem.",
-      }));
+      });
     } catch (error) {
       const mensagemErro = extractUploadErrorMessage(error);
-
-      updateQueueItem(item.id, (current) => ({
-        ...current,
-        status: "rejected",
-        progress: 0,
-        message: mensagemErro,
-      }));
+      selectedForUpload.forEach(({ item }) => {
+        updateQueueItem(item.id, (current) => ({
+          ...current,
+          status: "rejected",
+          progress: 0,
+          message: mensagemErro,
+        }));
+      });
     }
   }, [updateQueueItem]);
 
   useEffect(() => {
-    items
-      .filter((item) => item.status === "pending" && !uploadsEmAndamentoRef.current.has(item.id))
-      .forEach((item) => {
-        uploadsEmAndamentoRef.current.add(item.id);
+    const pendingItems = items.filter(
+      (item) => item.status === "pending" && !uploadsEmAndamentoRef.current.has(item.id)
+    );
 
-        void uploadQueueItem(item).finally(() => {
-          uploadsEmAndamentoRef.current.delete(item.id);
-        });
-      });
-  }, [items, uploadQueueItem]);
+    if (!pendingItems.length) {
+      return;
+    }
+
+    pendingItems.forEach((item) => uploadsEmAndamentoRef.current.add(item.id));
+
+    void uploadPendingBatch(pendingItems).finally(() => {
+      pendingItems.forEach((item) => uploadsEmAndamentoRef.current.delete(item.id));
+    });
+  }, [items, uploadPendingBatch]);
 
   function addFiles(fileList: FileList | File[]) {
     const incoming = Array.from(fileList);
@@ -672,6 +725,7 @@ export default function UploadImagensPage() {
       if (validationError) {
         nextItems.push({
           id,
+          serverFotoId: null,
           file: toUploadFileLike(file),
           originalFile: file,
           previewUrl: URL.createObjectURL(file),
@@ -693,6 +747,7 @@ export default function UploadImagensPage() {
       if (duplicate) {
         nextItems.push({
           id,
+          serverFotoId: null,
           file: toUploadFileLike(file),
           originalFile: file,
           previewUrl: URL.createObjectURL(file),
@@ -713,6 +768,7 @@ export default function UploadImagensPage() {
 
       nextItems.push({
         id,
+        serverFotoId: null,
         file: toUploadFileLike(file),
         originalFile: file,
         previewUrl: URL.createObjectURL(file),
