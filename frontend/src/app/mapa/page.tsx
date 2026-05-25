@@ -36,6 +36,7 @@ import {
   saveInspectionPosition,
   type MapReviewInspection,
 } from "../../lib/map-review";
+import { persistTrechosBounds, type TrechoBoundingBox } from "../../lib/trechosApi";
 
 import MapContainerBase from "../../../components/MapContainerBase";
 
@@ -405,6 +406,9 @@ export default function MapaRevisaoPage() {
                     items={items}
                     selectedId={selectedId}
                     onSelect={setSelectedId}
+                    onBoundsChange={(bounds: TrechoBoundingBox | null) => {
+                      persistTrechosBounds(bounds);
+                    }}
                     onMove={(itemId, latitude, longitude) => {
                       void updateItemPosition(itemId, latitude, longitude);
                     }}

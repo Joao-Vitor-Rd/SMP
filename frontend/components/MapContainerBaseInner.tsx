@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 
 import type { MapReviewInspection } from "../src/lib/map-review";
+import type { TrechoBoundingBox } from "../src/lib/trechosApi";
 import CustomMapMarker from "./CustomMapMarker";
 
 export type MapContainerBaseInnerProps = {
@@ -13,6 +14,7 @@ export type MapContainerBaseInnerProps = {
   selectedId?: string | null;
   onSelect?: (itemId: string) => void;
   onMove: (itemId: string, latitude: number, longitude: number) => void;
+  onBoundsChange?: (bounds: TrechoBoundingBox | null) => void;
 };
 
 const DEFAULT_CENTER: [number, number] = [-23.5505, -46.6333];
@@ -63,11 +65,94 @@ function MapClickController({
   return null;
 }
 
+function MapViewportController({
+  onBoundsChange,
+}: {
+  onBoundsChange?: (bounds: TrechoBoundingBox | null) => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!onBoundsChange) {
+      return;
+    }
+
+    const emitBounds = () => {
+      const bounds = map.getBounds();
+
+      if (!bounds.isValid()) {
+        onBoundsChange(null);
+        return;
+      }
+
+      const northEast = bounds.getNorthEast();
+      const southWest = bounds.getSouthWest();
+
+      onBoundsChange({
+        topLeftLat: northEast.lat,
+        topLeftLng: southWest.lng,
+        bottomRightLat: southWest.lat,
+        bottomRightLng: northEast.lng,
+      });
+    };
+
+    emitBounds();
+  }, [map, onBoundsChange]);
+
+  useMapEvents({
+    moveend: () => {
+      if (!onBoundsChange) {
+        return;
+      }
+
+      const bounds = map.getBounds();
+      if (!bounds.isValid()) {
+        onBoundsChange(null);
+        return;
+      }
+
+      const northEast = bounds.getNorthEast();
+      const southWest = bounds.getSouthWest();
+
+      onBoundsChange({
+        topLeftLat: northEast.lat,
+        topLeftLng: southWest.lng,
+        bottomRightLat: southWest.lat,
+        bottomRightLng: northEast.lng,
+      });
+    },
+    zoomend: () => {
+      if (!onBoundsChange) {
+        return;
+      }
+
+      const bounds = map.getBounds();
+      if (!bounds.isValid()) {
+        onBoundsChange(null);
+        return;
+      }
+
+      const northEast = bounds.getNorthEast();
+      const southWest = bounds.getSouthWest();
+
+      onBoundsChange({
+        topLeftLat: northEast.lat,
+        topLeftLng: southWest.lng,
+        bottomRightLat: southWest.lat,
+        bottomRightLng: northEast.lng,
+      });
+    },
+  });
+
+  return null;
+}
+
 export default function MapContainerBaseInner({
   items,
   selectedId = null,
   onSelect,
   onMove,
+  onBoundsChange,
 }: MapContainerBaseInnerProps) {
   const validItems = items.filter(
     (item): item is MapReviewInspection & { latitude: number; longitude: number } =>
@@ -94,6 +179,7 @@ export default function MapContainerBaseInner({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapBoundsController items={items} />
+        <MapViewportController onBoundsChange={onBoundsChange} />
         <MapClickController selectedItem={selectedItem} onMove={onMove} />
         {validItems.map((item) => (
           <CustomMapMarker
