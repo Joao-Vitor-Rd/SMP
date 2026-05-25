@@ -32,6 +32,7 @@ import {
   loadReviewItems,
   persistReviewItems,
   readConfirmationSummary,
+  resolveNumericFotoId,
   saveInspectionPosition,
   type MapReviewInspection,
 } from "../../lib/map-review";
@@ -77,7 +78,8 @@ function getInitialUserState(): UserState {
 
 function buildUploadSnapshotFromReview(items: MapReviewInspection[]) {
   return items.map((item) => ({
-    id: item.id,
+    id: item.fotoId !== null ? String(item.fotoId) : item.id,
+    fotoId: item.fotoId,
     fileName: item.fileName,
     imageUrl: item.imageUrl,
     latitude: item.latitude,
@@ -184,6 +186,7 @@ export default function MapaRevisaoPage() {
     : `${resolvedItems.length} marcadores ativos`;
 
   async function updateItemPosition(itemId: string, latitude: number, longitude: number) {
+    const itemAtual = items.find((item) => item.id === itemId);
     setSavingItemId(itemId);
 
     try {
@@ -206,7 +209,7 @@ export default function MapaRevisaoPage() {
         return next;
       });
 
-      await saveInspectionPosition(itemId, latitude, longitude);
+      await saveInspectionPosition(itemId, latitude, longitude, itemAtual ? resolveNumericFotoId(itemAtual) : null);
     } catch (error) {
       if (error instanceof SessionExpiredError) {
         setErrorMessage("Sua sessão expirou. Faça login novamente para continuar a revisão.");
@@ -229,7 +232,7 @@ export default function MapaRevisaoPage() {
           continue;
         }
 
-        await saveInspectionPosition(item.id, item.latitude, item.longitude);
+        await saveInspectionPosition(item.id, item.latitude, item.longitude, resolveNumericFotoId(item));
       }
 
       persistReviewItems(items);

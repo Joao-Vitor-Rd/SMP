@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Column, DateTime, Float, Integer, String
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
 from src.shared.infrastructure.db import Base
 
@@ -15,12 +16,15 @@ class fotosORM(Base):
     caminho_arquivo = Column(String, nullable=False)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    trecho_id = Column(String(36), ForeignKey("trechos.id_trecho", ondelete="SET NULL"), nullable=True, index=True)
     tipo_arquivo = Column(String, nullable=False)
     criado_em = Column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+    trecho = relationship("TrechoORM", back_populates="fotos", lazy="joined")
 
 
 class Foto(BaseModel):
@@ -32,6 +36,7 @@ class Foto(BaseModel):
     caminho_arquivo: str
     latitude: float | None = None
     longitude: float | None = None
+    trecho_id: str | None = None
     tipo_arquivo: str
     criado_em: datetime | None = None
 

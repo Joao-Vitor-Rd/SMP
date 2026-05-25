@@ -1,6 +1,4 @@
-from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FotoUploadResponseDTO(BaseModel):
@@ -31,9 +29,11 @@ class FotoUploadSucessoDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: int
+    filename: str
     latitude: float
     longitude: float
     caminho_arquivo: str
+    trecho_id: str | None = None
 
 
 class FotoUploadFalhaDTO(BaseModel):
@@ -42,6 +42,14 @@ class FotoUploadFalhaDTO(BaseModel):
     filename: str
     reason: str
     image_url: str | None = None
+    id: int | None = None
+
+
+class TrechoCriadoDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id_trecho: str
+    foto_ids: list[int]
 
 
 class ProcessamentoFotosResponseDTO(BaseModel):
@@ -49,40 +57,20 @@ class ProcessamentoFotosResponseDTO(BaseModel):
 
     success: list[FotoUploadSucessoDTO]
     failed: list[FotoUploadFalhaDTO]
+    trecho: TrechoCriadoDTO | None = None
 
 
-class MapReviewInspectionDTO(BaseModel):
+class AtualizarLocalizacaoFotoInputDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    id: str
-    foto_id: int | None = None
-    file_name: str
-    image_url: str
-    latitude: float | None = None
-    longitude: float | None = None
-    location_source: str
-    location_exception: str | None = None
-    status: str
-    note: str
-    updated_at: datetime
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
 
 
-class ConfirmarRevisaoMapaItemDTO(BaseModel):
+class FotoLocalizacaoResponseDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    id: str | int | None = None
-    foto_id: int | None = None
-    file_name: str | None = None
-    image_url: str | None = None
+    id: int
     latitude: float
     longitude: float
-    location_source: str | None = None
-    status: str | None = None
-    note: str | None = None
-
-
-class ConfirmarRevisaoMapaDTO(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    items: list[ConfirmarRevisaoMapaItemDTO]
-    confirmed_at: datetime | None = None
+    trecho_id: str | None = None

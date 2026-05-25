@@ -5,24 +5,30 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
+import logging
 
 from src.modules.fotos.application.dtos.foto_dto import (
-    ConfirmarRevisaoMapaDTO,
-    MapReviewInspectionDTO,
+    AtualizarLocalizacaoFotoInputDTO,
     FotoDeleteResponseDTO,
+    FotoLocalizacaoResponseDTO,
     FotoUploadResponseDTO,
     ImagemUploadInputDTO,
     ProcessamentoFotosResponseDTO,
 )
 from src.modules.fotos.application.use_case.uc_09 import Uc09UploadMultiplasImagensUseCase
+from src.modules.fotos.application.use_case.uc_10_atualizar_localizacao_foto import (
+    Uc10AtualizarLocalizacaoFotoUseCase,
+)
 from src.modules.fotos.infrastructure.repositories.foto_repository import FotoRepository
 from src.modules.fotos.infrastructure.services.minio_adapter import MinioAdapter
 from src.modules.fotos.infrastructure.services.minio_client import ensure_bucket_exists, get_minio_client
+from src.modules.trechos.infrastructure.repositories.trecho_repository import TrechoRepository
 from src.shared.auth.dependencies import verify_any_user, verify_supervisor_ou_tecnico
 from src.shared.infrastructure.db import get_session
 
 router = APIRouter(tags=["Fotos"])
+
+logger = logging.getLogger(__name__)
 
 
 def get_foto_storage() -> MinioAdapter:
@@ -35,11 +41,26 @@ def get_foto_repository(session=Depends(get_session)) -> FotoRepository:
     return FotoRepository(session)
 
 
+def get_trecho_repository(session=Depends(get_session)) -> TrechoRepository:
+    return TrechoRepository(session)
+
+
 def get_uc09(
     foto_repository: FotoRepository = Depends(get_foto_repository),
     foto_storage: MinioAdapter = Depends(get_foto_storage),
+    trecho_repository: TrechoRepository = Depends(get_trecho_repository),
 ) -> Uc09UploadMultiplasImagensUseCase:
-    return Uc09UploadMultiplasImagensUseCase(foto_repository=foto_repository, foto_storage=foto_storage)
+    return Uc09UploadMultiplasImagensUseCase(
+        foto_repository=foto_repository,
+        foto_storage=foto_storage,
+        trecho_repository=trecho_repository,
+    )
+
+
+def get_uc10(
+    foto_repository: FotoRepository = Depends(get_foto_repository),
+) -> Uc10AtualizarLocalizacaoFotoUseCase:
+    return Uc10AtualizarLocalizacaoFotoUseCase(foto_repository=foto_repository)
 
 
 @router.get(
@@ -230,3 +251,129 @@ async def deletar_foto(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao deletar foto: {str(e)}")
+
+
+@router.patch(
+    "/revisao-mapa/{foto_id}",
+    response_model=FotoLocalizacaoResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Atualizar localização de foto para revisão de mapa",
+    description="Atualiza latitude/longitude da foto, com ou sem georreferenciamento original",
+)
+@router.patch(
+    "/{foto_id}/localizacao",
+    response_model=FotoLocalizacaoResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Atualizar localização de foto",
+    description="Atualiza latitude/longitude da foto, com ou sem georreferenciamento original",
+)
+async def atualizar_localizacao_foto(
+    foto_id: str,
+    payload: AtualizarLocalizacaoFotoInputDTO,
+    _: dict = Depends(verify_any_user),
+    use_case: Uc10AtualizarLocalizacaoFotoUseCase = Depends(get_uc10),
+    foto_repository: FotoRepository = Depends(get_foto_repository),
+):
+    """Aceita `foto_id` como inteiro ou como identificador de caminho/nome.
+
+    Se `foto_id` for um inteiro, delega para o use case padrão.
+    Caso contrário, tenta localizar a foto por `caminho_arquivo`, `nome_aquivo` ou
+    `nome_original_arquivo` e atualiza suas coordenadas diretamente.
+    """
+    logger.info("PATCH /revisao-mapa/%s called by user", foto_id)
+    try:
+        logger.debug("PATCH /revisao-mapa/%s payload: %s", foto_id, payload.model_dump() if hasattr(payload, 'model_dump') else str(payload))
+    except Exception:
+        logger.debug("PATCH /revisao-mapa/%s payload (unserializable)", foto_id)
+
+    # tenta converter para inteiro (id numérico)
+    try:
+        numeric_id = int(foto_id)
+        logger.debug("foto_id parsed as integer: %s", numeric_id)
+    except (ValueError, TypeError):
+        numeric_id = None
+        logger.debug("foto_id is not an integer, will try path/name resolution: %s", foto_id)
+
+    try:
+        if numeric_id is not None:
+            return use_case.execute(foto_id=numeric_id, input_dto=payload)
+
+        # fallback: buscar por caminho ou nome do arquivo
+        logger.debug("attempting find_by_path_or_name for: %s", foto_id)
+        foto = foto_repository.find_by_path_or_name(foto_id)
+        logger.debug("find_by_path_or_name returned: %s", foto)
+        if foto is None or foto.id is None:
+            logger.info("foto not found for identifier=%s", foto_id)
+            raise HTTPException(status_code=404, detail="Foto nao encontrada")
+
+        foto_atualizada = foto_repository.update_localizacao(
+            foto_id=foto.id, latitude=payload.latitude, longitude=payload.longitude
+        )
+        if foto_atualizada is None:
+            raise HTTPException(status_code=404, detail="Foto nao encontrada")
+
+        return FotoLocalizacaoResponseDTO(
+            id=foto_atualizada.id,
+            latitude=foto_atualizada.latitude if foto_atualizada.latitude is not None else payload.latitude,
+            longitude=foto_atualizada.longitude if foto_atualizada.longitude is not None else payload.longitude,
+            trecho_id=foto_atualizada.trecho_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post(
+    "/revisao-mapa/confirmar",
+    status_code=status.HTTP_200_OK,
+    summary="Confirmar revisão de mapa (batch)",
+    description="Aplica em lote as atualizações de localização enviadas pela revisão do mapa",
+)
+async def confirmar_revisao_no_servidor(
+    payload: dict,
+    _: dict = Depends(verify_any_user),
+    foto_repository: FotoRepository = Depends(get_foto_repository),
+    use_case: Uc10AtualizarLocalizacaoFotoUseCase = Depends(get_uc10),
+):
+    logger.info("POST /revisao-mapa/confirmar called")
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return JSONResponse(status_code=200, content={"updated": 0})
+
+    updated = 0
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+
+        latitude = it.get("latitude")
+        longitude = it.get("longitude")
+        if latitude is None or longitude is None:
+            continue
+
+        identifier = it.get("fotoId") or it.get("foto_id") or it.get("id") or it.get("caminho_arquivo") or it.get("fileName")
+
+        # tentar id numérico primeiro
+        numeric_id = None
+        try:
+            if identifier is not None:
+                numeric_id = int(identifier)
+        except Exception:
+            numeric_id = None
+
+        try:
+            logger.debug("confirmar_revisao_no_servidor: processing identifier=%s lat=%s lng=%s", identifier, latitude, longitude)
+            if numeric_id is not None:
+                use_case.execute(foto_id=numeric_id, input_dto=AtualizarLocalizacaoFotoInputDTO(latitude=latitude, longitude=longitude))
+                updated += 1
+            else:
+                foto = foto_repository.find_by_path_or_name(str(identifier)) if identifier is not None else None
+                if foto and foto.id is not None:
+                    logger.debug("confirmar_revisao_no_servidor: resolved identifier=%s to foto.id=%s", identifier, foto.id)
+                    foto_repository.update_localizacao(foto.id, latitude, longitude)
+                    updated += 1
+                else:
+                    logger.info("confirmar_revisao_no_servidor: could not resolve identifier=%s", identifier)
+        except Exception:
+            # ignorar falhas por item e continuar
+            continue
+
+    return JSONResponse(status_code=200, content={"updated": updated})

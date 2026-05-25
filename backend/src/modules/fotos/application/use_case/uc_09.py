@@ -12,10 +12,12 @@ from src.modules.fotos.application.dtos.foto_dto import (
     FotoUploadSucessoDTO,
     ImagemUploadInputDTO,
     ProcessamentoFotosResponseDTO,
+    TrechoCriadoDTO,
 )
 from src.modules.fotos.domain.entities.fotos import Foto
 from src.modules.fotos.domain.repositories.i_foto_repository import IFotoRepository
 from src.modules.fotos.domain.repositories.i_foto_storage import IFotoStorage
+from src.modules.trechos.domain.repositories.i_trecho_repository import ITrechoRepository
 
 
 @dataclass(frozen=True)
@@ -30,13 +32,20 @@ class Uc09UploadMultiplasImagensUseCase:
     # Tamanho máximo: 50 MB
     TAMANHO_MAXIMO_MB = 50
     TAMANHO_MAXIMO_BYTES = TAMANHO_MAXIMO_MB * 1024 * 1024
-    def __init__(self, foto_repository: IFotoRepository, foto_storage: IFotoStorage):
+    def __init__(
+        self,
+        foto_repository: IFotoRepository,
+        foto_storage: IFotoStorage,
+        trecho_repository: ITrechoRepository,
+    ):
         self.foto_repository = foto_repository
         self.foto_storage = foto_storage
+        self.trecho_repository = trecho_repository
 
     async def execute(self, files: list[ImagemUploadInputDTO]) -> ProcessamentoFotosResponseDTO:
         success: list[FotoUploadSucessoDTO] = []
         failed: list[FotoUploadFalhaDTO] = []
+        foto_ids_processadas: list[int] = []
 
         for file in files:
             uploaded_image_url: str | None = None
@@ -79,15 +88,28 @@ class Uc09UploadMultiplasImagensUseCase:
                 # 2. Tentar extrair coordenadas
                 coordenadas = self._extrair_coordenadas(file.content)
                 if coordenadas is None:
-                    # Se não encontrar geolocalização, gerar presigned URL e marcar como falha
+                    # Persiste a foto sem coordenadas para permitir georreferenciamento manual.
+                    foto_sem_gps = Foto(
+                        nome_original_arquivo=file.filename,
+                        nome_aquivo=nome_arquivo,
+                        caminho_arquivo=caminho_arquivo,
+                        latitude=None,
+                        longitude=None,
+                        tipo_arquivo=content_type,
+                    )
+                    foto_salva = self.foto_repository.save(foto_sem_gps)
+                    if foto_salva.id is not None:
+                        foto_ids_processadas.append(foto_salva.id)
+
                     presigned_url = self.foto_storage.get_presigned_url(
-                        caminho_arquivo=caminho_arquivo
+                        caminho_arquivo=foto_salva.caminho_arquivo
                     )
                     failed.append(
                         FotoUploadFalhaDTO(
                             filename=file.filename,
                             reason="Foto sem localização (EXIF GPS não encontrado)",
                             image_url=presigned_url,
+                            id=foto_salva.id,
                         )
                     )
                     continue
@@ -103,6 +125,8 @@ class Uc09UploadMultiplasImagensUseCase:
                 )
 
                 foto_salva = self.foto_repository.save(foto)
+                if foto_salva.id is not None:
+                    foto_ids_processadas.append(foto_salva.id)
                 
                 # 4. Gerar presigned URL para retorno seguro
                 presigned_url = self.foto_storage.get_presigned_url(
@@ -112,9 +136,11 @@ class Uc09UploadMultiplasImagensUseCase:
                 success.append(
                     FotoUploadSucessoDTO(
                         id=foto_salva.id if foto_salva.id is not None else 0,
+                        filename=file.filename,
                         latitude=foto_salva.latitude if foto_salva.latitude is not None else coordenadas.latitude,
                         longitude=foto_salva.longitude if foto_salva.longitude is not None else coordenadas.longitude,
                         caminho_arquivo=presigned_url,
+                        trecho_id=foto_salva.trecho_id,
                     )
                 )
             except Exception as exc:
@@ -126,7 +152,21 @@ class Uc09UploadMultiplasImagensUseCase:
                     )
                 )
 
-        return ProcessamentoFotosResponseDTO(success=success, failed=failed)
+        trecho_criado: TrechoCriadoDTO | None = None
+        if foto_ids_processadas:
+            trecho = self.trecho_repository.create_with_fotos(foto_ids_processadas)
+            trecho_criado = TrechoCriadoDTO(
+                id_trecho=trecho.id_trecho,
+                foto_ids=trecho.foto_ids,
+            )
+
+            trecho_por_foto = {foto_id: trecho.id_trecho for foto_id in trecho.foto_ids}
+            success = [
+                item.model_copy(update={"trecho_id": trecho_por_foto.get(item.id)})
+                for item in success
+            ]
+
+        return ProcessamentoFotosResponseDTO(success=success, failed=failed, trecho=trecho_criado)
 
     def _validar_arquivo(self, filename: str, conteudo: bytes) -> str | None:
         """
