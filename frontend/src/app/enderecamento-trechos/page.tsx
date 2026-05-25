@@ -270,85 +270,85 @@ export default function EnderecamentoTrechosPage() {
               <button
                 type="button"
                 onClick={() => router.push("/upload-imagens")}
-
-            <section className="bg-white rounded-2xl shadow-md border border-gray-200 p-8">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-black text-gray-900">Trechos carregados do backend</h3>
-                  <p className="text-sm text-gray-500 mt-1">{bounds ? "Filtrado pela área do mapa." : "Listagem completa, sem filtro espacial."}</p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-right">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Trechos</p>
-                  <p className="text-2xl font-black text-slate-900">{trechos.length}</p>
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                <div className="rounded-3xl bg-slate-50 px-5 py-4">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Fotos vinculadas</p>
-                  <p className="mt-2 text-3xl font-black text-slate-900">{totalFotos}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-50 px-5 py-4">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Modo de consulta</p>
-                  <p className="mt-2 text-lg font-black text-slate-900">{bounds ? "Bounding box" : "Listagem completa"}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-50 px-5 py-4">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Status</p>
-                  <p className="mt-2 text-lg font-black text-slate-900">{loadingTrechos ? "Carregando..." : trechosError ? "Atenção" : "Sincronizado"}</p>
-                </div>
-              </div>
-
-              {loadingTrechos ? (
-                <div className="mt-6 flex items-center gap-3 rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#0a5483]" />
-                  Carregando trechos do backend...
-                </div>
-              ) : trechosError ? (
-                <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-800">
-                  {trechosError}
-                </div>
-              ) : (
-                <div className="mt-6 grid gap-4 lg:grid-cols-2">
-                  {trechos.map((trecho) => (
-                    <article key={trecho.id_trecho} className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Trecho</p>
-                          <h4 className="mt-1 break-all text-lg font-black text-slate-900">{trecho.id_trecho}</h4>
-                        </div>
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 shadow-sm">
-                          {trecho.fotos.length} foto(s)
-                        </span>
-                      </div>
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        {trecho.fotos.slice(0, 2).map((foto) => (
-                          <div key={foto.id} className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                            <p className="truncate text-sm font-bold text-slate-900">{foto.caminho_arquivo}</p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {foto.latitude !== null && foto.longitude !== null
-                                ? `${foto.latitude.toFixed(6)} / ${foto.longitude.toFixed(6)}`
-                                : "Sem coordenada"}
-                            </p>
-                          </div>
-                        ))}
-                        {trecho.fotos.length === 0 ? (
-                          <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm sm:col-span-2">
-                            Nenhuma foto associada a este trecho.
-                          </div>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
                 className="inline-flex items-center gap-2 rounded-2xl bg-[#0a5483] px-4 py-3 text-sm font-black text-white shadow-[0_14px_32px_rgba(10,84,131,0.22)] transition hover:bg-[#083d61]"
               >
                 Seguir para novo lote
                 <ArrowRight size={16} />
               </button>
             </div>
+          </section>
+
+          <section className="bg-white rounded-2xl shadow-md border border-gray-200 p-8">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-black text-gray-900">Trechos carregados do backend</h3>
+                <p className="text-sm text-gray-500 mt-1">{bounds ? "Filtrado pela área do mapa." : "Listagem completa, sem filtro espacial."}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-right">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Trechos</p>
+                <p className="text-2xl font-black text-slate-900">{trechos.length}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="rounded-3xl bg-slate-50 px-5 py-4">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Fotos vinculadas</p>
+                <p className="mt-2 text-3xl font-black text-slate-900">{totalFotos}</p>
+              </div>
+              <div className="rounded-3xl bg-slate-50 px-5 py-4">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Modo de consulta</p>
+                <p className="mt-2 text-lg font-black text-slate-900">{bounds ? "Bounding box" : "Listagem completa"}</p>
+              </div>
+              <div className="rounded-3xl bg-slate-50 px-5 py-4">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Status</p>
+                <p className="mt-2 text-lg font-black text-slate-900">{loadingTrechos ? "Carregando..." : trechosError ? "Atenção" : "Sincronizado"}</p>
+              </div>
+            </div>
+
+            {loadingTrechos ? (
+              <div className="mt-6 flex items-center gap-3 rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
+                <Loader2 className="h-4 w-4 animate-spin text-[#0a5483]" />
+                Carregando trechos do backend...
+              </div>
+            ) : trechosError ? (
+              <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-800">
+                {trechosError}
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                {trechos.map((trecho) => (
+                  <article key={trecho.id_trecho} className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Trecho</p>
+                        <h4 className="mt-1 break-all text-lg font-black text-slate-900">{trecho.id_trecho}</h4>
+                      </div>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 shadow-sm">
+                        {trecho.fotos.length} foto(s)
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {trecho.fotos.slice(0, 2).map((foto) => (
+                        <div key={foto.id} className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                          <p className="truncate text-sm font-bold text-slate-900">{foto.caminho_arquivo}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {foto.latitude !== null && foto.longitude !== null
+                              ? `${foto.latitude.toFixed(6)} / ${foto.longitude.toFixed(6)}`
+                              : "Sem coordenada"}
+                          </p>
+                        </div>
+                      ))}
+                      {trecho.fotos.length === 0 ? (
+                        <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500 shadow-sm sm:col-span-2">
+                          Nenhuma foto associada a este trecho.
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         </div>
       </main>
