@@ -187,7 +187,7 @@ function obterFeedbackErro(message: string) {
   if (/telefone.*inválid|celular.*inválid/i.test(message)) {
     return {
       title: 'Telefone inválido',
-      message: 'Informe um telefone com DDD e 11 dígitos, como (21)99999-9999.',
+      message: 'Informe um telefone com DDD e 11 dígitos, como (88) 12345-6789.',
     };
   }
 
@@ -548,7 +548,7 @@ export default function EditarPerfilPage() {
         <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-8">
           <div className="absolute inset-0 bg-black/30" onClick={fecharFeedback} />
           <div
-            className={`relative w-full max-w-md rounded-2xl border shadow-2xl px-5 py-4 flex items-start gap-3 ${feedbackPopup.type === 'success'
+            className={`relative w-full max-w-lg rounded-2xl border shadow-2xl px-5 py-4 flex items-start gap-3 ${feedbackPopup.type === 'success'
               ? 'bg-[#E6FFF0] border-[#B7F5D8] text-[#15803D]'
               : 'bg-[#FFF1F2] border-[#FECACA] text-[#B91C1C]'
             }`}
@@ -793,7 +793,7 @@ export default function EditarPerfilPage() {
                   value={formatarTelefoneParaExibicao(perfil.telefone)}
                   onChange={(e) => setPerfil((current) => ({ ...current, telefone: normalizarTelefone(e.target.value) }))}
                   onBlur={() => setPerfil((current) => ({ ...current, telefone: current.telefone ? formatarTelefonePadrao(current.telefone) : '' }))}
-                  placeholder="(xx) xxxxx-xxxx"
+                  placeholder="(88) 12345-6789"
                   inputMode="numeric"
                   maxLength={15}
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
