@@ -828,10 +828,11 @@ export default function UploadImagensPage() {
             { Icon: Upload, label: "Enviar", href: "/upload-imagens" },
             { Icon: Maximize, label: "Expandir", href: "/expandir" },
             { Icon: FileText, label: "Documentos", href: "/documentos" },
-            { Icon: MapIcon, label: "Mapa", href: "/mapa" },
+            { Icon: MapIcon, label: "Mapa", disabled: true },
             { Icon: History, label: "Histórico", href: "/historico" },
-          ].map(({ Icon, label, href }) => {
+          ].map(({ Icon, label, href, disabled }) => {
             const isActive = pathname === href;
+            const isDisabled = Boolean(disabled);
 
             return (
               <button
@@ -839,11 +840,14 @@ export default function UploadImagensPage() {
                 type="button"
                 title={label}
                 aria-label={label}
-                onClick={() => router.push(href)}
+                disabled={isDisabled}
+                onClick={href && !isDisabled ? () => router.push(href) : undefined}
                 className={`transition-all duration-200 p-2 rounded-xl ${
                   isActive
                     ? "bg-[#0a5483] text-white shadow-[0_8px_24px_rgba(10,84,131,0.35)]"
-                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                    : isDisabled
+                      ? "text-gray-500 cursor-not-allowed"
+                      : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
                 }`}
               >
                 <Icon size={22} strokeWidth={isActive ? 2.5 : 1.5} />
