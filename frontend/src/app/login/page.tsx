@@ -6,6 +6,7 @@ const SuccessPopup = dynamic(() => import("../../../components/SuccessPopup"), {
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { getPublicApiBaseUrl } from "../../lib/authApi";
+import Link from "next/link";
 
 const MENSAGEM_CREDENCIAIS_INVALIDAS =
   "Credenciais inválidas. Verifique seu e-mail e senha.";
@@ -242,13 +243,12 @@ export default function LoginPage() {
               />
               <span className="text-sm text-gray-600">Lembrar-me</span>
             </label>
-            <button
-              type="button"
-              onClick={() => router.push("/recuperar-senha")}
+            <Link
+              href="/recuperar-senha"
               className="text-sm text-[#165D7A] hover:underline font-semibold"
             >
               Esqueceu a senha?
-            </button>
+            </Link>
           </div>
 
           {/* Botão Entrar */}
