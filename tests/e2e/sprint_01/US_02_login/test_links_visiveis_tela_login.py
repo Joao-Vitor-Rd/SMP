@@ -17,7 +17,7 @@ def test_links_visiveis_tela_login(page):
     expect(login_page.link_cadastro).to_have_attribute("href", "/cadastro")
 
     login_page.link_esqueci_senha.click()
-    expect(page).to_have_url(re.compile(rf"^{BASE_URL}/login#?$"))
+    expect(page).to_have_url(re.compile(rf"^{BASE_URL}/recuperar-senha#?$")) 
 
     login_page.acessar()
     login_page.acessar_cadastro()   
