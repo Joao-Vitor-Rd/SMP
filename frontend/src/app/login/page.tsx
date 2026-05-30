@@ -164,7 +164,7 @@ export default function LoginPage() {
 
         {/* Erro */}
         {erro && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm text-center break-words">
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm text-center">
             <div className="flex items-start justify-center gap-2">
               <svg
                 width="18"
@@ -182,7 +182,7 @@ export default function LoginPage() {
                   strokeLinejoin="round"
                 />
               </svg>
-              <span className="min-w-0 break-words">{erro}</span>
+              <span className="min-w-0">{erro}</span>
             </div>
           </div>
         )}
@@ -242,9 +242,13 @@ export default function LoginPage() {
               />
               <span className="text-sm text-gray-600">Lembrar-me</span>
             </label>
-            <a href="#" className="text-sm text-[#165D7A] hover:underline font-semibold">
+            <button
+              type="button"
+              onClick={() => router.push("/recuperar-senha")}
+              className="text-sm text-[#165D7A] hover:underline font-semibold"
+            >
               Esqueceu a senha?
-            </a>
+            </button>
           </div>
 
           {/* Botão Entrar */}
