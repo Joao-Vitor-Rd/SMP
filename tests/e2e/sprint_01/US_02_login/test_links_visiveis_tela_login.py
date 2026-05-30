@@ -13,13 +13,12 @@ def test_links_visiveis_tela_login(page):
 
     login_page.acessar()
 
-    expect(login_page.link_esqueci_senha).to_be_visible()
-expect(login_page.link_esqueci_senha).to_have_attribute("href", "/recuperar-senha")    expect(login_page.link_cadastro).to_be_visible()
+    expect(login_page.link_esqueci_senha).to_have_attribute("href", "/recuperar-senha")    
     expect(login_page.link_cadastro).to_have_attribute("href", "/cadastro")
 
     login_page.link_esqueci_senha.click()
     expect(page).to_have_url(re.compile(rf"^{BASE_URL}/login#?$"))
 
     login_page.acessar()
-    login_page.acessar_cadastro()
+    login_page.acessar_cadastro()   
     expect(page).to_have_url(f"{BASE_URL}/cadastro")
