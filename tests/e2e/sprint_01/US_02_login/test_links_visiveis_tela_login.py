@@ -14,8 +14,7 @@ def test_links_visiveis_tela_login(page):
     login_page.acessar()
 
     expect(login_page.link_esqueci_senha).to_be_visible()
-    expect(login_page.link_esqueci_senha).to_have_attribute("href", "#")
-    expect(login_page.link_cadastro).to_be_visible()
+expect(login_page.link_esqueci_senha).to_have_attribute("href", "/recuperar-senha")    expect(login_page.link_cadastro).to_be_visible()
     expect(login_page.link_cadastro).to_have_attribute("href", "/cadastro")
 
     login_page.link_esqueci_senha.click()
