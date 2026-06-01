@@ -16,6 +16,7 @@ from src.shared.infrastructure.db import Base
 from src.shared.domain.entities.user import UserORM
 from src.modules.supervisor.domain.entities.supervisor import SupervisorORM
 from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
+from src.modules.auth.domain.entities.password_reset_token import PasswordResetTokenORM
 from src.modules.fotos.domain.entities.fotos import fotosORM
 from src.modules.trechos.domain.entities.trecho import TrechoORM
 

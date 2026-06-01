@@ -1,20 +1,27 @@
 from typing import Annotated, Union
+import asyncio
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
-from datetime import datetime
+
 from src.shared.infrastructure.db import get_session
 from src.shared.infrastructure.redis_config import RedisClient
 from src.modules.auth.application.dtos.login_dto import LoginDTO, LoginResponseDTO, RefreshTokenDTO, RefreshTokenResponseDTO
+from src.modules.auth.application.dtos.password_reset_dto import PasswordResetConfirmDTO, PasswordResetMessageDTO, PasswordResetRequestDTO
 from src.modules.auth.application.use_cases.login_use_case import LoginUseCase
 from src.modules.auth.application.use_cases.refresh_token_use_case import RefreshTokenUseCase
+from src.modules.auth.application.use_cases.request_password_reset_use_case import RequestPasswordResetUseCase
+from src.modules.auth.application.use_cases.reset_password_use_case import ResetPasswordUseCase
 from src.modules.auth.infrastructure.repositories.generic_user_repository import GenericUserRepository
+from src.modules.auth.infrastructure.repositories.password_reset_token_repository import PasswordResetTokenRepository
 from src.modules.auth.infrastructure.services.limitador_redis import LimitadorRedis
+from src.modules.auth.infrastructure.services.password_reset_email_service import PasswordResetEmailService
 from src.modules.supervisor.infrastructure.security.argon2_hasher import Argon2PasswordHasher
 from src.modules.supervisor.infrastructure.repositories.SupervisorRepository import SupervisorRepository
 from src.modules.colaborador.infrastructure.repositories.ColaboradorRepository import ColaboradorRepository
 from src.shared.auth.jwt_service import JWTService
 from src.shared.auth.dependencies import verify_supervisor_role, verify_any_user
-import asyncio
 from src.modules.supervisor.application.dtos.supervisor_dto import SupervisorResponseDTO
 from src.modules.colaborador.application.dtos.colaborador_dto import ColaboradorResponseDTO
 
@@ -45,6 +52,18 @@ async def get_limitador():
     """Dependency para obter instância do limitador Redis"""
     redis_client = await RedisClient.get_client()
     return LimitadorRedis(redis_client)
+
+
+def get_password_reset_token_repository(session: Annotated[Session, Depends(get_session)]):
+    return PasswordResetTokenRepository(session)
+
+
+def get_password_reset_email_service():
+    return PasswordResetEmailService()
+
+
+def get_app_url() -> str:
+    return os.getenv("APP_URL", "http://localhost:3000")
 
 
 def get_client_ip(request: Request) -> str:
@@ -187,6 +206,57 @@ async def logout(response: Response):
         samesite="lax"
     )
     return None
+
+
+@router.post(
+    "/password-reset/request",
+    response_model=PasswordResetMessageDTO,
+    status_code=200,
+    summary="Solicitar redefinição de senha",
+    description="Envia um link de redefinição para o e-mail informado sem revelar se a conta existe",
+)
+async def request_password_reset(
+    request_data: PasswordResetRequestDTO,
+    user_repository = Depends(get_repository),
+    token_repository = Depends(get_password_reset_token_repository),
+    email_service = Depends(get_password_reset_email_service),
+):
+    try:
+        use_case = RequestPasswordResetUseCase(
+            user_repository=user_repository,
+            token_repository=token_repository,
+            email_service=email_service,
+            app_url=get_app_url(),
+        )
+        return await asyncio.to_thread(use_case.execute, request_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao solicitar redefinição de senha: {str(e)}")
+
+
+@router.post(
+    "/password-reset/confirm",
+    response_model=PasswordResetMessageDTO,
+    status_code=200,
+    summary="Redefinir senha",
+    description="Valida o link único de redefinição e atualiza a senha do usuário",
+)
+async def confirm_password_reset(
+    confirm_data: PasswordResetConfirmDTO,
+    user_repository = Depends(get_repository),
+    token_repository = Depends(get_password_reset_token_repository),
+    hasher = Depends(get_hasher),
+):
+    try:
+        use_case = ResetPasswordUseCase(
+            user_repository=user_repository,
+            token_repository=token_repository,
+            hasher=hasher,
+        )
+        return await asyncio.to_thread(use_case.execute, confirm_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao redefinir senha: {str(e)}")
 
 
 @router.get(

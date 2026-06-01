@@ -11,3 +11,7 @@ class IUserRepository(ABC):
     @abstractmethod
     def find_by_email(self, email: str) -> Optional[dict]:
         pass
+
+    @abstractmethod
+    def update_password_by_user_id(self, user_id: int, senha_hash: str) -> None:
+        pass
