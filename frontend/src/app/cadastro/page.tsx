@@ -49,6 +49,7 @@ export default function CadastroPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}); // Novo estado para os erros inline
   const [success, setSuccess] = useState(false);
 
   const handleChange = (
@@ -59,12 +60,34 @@ export default function CadastroPage() {
       ...prev,
       [id]: value,
     }));
+    
+    // Limpa a mensagem de erro inline do campo quando o usuário voltar a digitar
+    if (fieldErrors[id]) {
+      setFieldErrors((prev) => ({ ...prev, [id]: "" }));
+    }
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setSuccess(false);
+    setFieldErrors({});
+
+    // Validação inline local fail-fast para múltiplos campos
+    const newFieldErrors: Record<string, string> = {};
+    
+    if (!formData.nome.trim()) newFieldErrors.nome = "Insira seu nome completo.";
+    if (!formData.crea.trim()) newFieldErrors.crea = "Insira um registro CREA válido.";
+    if (!formData.cidade.trim()) newFieldErrors.cidade = "Insira a cidade.";
+    if (!formData.uf.trim()) newFieldErrors.uf = "Selecione uma UF.";
+    if (!formData.email.trim()) newFieldErrors.email = "Insira um e-mail válido.";
+    if (!formData.senha.trim()) newFieldErrors.senha = "Insira uma senha.";
+    if (!formData.confirmarSenha.trim()) newFieldErrors.confirmarSenha = "Confirme sua senha.";
+
+    if (Object.keys(newFieldErrors).length > 0) {
+      setFieldErrors(newFieldErrors);
+      return; // Interrompe a submissão antes de chegar no backend
+    }
 
     if (formData.senha !== formData.confirmarSenha) {
       setError("As senhas digitadas não são iguais.");
@@ -140,106 +163,120 @@ export default function CadastroPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
-            <User size={20} className="text-gray-400 flex-shrink-0" />
-            <input
-              type="text"
-              id="nome"
-              value={formData.nome}
-              onChange={handleChange}
-              placeholder="Nome Completo"
-              required
-              disabled={loading}
-              className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
-            />
-          </div>
-
-          <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
-            <Shield size={20} className="text-gray-400 flex-shrink-0" />
-            <input
-              type="text"
-              id="crea"
-              value={formData.crea}
-              onChange={handleChange}
-              placeholder="Registro CREA (Ex: SP-123456)"
-              required
-              disabled={loading}
-              className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
-            />
-          </div>
-
-          <div className="flex gap-4">
-            <div className="flex-1 flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
-              <MapPin size={20} className="text-gray-400 flex-shrink-0" />
+          <div>
+            <div className={`flex items-center bg-white border ${fieldErrors.nome ? 'border-red-400' : 'border-gray-300'} rounded-lg px-4 h-12`}>
+              <User size={20} className={`${fieldErrors.nome ? 'text-red-400' : 'text-gray-400'} flex-shrink-0`} />
               <input
                 type="text"
-                id="cidade"
-                value={formData.cidade}
+                id="nome"
+                value={formData.nome}
                 onChange={handleChange}
-                placeholder="Cidade"
-                required
+                placeholder="Nome Completo"
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
               />
             </div>
-
-            <select
-              id="uf"
-              value={formData.uf}
-              onChange={handleChange}
-              required
-              disabled={loading}
-              className="w-20 bg-white border border-gray-300 rounded-lg px-3 text-sm text-gray-700 outline-none disabled:bg-gray-100"
-            >
-              <option value="">UF</option>
-              {UF_OPTIONS.map((uf) => (
-                <option key={uf} value={uf}>
-                  {uf}
-                </option>
-              ))}
-            </select>
+            {fieldErrors.nome && <p className="text-[#e74c3c] text-sm mt-1">{fieldErrors.nome}</p>}
           </div>
 
-          <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
-            <Mail size={20} className="text-gray-400 flex-shrink-0" />
-            <input
-              type="email"
-              id="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="E-mail"
-              required
-              disabled={loading}
-              className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
-            />
+          <div>
+            <div className={`flex items-center bg-white border ${fieldErrors.crea ? 'border-red-400' : 'border-gray-300'} rounded-lg px-4 h-12`}>
+              <Shield size={20} className={`${fieldErrors.crea ? 'text-red-400' : 'text-gray-400'} flex-shrink-0`} />
+              <input
+                type="text"
+                id="crea"
+                value={formData.crea}
+                onChange={handleChange}
+                placeholder="Registro CREA (Ex: SP-123456)"
+                disabled={loading}
+                className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
+              />
+            </div>
+            {fieldErrors.crea && <p className="text-[#e74c3c] text-sm mt-1">{fieldErrors.crea}</p>}
           </div>
 
-          <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
-            <Lock size={20} className="text-gray-400 flex-shrink-0" />
-            <input
-              type="password"
-              id="senha"
-              value={formData.senha}
-              onChange={handleChange}
-              placeholder="Senha"
-              required
-              disabled={loading}
-              className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
-            />
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <div className={`flex items-center bg-white border ${fieldErrors.cidade ? 'border-red-400' : 'border-gray-300'} rounded-lg px-4 h-12`}>
+                <MapPin size={20} className={`${fieldErrors.cidade ? 'text-red-400' : 'text-gray-400'} flex-shrink-0`} />
+                <input
+                  type="text"
+                  id="cidade"
+                  value={formData.cidade}
+                  onChange={handleChange}
+                  placeholder="Cidade"
+                  disabled={loading}
+                  className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
+                />
+              </div>
+              {fieldErrors.cidade && <p className="text-[#e74c3c] text-sm mt-1">{fieldErrors.cidade}</p>}
+            </div>
+
+            <div>
+              <select
+                id="uf"
+                value={formData.uf}
+                onChange={handleChange}
+                disabled={loading}
+                className={`w-20 bg-white border ${fieldErrors.uf ? 'border-red-400' : 'border-gray-300'} rounded-lg px-3 h-12 text-sm text-gray-700 outline-none disabled:bg-gray-100`}
+              >
+                <option value="">UF</option>
+                {UF_OPTIONS.map((uf) => (
+                  <option key={uf} value={uf}>
+                    {uf}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.uf && <p className="text-[#e74c3c] text-sm mt-1">{fieldErrors.uf}</p>}
+            </div>
           </div>
 
-          <div className="flex items-center bg-white border border-gray-300 rounded-lg px-4 h-12">
-            <Lock size={20} className="text-gray-400 flex-shrink-0" />
-            <input
-              type="password"
-              id="confirmarSenha"
-              value={formData.confirmarSenha}
-              onChange={handleChange}
-              placeholder="Confirmar Senha"
-              required
-              disabled={loading}
-              className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
-            />
+          <div>
+            <div className={`flex items-center bg-white border ${fieldErrors.email ? 'border-red-400' : 'border-gray-300'} rounded-lg px-4 h-12`}>
+              <Mail size={20} className={`${fieldErrors.email ? 'text-red-400' : 'text-gray-400'} flex-shrink-0`} />
+              <input
+                type="email"
+                id="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="E-mail"
+                disabled={loading}
+                className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
+              />
+            </div>
+            {fieldErrors.email && <p className="text-[#e74c3c] text-sm mt-1">{fieldErrors.email}</p>}
+          </div>
+
+          <div>
+            <div className={`flex items-center bg-white border ${fieldErrors.senha ? 'border-red-400' : 'border-gray-300'} rounded-lg px-4 h-12`}>
+              <Lock size={20} className={`${fieldErrors.senha ? 'text-red-400' : 'text-gray-400'} flex-shrink-0`} />
+              <input
+                type="password"
+                id="senha"
+                value={formData.senha}
+                onChange={handleChange}
+                placeholder="Senha"
+                disabled={loading}
+                className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
+              />
+            </div>
+            {fieldErrors.senha && <p className="text-[#e74c3c] text-sm mt-1">{fieldErrors.senha}</p>}
+          </div>
+
+          <div>
+            <div className={`flex items-center bg-white border ${fieldErrors.confirmarSenha ? 'border-red-400' : 'border-gray-300'} rounded-lg px-4 h-12`}>
+              <Lock size={20} className={`${fieldErrors.confirmarSenha ? 'text-red-400' : 'text-gray-400'} flex-shrink-0`} />
+              <input
+                type="password"
+                id="confirmarSenha"
+                value={formData.confirmarSenha}
+                onChange={handleChange}
+                placeholder="Confirmar Senha"
+                disabled={loading}
+                className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
+              />
+            </div>
+            {fieldErrors.confirmarSenha && <p className="text-[#e74c3c] text-sm mt-1">{fieldErrors.confirmarSenha}</p>}
           </div>
 
           <button
