@@ -8,6 +8,7 @@ from src.shared.infrastructure.redis_config import RedisClient
 from src.modules.supervisor.api.http.supervisor_routes import router as supervisor_router
 from src.modules.colaborador.api.http.colaborador_routes import router as colaborador_router
 from src.modules.auth.api.http.auth_routes import router as auth_router
+from src.modules.auth.domain.entities.password_reset_token import PasswordResetTokenORM
 from src.modules.upload.api.http.upload_routes import router as upload_router
 from src.modules.fotos.api.http.fotos_routes import router as fotos_router
 from src.modules.trechos.api.http.trechos_routes import router as trechos_router

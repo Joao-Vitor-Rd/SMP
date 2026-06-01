@@ -96,3 +96,29 @@ class GenericUserRepository(IUserRepository):
                 colaborador.limite_de_bloqueio = lock_time
                 self.session.commit()
                 self.session.refresh(colaborador)
+
+    def update_password_by_user_id(self, user_id: int, senha_hash: str) -> None:
+        user = self.find_by_id(user_id)
+
+        if not user:
+            raise ValueError("Usuário não encontrado")
+
+        if user.cargo == CargoEnum.SUPERVISOR:
+            supervisor = self.find_supervisor_by_user_id(user_id)
+            if not supervisor:
+                raise ValueError("Perfil de supervisor não encontrado")
+            supervisor.password = senha_hash
+            self.session.commit()
+            self.session.refresh(supervisor)
+            return
+
+        if user.cargo in [CargoEnum.COLABORADOR, CargoEnum.TECNICO]:
+            colaborador = self.find_colaborador_by_user_id(user_id)
+            if not colaborador:
+                raise ValueError("Perfil de colaborador não encontrado")
+            colaborador.senha = senha_hash
+            self.session.commit()
+            self.session.refresh(colaborador)
+            return
+
+        raise ValueError("Cargo de usuário não suportado para redefinição de senha")
