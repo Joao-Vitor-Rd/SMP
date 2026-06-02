@@ -6,6 +6,7 @@ import { ArrowRight, Activity, Bell, CheckCircle2, FileText, Folder, History, Lo
 
 import { clearAuthSession } from "../../lib/authApi";
 import { readConfirmationSummary } from "../../lib/map-review";
+import AppSidebar from "../../../components/AppSidebar";
 
 type UserState = {
   nome: string;
@@ -60,48 +61,7 @@ export default function EnderecamentoTrechosPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
-      <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
-        <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
-          <Activity size={26} strokeWidth={2.5} />
-        </div>
-        <div className="flex flex-col gap-9 items-center w-full mb-auto">
-          {[
-            { Icon: Folder, label: "Arquivos", href: "/arquivos" },
-            { Icon: Upload, label: "Enviar", href: "/upload-imagens" },
-            { Icon: Maximize, label: "Expandir", href: "/expandir" },
-            { Icon: FileText, label: "Documentos", href: "/documentos" },
-            { Icon: Map, label: "Mapa", href: "/mapa" },
-            { Icon: History, label: "Histórico", href: "/historico" },
-          ].map(({ Icon, label, href }) => {
-            const isActive = href === "/upload-imagens";
-
-            return (
-              <button
-                key={label}
-                type="button"
-                title={label}
-                aria-label={label}
-                onClick={() => router.push(href)}
-                className={`transition-all duration-200 p-2 rounded-xl ${
-                  isActive
-                    ? "bg-[#0a5483] text-white shadow-[0_8px_24px_rgba(10,84,131,0.35)]"
-                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
-                }`}
-              >
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.5} />
-              </button>
-            );
-          })}
-        </div>
-        <div className="relative group mt-auto cursor-pointer pb-4">
-          <button type="button" title="Notificações" className="text-gray-400 group-hover:text-white transition-colors">
-            <Bell size={26} strokeWidth={1.5} />
-          </button>
-          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#1e2235] shadow-sm">
-            3
-          </span>
-        </div>
-      </aside>
+      <AppSidebar activePath={pathname} />
 
       <main className="flex-1 p-8 overflow-y-auto">
         <header className="flex justify-between items-start mb-10">
@@ -193,11 +153,11 @@ export default function EnderecamentoTrechosPage() {
             <div className="flex flex-wrap gap-3 mt-6">
               <button
                 type="button"
-                onClick={() => router.push("/mapa")}
+                onClick={() => router.push("/meus-trabalhos")}
                 className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
               >
                 <Map size={16} />
-                Voltar ao mapa
+                Voltar aos meus trabalhos
               </button>
               <button
                 type="button"

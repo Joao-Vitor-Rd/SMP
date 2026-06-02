@@ -6,6 +6,7 @@ const SuccessPopup = dynamic(() => import("../../../components/SuccessPopup"), {
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { getPublicApiBaseUrl } from "../../lib/authApi";
+import Link from "next/link";
 
 const MENSAGEM_CREDENCIAIS_INVALIDAS =
   "Credenciais inválidas. Verifique seu e-mail e senha.";
@@ -164,7 +165,7 @@ export default function LoginPage() {
 
         {/* Erro */}
         {erro && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm text-center break-words">
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm text-center">
             <div className="flex items-start justify-center gap-2">
               <svg
                 width="18"
@@ -182,7 +183,7 @@ export default function LoginPage() {
                   strokeLinejoin="round"
                 />
               </svg>
-              <span className="min-w-0 break-words">{erro}</span>
+              <span className="min-w-0">{erro}</span>
             </div>
           </div>
         )}
@@ -242,9 +243,12 @@ export default function LoginPage() {
               />
               <span className="text-sm text-gray-600">Lembrar-me</span>
             </label>
-            <a href="#" className="text-sm text-[#165D7A] hover:underline font-semibold">
+            <Link
+              href="/recuperar-senha"
+              className="text-sm text-[#165D7A] hover:underline font-semibold"
+            >
               Esqueceu a senha?
-            </a>
+            </Link>
           </div>
 
           {/* Botão Entrar */}

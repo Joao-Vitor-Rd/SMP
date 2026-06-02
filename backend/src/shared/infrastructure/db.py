@@ -36,6 +36,8 @@ def sync_schema():
     inspector = inspect(engine)
     
     with engine.begin() as connection:
+        preparer = connection.dialect.identifier_preparer
+
         for table in Base.metadata.tables.values():
             table_name = table.name
             
@@ -55,7 +57,10 @@ def sync_schema():
                         col_type = str(column.type.compile(dialect=connection.dialect))
                         default = f"DEFAULT {column.default.arg}" if column.default is not None else ""
 
-                        sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type} NULL {default}".strip()
+                        quoted_table_name = preparer.quote(table_name)
+                        quoted_column_name = preparer.quote(col_name)
+
+                        sql = f"ALTER TABLE {quoted_table_name} ADD COLUMN {quoted_column_name} {col_type} NULL {default}".strip()
                         connection.execute(text(sql))
                         print(f"✓ Coluna {table_name}.{col_name} criada")
                     except Exception as e:
