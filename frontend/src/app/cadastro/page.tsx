@@ -36,7 +36,7 @@ const UF_OPTIONS = [
 ];
 
 export default function CadastroPage() {
-  const router = useRouter(); // Necessário para o redirecionamento automático
+  const router = useRouter(); 
   const [formData, setFormData] = useState({
     nome: "",
     crea: "",
@@ -49,7 +49,7 @@ export default function CadastroPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}); // Novo estado para os erros inline
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
 
   const handleChange = (
@@ -86,7 +86,7 @@ export default function CadastroPage() {
 
     if (Object.keys(newFieldErrors).length > 0) {
       setFieldErrors(newFieldErrors);
-      return; // Interrompe a submissão antes de chegar no backend
+      return; 
     }
 
     if (formData.senha !== formData.confirmarSenha) {
@@ -124,7 +124,6 @@ export default function CadastroPage() {
       }
 
       setSuccess(true);
-      // Redireciona para a rota pública do app, não para o caminho do arquivo.
       router.push("/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
@@ -162,7 +161,8 @@ export default function CadastroPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Adicionado o noValidate aqui para desativar a validação do HTML5 */}
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
             <div className={`flex items-center bg-white border ${fieldErrors.nome ? 'border-red-400' : 'border-gray-300'} rounded-lg px-4 h-12`}>
               <User size={20} className={`${fieldErrors.nome ? 'text-red-400' : 'text-gray-400'} flex-shrink-0`} />
@@ -172,6 +172,7 @@ export default function CadastroPage() {
                 value={formData.nome}
                 onChange={handleChange}
                 placeholder="Nome Completo"
+                required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
               />
@@ -188,6 +189,7 @@ export default function CadastroPage() {
                 value={formData.crea}
                 onChange={handleChange}
                 placeholder="Registro CREA (Ex: SP-123456)"
+                required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
               />
@@ -205,6 +207,7 @@ export default function CadastroPage() {
                   value={formData.cidade}
                   onChange={handleChange}
                   placeholder="Cidade"
+                  required
                   disabled={loading}
                   className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
                 />
@@ -217,6 +220,7 @@ export default function CadastroPage() {
                 id="uf"
                 value={formData.uf}
                 onChange={handleChange}
+                required
                 disabled={loading}
                 className={`w-20 bg-white border ${fieldErrors.uf ? 'border-red-400' : 'border-gray-300'} rounded-lg px-3 h-12 text-sm text-gray-700 outline-none disabled:bg-gray-100`}
               >
@@ -240,6 +244,7 @@ export default function CadastroPage() {
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="E-mail"
+                required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
               />
@@ -256,6 +261,7 @@ export default function CadastroPage() {
                 value={formData.senha}
                 onChange={handleChange}
                 placeholder="Senha"
+                required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
               />
@@ -272,6 +278,7 @@ export default function CadastroPage() {
                 value={formData.confirmarSenha}
                 onChange={handleChange}
                 placeholder="Confirmar Senha"
+                required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
               />
