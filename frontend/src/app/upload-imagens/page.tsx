@@ -438,6 +438,26 @@ function isManualLocationResolved(item: UploadItem) {
   return parseLatitude(item.manualLat) !== null && parseLongitude(item.manualLng) !== null;
 }
 
+function applyManualCoordinateDraft(
+  current: UploadItem,
+  latitudeText?: string,
+  longitudeText?: string
+) {
+  const manualLat = latitudeText ?? current.manualLat;
+  const manualLng = longitudeText ?? current.manualLng;
+  const manualReady = isCompleteManualCoordinatePair(manualLat, manualLng);
+
+  return {
+    ...current,
+    manualLat,
+    manualLng,
+    locationException: null,
+    hasLocation: manualReady ? true : current.hasLocation === null ? false : current.hasLocation,
+    locationSource: manualReady ? "manual" : current.locationSource,
+    message: manualReady ? "Coordenadas manuais preenchidas." : "Aguardando coordenadas manuais.",
+  };
+}
+
 async function deriveHasLocationFromFile(file: File | UploadFileLike): Promise<boolean> {
   if (!("arrayBuffer" in file)) {
     return false;
@@ -1092,24 +1112,7 @@ export default function UploadImagensPage() {
                                     onChange={(e) => {
                                       const v = filterCoordInput(e.target.value);
                                       updateQueueItem(item.id, (c) => ({
-                                        ...c,
-                                        manualLat: v,
-                                        locationException: null,
-                                        hasLocation: isCompleteManualCoordinatePair(v, c.manualLng) ? true : false,
-                                        locationSource: isCompleteManualCoordinatePair(v, c.manualLng) ? "manual" : c.locationSource,
-                                        status:
-                                          c.status === "rejected"
-                                            ? c.status
-                                            : "pending",
-                                        progress:
-                                          c.status === "rejected"
-                                            ? c.progress
-                                            : 0,
-                                        message: c.status === "rejected"
-                                          ? c.message
-                                          : isCompleteManualCoordinatePair(v, c.manualLng)
-                                            ? "Coordenadas manuais preenchidas."
-                                            : "Aguardando coordenadas manuais.",
+                                        ...applyManualCoordinateDraft(c, v, undefined),
                                       }));
                                     }}
                                     placeholder="-23,5505"
@@ -1130,24 +1133,7 @@ export default function UploadImagensPage() {
                                     onChange={(e) => {
                                       const v = filterCoordInput(e.target.value);
                                       updateQueueItem(item.id, (c) => ({
-                                        ...c,
-                                        manualLng: v,
-                                        locationException: null,
-                                        hasLocation: isCompleteManualCoordinatePair(c.manualLat, v) ? true : false,
-                                        locationSource: isCompleteManualCoordinatePair(c.manualLat, v) ? "manual" : c.locationSource,
-                                        status:
-                                          c.status === "rejected"
-                                            ? c.status
-                                            : "pending",
-                                        progress:
-                                          c.status === "rejected"
-                                            ? c.progress
-                                            : 0,
-                                        message: c.status === "rejected"
-                                          ? c.message
-                                          : isCompleteManualCoordinatePair(c.manualLat, v)
-                                            ? "Coordenadas manuais preenchidas."
-                                            : "Aguardando coordenadas manuais.",
+                                        ...applyManualCoordinateDraft(c, undefined, v),
                                       }));
                                     }}
                                     placeholder="-46,6333"
