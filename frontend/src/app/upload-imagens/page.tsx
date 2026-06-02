@@ -20,6 +20,7 @@ import {
   Map as MapIcon,
   MapPin,
   Maximize,
+  Route,
   Settings,
   Trash2,
   Upload,
@@ -28,6 +29,7 @@ import {
 import { authApi, clearAuthSession } from "../../lib/authApi";
 import { type MapReviewLocationSource } from "../../lib/map-review";
 import { buildReviewPayloadFromUpload, clearConfirmationSummary, persistReviewItems, readPersistedReviewItems } from "../../lib/map-review";
+import AppSidebar from "../../../components/AppSidebar";
 
 type QueueStatus = "pending" | "uploading" | "completed" | "rejected";
 
@@ -818,52 +820,7 @@ export default function UploadImagensPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
-      <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
-        <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
-          <Activity size={26} strokeWidth={2.5} />
-        </div>
-        <div className="flex flex-col gap-9 items-center w-full mb-auto">
-          {[
-            { Icon: Folder, label: "Arquivos", href: "/arquivos" },
-            { Icon: Upload, label: "Enviar", href: "/upload-imagens" },
-            { Icon: Maximize, label: "Expandir", href: "/expandir" },
-            { Icon: FileText, label: "Documentos", href: "/documentos" },
-            { Icon: MapIcon, label: "Mapa", disabled: true },
-            { Icon: History, label: "Histórico", href: "/historico" },
-          ].map(({ Icon, label, href, disabled }) => {
-            const isActive = pathname === href;
-            const isDisabled = Boolean(disabled);
-
-            return (
-              <button
-                key={label}
-                type="button"
-                title={label}
-                aria-label={label}
-                disabled={isDisabled}
-                onClick={href && !isDisabled ? () => router.push(href) : undefined}
-                className={`transition-all duration-200 p-2 rounded-xl ${
-                  isActive
-                    ? "bg-[#0a5483] text-white shadow-[0_8px_24px_rgba(10,84,131,0.35)]"
-                    : isDisabled
-                      ? "text-gray-500 cursor-not-allowed"
-                      : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
-                }`}
-              >
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.5} />
-              </button>
-            );
-          })}
-        </div>
-        <div className="relative group cursor-pointer pb-4">
-          <button type="button" title="Notificações" className="text-gray-400 group-hover:text-white transition-colors">
-            <Bell size={26} strokeWidth={1.5} />
-          </button>
-          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#1e2235] shadow-sm">
-            3
-          </span>
-        </div>
-      </aside>
+      <AppSidebar activePath={pathname} />
 
       <main className="flex-1 p-8 overflow-y-auto">
         <header className="flex justify-between items-start mb-10">
