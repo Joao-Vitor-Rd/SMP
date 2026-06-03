@@ -185,7 +185,7 @@ export default function MapaRevisaoPage() {
 
   const statusLabel = persistedConfirmation
     ? `Confirmado em ${new Date(persistedConfirmation.confirmedAt ?? "").toLocaleString("pt-BR")}`
-    : `${resolvedItems.length} marcadores ativos`;
+    : `${resolvedItems.length} marcadores activos`;
 
   async function updateItemPosition(itemId: string, latitude: number, longitude: number) {
     const itemAtual = items.find((item) => item.id === itemId);
@@ -438,20 +438,8 @@ export default function MapaRevisaoPage() {
                     <div className="rounded-2xl border border-slate-200 bg-linear-to-br from-slate-50 to-white px-4 py-4">
                       <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-500">Instruções</p>
                       <p className="mt-2 text-sm leading-6 text-slate-600">
-                        Clique em um marcador para inspecionar a imagem. Depois, arraste o pin ou clique em outro ponto do mapa para reposicionar a inspeção selecionada.
+                        Clique em um marcador para inspecionar a imagem. Depois, arraste o pin ou clique em outro ponto do mapa para reposicionar a inspeção selecionada. As alterações são sincronizadas em tempo real.
                       </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => void saveAllChanges()}
-                        disabled={savingAll || confirming}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#0a5483] px-4 py-3 text-sm font-black text-white shadow-[0_14px_32px_rgba(10,84,131,0.28)] transition hover:bg-[#083d61] disabled:cursor-not-allowed disabled:bg-slate-300"
-                      >
-                        {savingAll ? <Loader2 size={16} className="animate-spin" /> : <Clock3 size={16} />}
-                        Salvar revisão
-                      </button>
                     </div>
                   </div>
                 ) : (
