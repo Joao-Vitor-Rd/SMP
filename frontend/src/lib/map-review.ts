@@ -187,8 +187,21 @@ export function normalizeReviewItems(input: unknown): MapReviewInspection[] {
         : typeof fotoIdCandidate === "string" && fotoIdCandidate.trim() !== "" && Number.isFinite(Number(fotoIdCandidate))
           ? Number(fotoIdCandidate)
           : null;
-      const fileName = String(raw.fileName ?? raw.filename ?? raw.nome_original_arquivo ?? `inspecao-${index + 1}`);
+
       const imageUrl = String(raw.imageUrl ?? raw.image_url ?? raw.caminho_arquivo ?? "");
+
+      let detectedFileName = raw.fileName ?? raw.filename ?? raw.nome_original_arquivo ?? raw.name;
+
+      if (!detectedFileName && imageUrl && imageUrl.includes("/")) {
+        const partesDoLink = imageUrl.split("/");
+        const possivelNome = partesDoLink[partesDoLink.length - 1];
+        if (possivelNome && !possivelNome.startsWith("blob:")) {
+          detectedFileName = possivelNome;
+        }
+      }
+
+      const fileName = String(detectedFileName || `Foto-${fotoId || index + 1}.jpg`);
+
       const latitude = clampLatitude(parseCoordinate(raw.latitude as number | string | null | undefined));
       const longitude = clampLongitude(parseCoordinate(raw.longitude as number | string | null | undefined));
       const locationException = typeof raw.locationException === "string"
@@ -333,6 +346,11 @@ export function readConfirmationSummary() {
 }
 
 export async function loadReviewItems(): Promise<MapReviewInspection[]> {
+  const stored = readPersistedReviewItems();
+  if (stored.length > 0) {
+    return stored;
+  }
+
   try {
     const response = await authApi.get(MAP_REVIEW_API_ENDPOINT);
     const normalized = normalizeReviewItems(response.data);
@@ -345,16 +363,6 @@ export async function loadReviewItems(): Promise<MapReviewInspection[]> {
     if (error instanceof SessionExpiredError) {
       throw error;
     }
-
-    if (!axios.isAxiosError(error) || error.response?.status !== 404) {
-      // Backend ainda não expõe a rota de revisão; seguiremos com a cópia local.
-    }
-  }
-
-  const stored = readPersistedReviewItems();
-
-  if (stored.length > 0) {
-    return stored;
   }
 
   const fallback = buildMockData();
@@ -368,9 +376,6 @@ export async function saveInspectionPosition(itemId: string, latitude: number, l
       await authApi.patch(`/api/fotos/revisao-mapa/${fotoId}`, { latitude, longitude });
       return;
     }
-    // Se não houver `fotoId` numérico, evitar enviar o identificador do cliente
-    // ao backend (que resultaria em 422/404). Persistimos localmente a revisão
-    // para ser aplicada quando a foto receber `serverFotoId`.
     const stored = readPersistedReviewItems();
     const idx = stored.findIndex((it) => it.id === itemId);
     const now = new Date().toISOString();
@@ -389,7 +394,6 @@ export async function saveInspectionPosition(itemId: string, latitude: number, l
       return;
     }
 
-    // Se o item ainda não estiver no storage local, apenas adicionar um registro mínimo.
     persistReviewItems([
       ...stored,
       {
@@ -410,14 +414,11 @@ export async function saveInspectionPosition(itemId: string, latitude: number, l
     if (error instanceof SessionExpiredError) {
       throw error;
     }
-
-    // Fallback local while the backend endpoint is not available.
   }
 }
 
 export async function confirmReviewOnServer(items: MapReviewInspection[]) {
   try {
-    // Prefer numeric server-side fotoId when available to avoid ambiguous identifiers
     const payloadItems = items.map((it) => {
       const idToSend = resolveNumericFotoId(it) ?? it.id;
       return {
@@ -435,8 +436,6 @@ export async function confirmReviewOnServer(items: MapReviewInspection[]) {
     if (error instanceof SessionExpiredError) {
       throw error;
     }
-
-    // Fallback local while the backend endpoint is not available.
   }
 
   persistConfirmationSummary({
