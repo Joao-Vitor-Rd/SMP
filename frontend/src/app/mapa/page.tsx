@@ -5,22 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
   ArrowRight,
-  Bell,
   CheckCircle2,
   ChevronLeft,
-  Clock3,
-  FileText,
-  Folder,
-  History,
   ImageIcon,
   Loader2,
   LogOut,
   Map,
-  Maximize,
   Settings,
-  Upload,
   User,
 } from "lucide-react";
 
@@ -199,7 +191,7 @@ export default function MapaRevisaoPage() {
                 ...item,
                 latitude,
                 longitude,
-                locationSource: item.locationSource === "manual" ? item.locationSource : "manual",
+                locationSource: "manual" as const,
                 status: "ready" as const,
                 updatedAt: new Date().toISOString(),
                 note: "Posição ajustada manualmente no mapa.",
@@ -447,6 +439,37 @@ export default function MapaRevisaoPage() {
                     Selecione um marcador para ver a imagem associada.
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-[30px] border border-white/70 bg-white/90 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-sm">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-slate-500">Legenda do Mapa</p>
+                <h3 className="mt-1 text-base font-black text-slate-900">Status de Localização</h3>
+                
+                <div className="mt-4 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2563eb] border-2 border-white shadow-md mt-0.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-white"></div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">Metadados Nativos (GPS)</p>
+                      <p className="text-[11px] text-slate-500 leading-normal">
+                        Marcadores <span className="text-[#2563eb] font-semibold">azuis</span> indicam coordenadas nativas já identificadas e extraídas automaticamente dos metadados originais da foto.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] border-2 border-white shadow-md mt-0.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-white"></div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">Mapeado Manualmente</p>
+                      <p className="text-[11px] text-slate-500 leading-normal">
+                        Marcadores <span className="text-[#f97316] font-semibold">laranjas</span> indicam localizações que foram informadas manualmente digitando as coordenadas ou arrastando o pino no mapa.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-[30px] border border-white/70 bg-white/90 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-sm">

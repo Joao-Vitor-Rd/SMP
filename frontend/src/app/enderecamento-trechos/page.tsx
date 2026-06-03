@@ -59,14 +59,6 @@ export default function EnderecamentoTrechosPage() {
   const [loadingTrechos, setLoadingTrechos] = useState(true);
   const [trechosError, setTrechosError] = useState<string | null>(null);
 
-  const boundsLabel = useMemo(() => {
-    if (!bounds) {
-      return "Nenhuma área visível foi salva; mostrando todos os trechos.";
-    }
-
-    return "Área visível do mapa salva; filtrando trechos por bounding box.";
-  }, [bounds]);
-
   useEffect(() => {
     let active = true;
 
@@ -186,12 +178,7 @@ export default function EnderecamentoTrechosPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-slate-200 bg-slate-50 px-5 py-4 text-slate-700">
-              <p className="text-sm font-bold text-slate-900">{boundsLabel}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                O front reutiliza a última área visível do mapa para chamar GET /api/trechos com query params só quando a caixa estiver disponível.
-              </p>
-            </div>
+            {/* O BOX DE AVISO CINZA QUE DETALHAVA O "GET /api/trechos" FOI REMOVIDO DAQUI */}
 
             <div className="rounded-[28px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-800">
               <div className="flex items-start gap-3">
