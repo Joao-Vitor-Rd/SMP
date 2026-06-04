@@ -2,9 +2,25 @@ from src.modules.auth.application.dtos.login_dto import LoginDTO, LoginResponseD
 from src.modules.auth.infrastructure.repositories.generic_user_repository import GenericUserRepository
 from src.shared.security.password_hash import PassWordHasher
 from src.shared.security.token_service import TokenService
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from src.modules.auth.domain.repositories.i_limitador_tentativas import LimitadorDeTentativas
 import asyncio
+
+
+MENSAGEM_ACESSO_COLABORADOR_EXPIRADO = (
+    "Você não possui mais acesso ao sistema, entre em contato com seu supervisor."
+)
+
+
+class AcessoColaboradorExpiradoError(ValueError):
+    pass
+
+
+def normalizar_datetime_utc(valor: datetime) -> datetime:
+    if valor.tzinfo is None:
+        return valor.replace(tzinfo=timezone.utc)
+
+    return valor.astimezone(timezone.utc)
 
 
 class LoginUseCase:
@@ -51,10 +67,12 @@ class LoginUseCase:
         # Verificação de acesso do colaborador
         if cargo == "colaborador":
             if not acesso_liberado:
-                raise ValueError(f"Você não possui mais acesso ao sistema, entre em contato com seu supervisor")
+                raise AcessoColaboradorExpiradoError(MENSAGEM_ACESSO_COLABORADOR_EXPIRADO)
             
-            if limite_acesso is not None and datetime.now(timezone.utc) > limite_acesso:
-                raise ValueError(f"Você não possui mais acesso ao sistema, entre em contato com seu supervisor")
+            if limite_acesso is not None:
+                limite_acesso_utc = normalizar_datetime_utc(limite_acesso)
+                if datetime.now(timezone.utc) > limite_acesso_utc:
+                    raise AcessoColaboradorExpiradoError(MENSAGEM_ACESSO_COLABORADOR_EXPIRADO)
         
         # Gerar tokens JWT
         access_token = self.token_service.generate(user, cargo, login_data.lembrar_me)

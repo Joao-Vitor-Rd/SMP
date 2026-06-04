@@ -5,7 +5,10 @@ from datetime import datetime
 from src.shared.infrastructure.db import get_session
 from src.shared.infrastructure.redis_config import RedisClient
 from src.modules.auth.application.dtos.login_dto import LoginDTO, LoginResponseDTO, RefreshTokenDTO, RefreshTokenResponseDTO
-from src.modules.auth.application.use_cases.login_use_case import LoginUseCase
+from src.modules.auth.application.use_cases.login_use_case import (
+    AcessoColaboradorExpiradoError,
+    LoginUseCase,
+)
 from src.modules.auth.application.use_cases.refresh_token_use_case import RefreshTokenUseCase
 from src.modules.auth.infrastructure.repositories.generic_user_repository import GenericUserRepository
 from src.modules.auth.infrastructure.services.limitador_redis import LimitadorRedis
@@ -99,6 +102,11 @@ async def login(
             token_atualizacao="",  # Vazio pois está no cookie
             tipo_token="bearer",
             usuario=login_response.usuario
+        )
+    except AcessoColaboradorExpiradoError as e:
+        raise HTTPException(
+            status_code=403,
+            detail={"mensagem": str(e), "motivo": "acesso_colaborador_expirado"}
         )
     except ValueError as e:
         detail = str(e)
