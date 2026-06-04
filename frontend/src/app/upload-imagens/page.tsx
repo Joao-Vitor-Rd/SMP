@@ -473,80 +473,89 @@ function UploadItemRow({ item, updateQueueItem, onRemove }: UploadItemRowProps) 
         </div>
       </div>
 
-      {itemNeedsManualLocation(item) ? (
-        <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-3">
-          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-amber-900/80">
-            Pendentes de localização — coordenadas manuais
+{itemNeedsManualLocation(item) ? (
+  <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-3">
+    <p className="text-[0.65rem] font-bold uppercase tracking-wider text-amber-900/80">
+      Pendentes de localização — coordenadas manuais
+    </p>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div>
+        <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+          Latitude
+        </label>
+        <input
+          id={`lat-${item.id}`}
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          disabled={!!item.locationException}
+          value={item.manualLat}
+          onChange={(e) => {
+            const v = filterCoordInput(e.target.value);
+            updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, v, undefined));
+          }}
+          placeholder="-23,5505"
+          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${latInvalid ? "border-red-400 focus:ring-red-200" : "border-gray-200"}`}
+        />
+        {latInvalid && (
+          <p className="mt-1 text-[11px] font-medium text-red-600 animate-fade-in">
+            Latitude inválida. Use números decimais entre −90 e 90.
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
-                Latitude
-              </label>
-              <input
-                id={`lat-${item.id}`}
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                disabled={!!item.locationException}
-                value={item.manualLat}
-                onChange={(e) => {
-                  const v = filterCoordInput(e.target.value);
-                  updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, v, undefined));
-                }}
-                placeholder="-23,5505"
-                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${latInvalid ? "border-red-400" : "border-gray-200"}`}
-              />
-            </div>
-            <div>
-              <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
-                Longitude
-              </label>
-              <input
-                id={`lng-${item.id}`}
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                disabled={!!item.locationException}
-                value={item.manualLng}
-                onChange={(e) => {
-                  const v = filterCoordInput(e.target.value);
-                  updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, undefined, v));
-                }}
-                placeholder="-46,6333"
-                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${lngInvalid ? "border-red-400" : "border-gray-200"}`}
-              />
-            </div>
-          </div>
-          {(latInvalid || lngInvalid) ? (
-            <p className="text-xs font-medium text-red-600">Use apenas números decimais. Latitude −90 a 90; longitude −180 a 180.</p>
-          ) : null}
-          <div>
-            <p className="mb-2 text-xs font-semibold text-gray-600">Sem dados de posição?</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  updateQueueItem(item.id, (c) => ({
-                    ...c,
-                    locationException: c.locationException === "sem_gps" ? null : "sem_gps",
-                    manualLat: "",
-                    manualLng: "",
-                    locationSource: null,
-                  }))
-                }
-                className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
-                  item.locationException === "sem_gps"
-                    ? "border-[#0a5483] bg-[#0a5483] text-white"
-                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                Sem GPS
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+        )}
+      </div>
+
+      <div>
+        <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+          Longitude
+        </label>
+        <input
+          id={`lng-${item.id}`}
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          disabled={!!item.locationException}
+          value={item.manualLng}
+          onChange={(e) => {
+            const v = filterCoordInput(e.target.value);
+            updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, undefined, v));
+          }}
+          placeholder="-46,6333"
+          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${lngInvalid ? "border-red-400 focus:ring-red-200" : "border-gray-200"}`}
+        />
+        {lngInvalid && (
+          <p className="mt-1 text-[11px] font-medium text-red-600 animate-fade-in">
+            Longitude inválida. Use números decimais entre −180 e 180.
+          </p>
+        )}
+      </div>
+    </div>
+
+    <div>
+      <p className="mb-2 text-xs font-semibold text-gray-600">Sem dados de posição?</p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            updateQueueItem(item.id, (c) => ({
+              ...c,
+              locationException: c.locationException === "sem_gps" ? null : "sem_gps",
+              manualLat: "",
+              manualLng: "",
+              locationSource: null,
+            }))
+          }
+          className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+            item.locationException === "sem_gps"
+              ? "border-[#0a5483] bg-[#0a5483] text-white"
+              : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          Sem GPS
+        </button>
+      </div>
+    </div>
+  </div>
+) : null}
     </div>
   );
 }
