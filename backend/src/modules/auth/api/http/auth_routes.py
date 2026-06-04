@@ -119,6 +119,11 @@ async def login(
             tipo_token="bearer",
             usuario=login_response.usuario
         )
+    except AcessoColaboradorExpiradoError as e:
+        raise HTTPException(
+            status_code=403,
+            detail={"mensagem": str(e), "motivo": "acesso_colaborador_expirado"}
+        )
     except ValueError as e:
         detail = str(e)
         if detail.isdigit():

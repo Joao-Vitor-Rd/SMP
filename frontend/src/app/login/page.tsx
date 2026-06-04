@@ -11,69 +11,56 @@ import Link from "next/link";
 const MENSAGEM_CREDENCIAIS_INVALIDAS =
   "Credenciais inválidas. Verifique seu e-mail e senha.";
 const MENSAGEM_CONTA_BLOQUEADA =
-  "Muitas tentativas falhas. Conta bloqueada temporariamente. Tente novamente mais tarde.";
+  "Você excedeu o limite de tentativas. Acesso bloqueado por 15 minutos.";
 const LIMITE_TENTATIVAS_LOGIN = 5;
 
-async function mensagemErroLogin(res: Response): Promise<string> {
-  if (res.status !== 401 && res.status !== 400) {
-    return MENSAGEM_CREDENCIAIS_INVALIDAS;
-  }
+type LoginErrorDetail = {
+  tentativas?: number;
+  mensagem?: string;
+};
 
+async function mensagemErroLogin(res: Response): Promise<string> {
   try {
     const body = await res.json();
     const detail = body?.detail;
 
     if (detail && typeof detail === "object") {
-      const { tentativas, mensagem } = detail as {
-        tentativas?: number;
-        mensagem?: string;
-      };
+      const { tentativas, mensagem } = detail as LoginErrorDetail;
+      const mensagemTratada = typeof mensagem === "string" ? mensagem.trim() : "";
 
       if (typeof tentativas === "number") {
+        if (tentativas >= LIMITE_TENTATIVAS_LOGIN) {
+          return mensagemTratada && !mensagemTratada.includes("horário indicado")
+            ? mensagemTratada
+            : MENSAGEM_CONTA_BLOQUEADA;
+        }
+
         const restantes = LIMITE_TENTATIVAS_LOGIN - tentativas;
         if (restantes > 0) {
           return `Credenciais inválidas. Tentativas restantes: ${restantes}`;
         }
-        if (typeof mensagem === "string" && mensagem) {
-          return mensagem;
-        }
       }
 
-      if (typeof mensagem === "string" && mensagem) {
-        return mensagem;
-      }
-    }
-
-    if (typeof detail === "string" && detail) {
-      return detail;
-    }
-  } catch {
-    // corpo ausente ou JSON inválido — usa fallback
-  }
-
-  return MENSAGEM_CREDENCIAIS_INVALIDAS;
-}
-
-async function mensagemErroBloqueio(res: Response): Promise<string> {
-  try {
-    const body = await res.json();
-    const detail = body?.detail;
-
-    if (detail && typeof detail === "object") {
-      const { mensagem } = detail as { mensagem?: string };
-      if (typeof mensagem === "string" && mensagem.trim()) {
-        return mensagem.trim();
+      if (mensagemTratada) {
+        return mensagemTratada;
       }
     }
 
     if (typeof detail === "string" && detail.trim()) {
-      return detail.trim();
+      const detailTratado = detail.trim();
+      return detailTratado.includes("horário indicado")
+        ? MENSAGEM_CONTA_BLOQUEADA
+        : detailTratado;
     }
   } catch {
     // corpo ausente ou JSON inválido — usa fallback
   }
 
-  return MENSAGEM_CONTA_BLOQUEADA;
+  if (res.status === 429) {
+    return MENSAGEM_CONTA_BLOQUEADA;
+  }
+
+  return MENSAGEM_CREDENCIAIS_INVALIDAS;
 }
 
 export default function LoginPage() {
@@ -100,13 +87,8 @@ export default function LoginPage() {
         body: JSON.stringify({ email, senha, lembrar_me: lembrarMe }),
       });
 
-      if (res.status === 401 || res.status === 400) {
+      if (res.status === 401 || res.status === 400 || res.status === 403 || res.status === 429) {
         setErro(await mensagemErroLogin(res));
-        return;
-      }
-
-      if (res.status === 429) {
-        setErro(await mensagemErroBloqueio(res));
         return;
       }
 
