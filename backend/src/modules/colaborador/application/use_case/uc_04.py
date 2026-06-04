@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 import re
+from fastapi import APIRouter, Depends, HTTPException
 from src.modules.colaborador.domain.entities.colaborador import Colaborador
 from src.modules.colaborador.domain.repositories.IColaboradorRepository import IColaboradorRepository
 from src.modules.supervisor.domain.repositories.ISupervisorRepository import ISupervisorRepository
@@ -47,12 +48,17 @@ class CriarColaboradorUseCase:
 
     def execute(self, create_data: CreateColaboradorDTO) -> ColaboradorResponseDTO:
 
-        logger.info(
-            "Iniciando criação de colaborador: responsavel_id=%s is_tecnico=%s email=%s",
-            create_data.id_profissional_responsavel,
-            create_data.is_tecnico,
-            create_data.email,
-        )
+        if create_data.is_tecnico and create_data.limite_acesso is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Técnico não pode possuir limite_acesso."
+            )
+
+        if not create_data.is_tecnico and create_data.cft is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Apenas técnicos podem possuir cft."
+            )
 
         supervisor = self.repository_supervisor.find_by_id(create_data.id_profissional_responsavel)
         logger.info(
@@ -129,11 +135,14 @@ class CriarColaboradorUseCase:
 
         if create_data.is_tecnico:
             if not create_data.cft or not create_data.cft.strip():
-                raise ValueError("CFT/CPF é obrigatório para técnico")
+                raise HTTPException(
+                    status_code=400,
+                    detail="CFT/CPF é obrigatório para técnico."
+                )
 
             cft_formatado = re.sub(r"\D", "", create_data.cft)
             if len(cft_formatado) != 11:
-                raise ValueError("CFT/CPF deve conter 11 dígitos numéricos")
+                raise HTTPException("CFT/CPF deve conter 11 dígitos numéricos")
 
             if self.repository.find_by_cft(cft_formatado):
                 raise ValueError("CFT/CPF já cadastrado no sistema")

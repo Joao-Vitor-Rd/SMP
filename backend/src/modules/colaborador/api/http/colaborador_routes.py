@@ -116,6 +116,8 @@ async def criar_colaborador(
             string_sem_numero_validator=string_validator
         )
         return use_case.execute(create_data)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
