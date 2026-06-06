@@ -92,6 +92,12 @@ services:
       - ./backend/migrations:/app/migrations
     networks:
       - smp_network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/docs', timeout=5).read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
 
   frontend:
     build:
@@ -106,6 +112,12 @@ services:
       - backend
     networks:
       - smp_network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000', r => { process.exit(r.statusCode && r.statusCode < 500 ? 0 : 1) }).on('error', () => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
 
 volumes:
   postgres_data:

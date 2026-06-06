@@ -1,6 +1,7 @@
 name: CI Tests
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -95,10 +96,10 @@ jobs:
       - name: Aguardar serviços ficarem prontos
         run: |
           echo "Aguardando backend..."
-          timeout 120 bash -c 'until curl -sf http://localhost:8000/docs > /dev/null; do sleep 3; done'
+          timeout 180 bash -c 'until [ "$(docker inspect -f "{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}" smp_backend 2>/dev/null)" = "healthy" ]; do sleep 3; done'
 
           echo "Aguardando frontend..."
-          timeout 120 bash -c 'until curl -sf http://localhost:3000 > /dev/null; do sleep 3; done'
+          timeout 180 bash -c 'until [ "$(docker inspect -f "{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}" smp_frontend 2>/dev/null)" = "healthy" ]; do sleep 3; done'
 
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml ps
 
@@ -118,7 +119,7 @@ jobs:
       - name: Rodar testes E2E
         run: |
           mkdir -p reports
-          pytest tests/e2e \
+          pytest -c tests/pytest.ini tests/e2e \
             --html=reports/relatorio-e2e.html \
             --self-contained-html \
             -v
