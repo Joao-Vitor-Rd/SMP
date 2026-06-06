@@ -96,10 +96,10 @@ jobs:
       - name: Aguardar serviços ficarem prontos
         run: |
           echo "Aguardando backend..."
-          timeout 180 bash -c 'until [ "$(docker inspect -f "{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}" smp_backend 2>/dev/null)" = "healthy" ]; do sleep 3; done'
+          timeout 180 bash -c 'until curl -sf http://localhost:8000/health > /dev/null; do sleep 3; done'
 
           echo "Aguardando frontend..."
-          timeout 180 bash -c 'until [ "$(docker inspect -f "{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}" smp_frontend 2>/dev/null)" = "healthy" ]; do sleep 3; done'
+          timeout 180 bash -c 'until curl -sf http://localhost:3000 > /dev/null; do sleep 3; done'
 
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml ps
 

@@ -75,6 +75,11 @@ app.include_router(trechos_router, prefix="/api/trechos", tags=["Trechos"])
 app.include_router(upload_router, prefix="/api/uploads", tags=["Uploads"])
 app.include_router(fotos_router, prefix="/api/fotos", tags=["Fotos"])
 
+
+@app.get("/health")
+async def healthcheck():
+    return {"status": "ok"}
+
 UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
