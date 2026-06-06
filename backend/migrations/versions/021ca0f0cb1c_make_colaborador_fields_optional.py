@@ -71,8 +71,5 @@ def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
-    if 'colaborador' in inspector.get_table_names():
-        op.drop_table('colaborador')
-
-    if 'supervisor' in inspector.get_table_names():
-        op.drop_table('supervisor')
+    op.execute("DROP TABLE IF EXISTS colaborador")
+    op.execute("DROP TABLE IF EXISTS supervisor")
