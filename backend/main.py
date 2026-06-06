@@ -55,8 +55,7 @@ async def startup_event():
         ensure_bucket_exists(bucket_name)
         print(f"✓ Bucket MinIO garantido com sucesso: {bucket_name}")
     except Exception as e:
-        print(f"✗ Erro ao conectar com Redis: {str(e)}")
-        raise
+        print(f"✗ Aviso ao inicializar dependências externas: {str(e)}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
