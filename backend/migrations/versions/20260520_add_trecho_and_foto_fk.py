@@ -35,6 +35,30 @@ def upgrade() -> None:
     if op.f("ix_trechos_id_trecho") not in trecho_indexes:
         op.create_index(op.f("ix_trechos_id_trecho"), "trechos", ["id_trecho"], unique=False)
 
+    if "fotos" not in table_names:
+        op.create_table(
+            "fotos",
+            sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column("nome_original_arquivo", sa.String(), nullable=False),
+            sa.Column("nome_aquivo", sa.String(), nullable=False),
+            sa.Column("caminho_arquivo", sa.String(), nullable=False),
+            sa.Column("latitude", sa.Float(), nullable=True),
+            sa.Column("longitude", sa.Float(), nullable=True),
+            sa.Column("trecho_id", sa.String(length=36), nullable=True),
+            sa.Column("tipo_arquivo", sa.String(), nullable=False),
+            sa.Column("criado_em", sa.DateTime(timezone=True), nullable=False),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("nome_aquivo"),
+            sa.ForeignKeyConstraint(
+                ["trecho_id"],
+                ["trechos.id_trecho"],
+                name="fk_fotos_trecho_id_trechos",
+                ondelete="SET NULL",
+            ),
+        )
+        op.create_index(op.f("ix_fotos_id"), "fotos", ["id"], unique=False)
+        inspector = sa.inspect(bind)
+
     fotos_columns = {column["name"] for column in inspector.get_columns("fotos")}
     if "trecho_id" not in fotos_columns:
         op.add_column("fotos", sa.Column("trecho_id", sa.String(length=36), nullable=True))
@@ -59,6 +83,12 @@ def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
+    table_names = inspector.get_table_names()
+    if "fotos" not in table_names:
+        if "trechos" in table_names:
+            op.drop_table("trechos")
+        return
+
     fotos_fks = {fk["name"] for fk in inspector.get_foreign_keys("fotos")}
     if "fk_fotos_trecho_id_trechos" in fotos_fks:
         op.drop_constraint("fk_fotos_trecho_id_trechos", "fotos", type_="foreignkey")
@@ -71,7 +101,6 @@ def downgrade() -> None:
     if "trecho_id" in fotos_columns:
         op.drop_column("fotos", "trecho_id")
 
-    table_names = inspector.get_table_names()
     if "trechos" in table_names:
         trecho_indexes = {index["name"] for index in inspector.get_indexes("trechos")}
         if op.f("ix_trechos_id_trecho") in trecho_indexes:
