@@ -40,8 +40,7 @@ class RequestPasswordResetUseCase:
             raw_token = secrets.token_urlsafe(32)
             token_hash = sha256(raw_token.encode("utf-8")).hexdigest()
             expires_at = datetime.utcnow() + timedelta(hours=2)
-            link_redefinicao = f"{self.app_url}/redefinir-senha?token={raw_token}"
-
+            link_redefinicao = f"{self.app_url}/trocar-senha?token={raw_token}"
             self.token_repository.deactivate_active_tokens_for_user(user.id)
             self.token_repository.create_token(user.id, token_hash, expires_at)
             self.email_service.enviar_link_redefinicao(nome, email_normalizado, link_redefinicao)
