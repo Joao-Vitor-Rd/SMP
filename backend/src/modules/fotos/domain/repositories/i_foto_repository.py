@@ -9,6 +9,10 @@ class IFotoRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_all(self) -> list[Foto]:
+        raise NotImplementedError
+
+    @abstractmethod
     def find_by_id(self, foto_id: int) -> Foto | None:
         raise NotImplementedError
 

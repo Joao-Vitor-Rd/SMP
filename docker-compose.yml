@@ -32,18 +32,13 @@ services:
       smp_network:
         aliases:
           - minio
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   minio_setup:
     image: minio/mc:latest
     container_name: smp_minio_setup
     depends_on:
       min_io:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ./backend/setup-minio.sh:/setup-minio.sh
     networks:
@@ -84,7 +79,7 @@ services:
       redis:
         condition: service_healthy
       min_io:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ./backend/src:/app/src
       - ./backend/main.py:/app/main.py
