@@ -34,7 +34,7 @@ class AtualizarSupervisorUseCase:
             if not self.string_sem_numero_validator.validar_string_sem_numero(nome_formatado):
                 raise ValueError("Nome deve incluir apenas letras")
 
-        uf = supervisor_atual.uf
+        uf = supervisor_atual.uf.upper()
         if update_data.uf is not None:
             if not UFEnum.is_valid(update_data.uf):
                 raise ValueError("UF inválida")

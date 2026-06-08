@@ -42,6 +42,7 @@ class CriarSupervisorUseCase:
             raise ValueError(f"Nome deve incluir apenas letras")
 
         # Validar UF
+        create_data.uf = create_data.uf.upper()
         if not UFEnum.is_valid(create_data.uf):
             raise ValueError(f"UF inválida")
         

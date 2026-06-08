@@ -42,8 +42,7 @@ class UFEnum(str, Enum):
             return True
 
         if isinstance(uf, str):
-            uf_normalizada = uf.strip().upper()
-            return uf_normalizada in cls.__members__ or uf_normalizada in cls._value2member_map_
+            return uf in cls.__members__ or uf in cls._value2member_map_
 
         return False
 
