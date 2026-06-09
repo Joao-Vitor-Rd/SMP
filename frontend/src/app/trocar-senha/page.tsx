@@ -2,13 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, ShieldCheck, XCircle } from "lucide-react";
-
-type FeedbackPopup = {
-    type: "warning" | "success" | "error";
-    title: string;
-    message: string;
-};
+import { ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, ShieldCheck, AlertCircle } from "lucide-react";
 
 function TrocarSenhaContent() {
     const router = useRouter();
@@ -20,8 +14,7 @@ function TrocarSenhaContent() {
     const [mostrarSenha, setMostrarSenha] = useState(false);
     const [enviando, setEnviando] = useState(false);
     const [sucesso, setSucesso] = useState(false);
-    const [erro, setErro] = useState("");
-    const [popup, setPopup] = useState<FeedbackPopup | null>(null);
+    const [alerta, setAlerta] = useState<{ tipo: "error" | "warning"; mensagem: string } | null>(null);
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const temMinimo = senha.length >= 8;
@@ -30,31 +23,28 @@ function TrocarSenhaContent() {
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        setErro("");
+        setAlerta(null);
 
         if (!token) {
-            setPopup({
-                type: "error",
-                title: "Token ausente",
-                message: "O link de recuperação parece inválido ou expirado. Tente solicitar um novo e-mail.",
+            setAlerta({
+                tipo: "error",
+                mensagem: "O link de recuperação parece inválido ou expirado. Volte e solicite um novo e-mail.",
             });
             return;
         }
 
         if (senha !== confirmarSenha) {
-            setPopup({
-                type: "warning",
-                title: "Senhas diferentes",
-                message: "A confirmação de senha não confere com a nova senha digitada.",
+            setAlerta({
+                tipo: "warning",
+                mensagem: "A confirmação de senha não confere com a nova senha digitada.",
             });
             return;
         }
 
         if (!temMinimo || !temNumero || !temMaiuscula) {
-            setPopup({
-                type: "warning",
-                title: "Senha fraca",
-                message: "A senha precisa atender aos requisitos mínimos de segurança.",
+            setAlerta({
+                tipo: "warning",
+                mensagem: "A senha precisa atender a todos os requisitos mínimos de segurança.",
             });
             return;
         }
@@ -62,34 +52,27 @@ function TrocarSenhaContent() {
         setEnviando(true);
 
         try {
-        const response = await fetch(`${API_URL}/auth/password-reset/confirm`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                token: token,
-                nova_senha: senha 
-            }),
-        });
+            const response = await fetch(`${API_URL}/auth/password-reset/confirm`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    token: token,
+                    nova_senha: senha 
+                }),
+            });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || "Erro ao redefinir senha");
+                throw new Error(errorData.detail || errorData.message || "Erro ao redefinir senha");
             }
 
             setSucesso(true);
-            setPopup({
-                type: "success",
-                title: "Senha alterada!",
-                message: "Sua senha foi atualizada com sucesso. Você já pode acessar sua conta.",
-            });
         } catch (error: unknown) {
             let message = "Não foi possível alterar a senha.";
-    
             if (error instanceof Error) {
                 message = error.message;
             }
-    
-            setErro(message);
+            setAlerta({ tipo: "error", mensagem: message });
         } finally {
             setEnviando(false);
         }
@@ -107,57 +90,26 @@ function TrocarSenhaContent() {
                 </div>
 
                 <div className="px-8 py-8">
-                    {popup && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
-                            <div className="w-full max-w-sm rounded-3xl border border-white/80 bg-white p-6 shadow-[0_30px_100px_rgba(15,23,42,0.25)]">
-                                <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
-                                    popup.type === "success" ? "bg-emerald-100 text-emerald-700" : 
-                                    popup.type === "error" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
-                                }`}>
-                                    {popup.type === "success" ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
-                                </div>
-                                <h2 className="mt-4 text-center text-xl font-black text-slate-950">{popup.title}</h2>
-                                <p className="mt-3 text-center text-sm leading-6 text-slate-600">{popup.message}</p>
-                                <div className="mt-6 flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPopup(null);
-                                            if (popup.type === "error") router.push("/recuperar-senha");
-                                        }}
-                                        className="inline-flex flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 transition hover:bg-slate-50"
-                                    >
-                                        {popup.type === "error" ? "Solicitar novo link" : "Entendi"}
-                                    </button>
-                                    {popup.type === "success" && (
-                                        <button
-                                            type="button"
-                                            onClick={() => router.push("/login")}
-                                            className="inline-flex flex-1 items-center justify-center rounded-xl bg-[#165D7A] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#123f53]"
-                                        >
-                                            Ir para o login
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {erro && (
-                        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {erro}
+                    {alerta && (
+                        <div className={`mb-5 rounded-2xl border px-4 py-3 text-sm flex gap-2 items-start ${
+                            alerta.tipo === "error" 
+                                ? "border-red-200 bg-red-50 text-red-700" 
+                                : "border-amber-200 bg-amber-50 text-amber-800"
+                        }`}>
+                            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                            <div>{alerta.mensagem}</div>
                         </div>
                     )}
 
                     {sucesso ? (
-                        <div className="space-y-5 text-center">
+                        <div className="space-y-5 text-center py-4">
                             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                                 <CheckCircle2 size={28} />
                             </div>
                             <div>
-                                <h2 className="text-xl font-black text-slate-950">Senha redefinida</h2>
+                                <h2 className="text-xl font-black text-slate-950">Senha alterada!</h2>
                                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                                    Sua nova senha já está ativa. Use-a para entrar na sua conta.
+                                    Sua senha foi atualizada com sucesso. Você já pode acessar sua conta normalmente.
                                 </p>
                             </div>
                             <button
