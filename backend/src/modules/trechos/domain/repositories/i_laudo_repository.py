@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
+from datetime import datetime
 from src.modules.trechos.domain.entities.laudo import Laudo
 
 
@@ -9,7 +11,8 @@ class ILaudoRepository(ABC):
     def create(
         self,
         responsavel: str,
-        usuarios_ids: list[int]
+        data: datetime,
+        colaboradores_ids: list[int]
     ) -> Laudo:
         pass
 
@@ -18,5 +21,5 @@ class ILaudoRepository(ABC):
         pass
 
     @abstractmethod
-    def list_by_id(self) -> list[Laudo]:
+    def find_by_id(self, laudo_id: int) -> Optional[Laudo]:
         pass
