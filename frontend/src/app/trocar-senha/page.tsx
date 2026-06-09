@@ -62,14 +62,14 @@ function TrocarSenhaContent() {
         setEnviando(true);
 
         try {
-            const response = await fetch(`${API_URL}/api/auth/password-reset/confirm`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    token: token,
-                    nova_senha: senha 
-                }),
-            });
+        const response = await fetch(`${API_URL}/auth/password-reset/confirm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                token: token,
+                nova_senha: senha 
+            }),
+        });
 
             if (!response.ok) {
                 const errorData = await response.json();

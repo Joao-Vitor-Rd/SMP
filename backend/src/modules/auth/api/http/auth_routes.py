@@ -9,7 +9,7 @@ from src.shared.infrastructure.db import get_session
 from src.shared.infrastructure.redis_config import RedisClient
 from src.modules.auth.application.dtos.login_dto import LoginDTO, LoginResponseDTO, RefreshTokenDTO, RefreshTokenResponseDTO
 from src.modules.auth.application.dtos.password_reset_dto import PasswordResetConfirmDTO, PasswordResetMessageDTO, PasswordResetRequestDTO
-from src.modules.auth.application.use_cases.login_use_case import LoginUseCase
+from src.modules.auth.application.use_cases.login_use_case import LoginUseCase, AcessoColaboradorExpiradoError
 from src.modules.auth.application.use_cases.refresh_token_use_case import RefreshTokenUseCase
 from src.modules.auth.application.use_cases.request_password_reset_use_case import RequestPasswordResetUseCase
 from src.modules.auth.application.use_cases.reset_password_use_case import ResetPasswordUseCase

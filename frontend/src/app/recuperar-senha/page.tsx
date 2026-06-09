@@ -66,13 +66,13 @@ export default function RecuperarSenhaPage() {
         setEnviando(true);
 
         try {
-            const response = await fetch(`${API_URL}/api/auth/password-reset/request`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ email: normalizedEmail }),
-            });
+            const response = await fetch(`${API_URL}/auth/password-reset/request`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email: normalizedEmail }),
+        });
 
             if (!response.ok) {
                 throw new Error("Erro no servidor");
