@@ -114,7 +114,7 @@ export default function RecuperarSenhaPage() {
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
-                                <label className="mb-2 block text-sm font-semibold text-slate-800">E-mail Corporativo</label>
+                                <label className="mb-2 block text-sm font-semibold text-slate-800">E-mail</label>
                                 <div className="relative">
                                     <Mail className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                                     <input
