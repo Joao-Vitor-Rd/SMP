@@ -19,6 +19,7 @@ from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
 from src.modules.auth.domain.entities.password_reset_token import PasswordResetTokenORM
 from src.modules.fotos.domain.entities.fotos import fotosORM
 from src.modules.trechos.domain.entities.trecho import TrechoORM
+from src.modules.trechos.domain.entities.laudo import LaudoORM
 
 config = context.config
 if config.config_file_name is not None:
