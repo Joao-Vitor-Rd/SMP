@@ -53,7 +53,9 @@ async def criar_laudo(
         return use_case.execute(
             responsavel=create_data.responsavel,
             colaboradores_ids=create_data.colaboradores_ids,
-            data=create_data.data
+            data=create_data.data,
+            resumo=create_data.resumo,
+            credencial_responsavel=create_data.credencial_responsavel
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

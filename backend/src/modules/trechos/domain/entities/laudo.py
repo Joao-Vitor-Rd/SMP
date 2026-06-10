@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import Column, DateTime, String, ForeignKey, Integer,  Table
+from sqlalchemy import Column, DateTime, String, ForeignKey, Integer,  Table, JSON
 from sqlalchemy.orm import relationship
 
 from src.shared.infrastructure.db import Base
@@ -26,11 +26,13 @@ class LaudoORM(Base):
         default=lambda: datetime.now(timezone.utc),
     )
     responsavel = Column(String(150), nullable=False)
+    credencial_responsavel = Column(String(150), nullable=False)
     usuarios = relationship(
         "UserORM",
         secondary=laudo_user_associacao,
         lazy="joined"
     )
+    resumo = Column(JSON, nullable=False, default=dict)
 
 class UsuarioLaudo(BaseModel):
     nome: str
@@ -44,4 +46,6 @@ class Laudo(BaseModel):
     id: Optional[int] = None
     data: Optional[datetime] = None
     responsavel: str
+    credencial_responsavel: str
     usuarios: list[UsuarioLaudo] = Field(default_factory=list)
+    resumo: dict[str, int] = Field(default_factory=dict)

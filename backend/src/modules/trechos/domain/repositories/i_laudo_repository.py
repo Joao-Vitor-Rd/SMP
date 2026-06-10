@@ -11,8 +11,10 @@ class ILaudoRepository(ABC):
     def create(
         self,
         responsavel: str,
+        credencial_responsavel: str,
         data: datetime,
-        colaboradores_ids: list[int]
+        colaboradores_ids: list[int],
+        resumo: dict[str, int]
     ) -> Laudo:
         pass
 

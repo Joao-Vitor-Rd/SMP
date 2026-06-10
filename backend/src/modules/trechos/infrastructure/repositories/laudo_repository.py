@@ -13,7 +13,7 @@ class LaudoRepository(ILaudoRepository):
     def __init__(self, session: Session):
         self.session = session
 
-    def create(self, responsavel: str, data: datetime, colaboradores_ids: List[int]) -> Laudo:
+    def create(self, responsavel: str, data: datetime, colaboradores_ids: List[int],  resumo: dict[str, int],  credencial_responsavel: str) -> Laudo:
         # Buscar os colaboradores correspondentes aos IDs passados
         colaboradores = []
         if colaboradores_ids:
@@ -38,7 +38,9 @@ class LaudoRepository(ILaudoRepository):
         laudo_orm = LaudoORM(
             responsavel=responsavel,
             data=data,
-            usuarios=usuarios
+            usuarios=usuarios,
+            resumo=resumo,
+            credencial_responsavel=credencial_responsavel
         )
         self.session.add(laudo_orm)
         
