@@ -19,6 +19,18 @@ class ILaudoRepository(ABC):
         pass
 
     @abstractmethod
+    def update(
+        self,
+        laudo_id: int,
+        responsavel: str,
+        credencial_responsavel: str,
+        data: datetime,
+        colaboradores_ids: list[int],
+        resumo: dict[str, int],
+    ) -> Optional[Laudo]:
+        pass
+
+    @abstractmethod
     def list_all(self) -> list[Laudo]:
         pass
 

@@ -37,6 +37,7 @@ class LaudoORM(Base):
 class UsuarioLaudo(BaseModel):
     nome: str
     cargo: CargoEnum
+    id: int
 
     model_config = ConfigDict(from_attributes=True)
 

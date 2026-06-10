@@ -6,11 +6,11 @@ from src.shared.infrastructure.db import get_session
 from src.shared.auth.dependencies import verify_any_user
 
 from src.modules.trechos.infrastructure.repositories.laudo_repository import LaudoRepository
-from src.modules.trechos.application.dtos.laudo_dto import LaudoCreateDTO, LaudoResponseDTO
+from src.modules.trechos.application.dtos.laudo_dto import LaudoCreateDTO, LaudoResponseDTO, LaudoUpdateDTO
 from src.modules.trechos.application.use_case.uc_criar_laudo import CriarLaudoUseCase
 from src.modules.trechos.application.use_case.uc_listar_laudos import ListarLaudosUseCase
 from src.modules.trechos.application.use_case.uc_buscar_laudo_por_id import BuscarLaudoPorIdUseCase
-
+from src.modules.trechos.application.use_case.uc_atualizar_laudo import AtualizarLaudoUseCase
 
 router = APIRouter(tags=["Laudos"])
 
@@ -24,6 +24,14 @@ def get_uc_criar_laudo(
 ) -> CriarLaudoUseCase:
     return CriarLaudoUseCase(laudo_repository=laudo_repository)
 
+def get_uc_atualizar_laudo(
+    session: Session = Depends(get_session),
+) -> AtualizarLaudoUseCase:
+    repository = LaudoRepository(session)
+
+    return AtualizarLaudoUseCase(
+        laudo_repository=repository
+    )
 
 def get_uc_listar_laudos(
     laudo_repository: LaudoRepository = Depends(get_laudo_repository),
@@ -64,7 +72,37 @@ async def criar_laudo(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao criar laudo: {str(e)}"
         )
+    
+@router.put(
+    "/{laudo_id}",
+    response_model=LaudoResponseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Atualizar Laudo",
+    description="Atualiza um laudo existente."
+)
+async def atualizar_laudo(
+    laudo_id: int,
+    update_data: LaudoUpdateDTO,
+    _: Annotated[dict, Depends(verify_any_user)],
+    use_case: AtualizarLaudoUseCase = Depends(get_uc_atualizar_laudo),
+) -> LaudoResponseDTO:
+    try:
+        return use_case.execute(
+            laudo_id=laudo_id,
+            dto=update_data,
+        )
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao atualizar laudo: {str(e)}"
+        )
 
 @router.get(
     "/",
