@@ -27,13 +27,6 @@ from src.modules.colaborador.application.dtos.colaborador_dto import Colaborador
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
-MENSAGEM_ACESSO_COLABORADOR_EXPIRADO = (
-    "Você não possui mais acesso ao sistema, entre em contato com seu supervisor."
-)
-
-
-class AcessoColaboradorExpiradoError(ValueError):
-    pass
 
 def get_repository(session: Annotated[Session, Depends(get_session)]):
     return GenericUserRepository(session)
