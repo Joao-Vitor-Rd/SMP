@@ -156,3 +156,47 @@ class TestLoginUseCase:
 
         token_service.generate.assert_not_called()
         token_service.generate_refresh_token.assert_not_called()
+
+    def test_deve_autenticar_colaborador_com_acesso_valido(
+        self,
+        login_use_case,
+        auth_repository,
+        auth_hasher,
+        token_service,
+        limitador_tentativas,
+        make_user_info,
+        make_login_dto,
+        usuario_colaborador,
+    ):
+        auth_repository.find_by_email.return_value = make_user_info(
+            user=usuario_colaborador,
+            user_type="colaborador",
+            cargo="colaborador",
+            nome="Ana Clara",
+            cft="123456",
+            identificador_profissional=None,
+            acesso_liberado=True,
+            limite_acesso=datetime.now(timezone.utc) + timedelta(days=1),
+        )
+
+        response = run(
+            login_use_case.execute(
+                make_login_dto(email="ana.clara@example.com"),
+                ip_user="127.0.0.1",
+            )
+        )
+
+        auth_hasher.verify.assert_called_once_with("Senha123", "senha-hash")
+        limitador_tentativas.resetar.assert_awaited_once_with("127.0.0.1")
+        token_service.generate.assert_called_once_with(
+            usuario_colaborador,
+            "colaborador",
+            False,
+        )
+        token_service.generate_refresh_token.assert_called_once_with(
+            usuario_colaborador,
+            "colaborador",
+            False,
+        )
+        assert response.usuario["cargo"] == "colaborador"
+        assert response.usuario["cft"] == "123456"

@@ -5,8 +5,12 @@ from unittest.mock import Mock
 import pytest
 
 from src.modules.auth.application.dtos.login_dto import LoginDTO
+from src.modules.auth.application.dtos.login_dto import RefreshTokenDTO
 from src.modules.auth.application.use_cases import login_use_case as login_module
 from src.modules.auth.application.use_cases.login_use_case import LoginUseCase
+from src.modules.auth.application.use_cases.refresh_token_use_case import (
+    RefreshTokenUseCase,
+)
 
 
 class AsyncSpy:
@@ -42,6 +46,7 @@ def token_service():
     mock = Mock()
     mock.generate.return_value = "access-token"
     mock.generate_refresh_token.return_value = "refresh-token"
+    mock.refresh_access_token.return_value = "new-access-token"
     return mock
 
 
@@ -76,6 +81,11 @@ def login_use_case(
         token_service=token_service,
         limitador=limitador_tentativas,
     )
+
+
+@pytest.fixture
+def refresh_token_use_case(token_service):
+    return RefreshTokenUseCase(token_service=token_service)
 
 
 @pytest.fixture
@@ -128,3 +138,15 @@ def make_login_dto():
         return LoginDTO(**data)
 
     return _make_login_dto
+
+
+@pytest.fixture
+def make_refresh_token_dto():
+    def _make_refresh_token_dto(**overrides):
+        data = {
+            "token_atualizacao": "refresh-token",
+        }
+        data.update(overrides)
+        return RefreshTokenDTO(**data)
+
+    return _make_refresh_token_dto

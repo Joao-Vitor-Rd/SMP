@@ -31,7 +31,7 @@ class SupervisorResponseDTO(BaseModel):
     nome: str
     identificador_profissional: str
     uf: str
-    cidade: str
+    cidade: Optional[str] = None
     email: str
     telefone: Optional[str] = None
     empresa: Optional[str] = None
