@@ -8,6 +8,7 @@ import { useRouter, usePathname } from "next/navigation";
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   Bell,
   CheckCircle2,
   ChevronRight,
@@ -923,6 +924,23 @@ export default function UploadImagensPage() {
               </div>
             </div>
 
+            {/* AVISO DE PENDÊNCIA (US-11 / CT-072) */}
+            {arquivosSemCoordenadas > 0 && (
+              <div className="mb-8 flex w-full flex-col items-center justify-center rounded-xl bg-[#FFF3F3] px-6 py-5 border border-red-100 shadow-sm transition-all animate-in fade-in duration-200">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#E50000] text-[14px] font-extrabold text-white">
+                    !
+                  </div>
+                  <h3 className="text-xl font-bold text-[#E50000]">
+                    Pendência em imagens na fila
+                  </h3>
+                </div>
+                <p className="text-[15px] font-medium text-[#E50000]">
+                  Insira as coordenadas manualmente ou selecione um motivo (”Sem GPS” ou ”EXIF Corrompido”) para prosseguir.
+                </p>
+              </div>
+            )}
+
             <div
               className={`border-2 border-dashed rounded-2xl p-10 text-center transition-colors ${isDragging ? 'border-[#0a5483] bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
               onDragOver={(event) => {
@@ -1234,20 +1252,29 @@ export default function UploadImagensPage() {
             <div className="mt-8">
               <button
                 type="button"
-                disabled={!podeMapearCoordenadas}
+                disabled={!podeMapearCoordenadas || arquivosSemCoordenadas > 0}
                 onClick={() => {
                   void prepareReviewItems().finally(() => {
                     router.push("/mapa");
                   });
                 }}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold uppercase tracking-wide transition ${
-                  podeMapearCoordenadas
-                    ? "bg-[#0a5483] text-white shadow-sm hover:bg-[#083d61]"
+                  podeMapearCoordenadas && arquivosSemCoordenadas === 0
+                    ? "bg-[#0a5483] text-white shadow-sm hover:bg-[#083d61] cursor-pointer"
                     : "cursor-not-allowed bg-gray-200 text-gray-500"
                 }`}
               >
-                Mapear coordenadas
-                <ChevronRight size={18} strokeWidth={2.5} />
+                {arquivosSemCoordenadas > 0 ? (
+                  <>
+                    <AlertTriangle size={16} className="text-gray-400" />
+                    Resolva as pendências para prosseguir
+                  </>
+                ) : (
+                  <>
+                    Mapear coordenadas
+                    <ChevronRight size={18} strokeWidth={2.5} />
+                  </>
+                )}
               </button>
             </div>
           </section>
