@@ -44,6 +44,19 @@ class ResetPasswordUseCase:
 
         self._validar_senha(confirm_data.nova_senha)
 
+        # Validar se a senha não é igual à já cadastrada
+        user = self.user_repository.find_by_id(token.user_id)
+        if not user:
+            raise ValueError("Usuário não encontrado")
+
+        user_info = self.user_repository.find_by_email(user.email)
+        if not user_info:
+            raise ValueError("Perfil do usuário não encontrado")
+
+        senha_atual_hash = user_info["password"]
+        if self.hasher.verify(confirm_data.nova_senha, senha_atual_hash):
+            raise ValueError("A nova senha não pode ser a mesma já cadastrada")
+
         senha_hash = self.hasher.hash(confirm_data.nova_senha)
         self.user_repository.update_password_by_user_id(token.user_id, senha_hash)
         self.token_repository.mark_as_used(token.id)
