@@ -169,6 +169,8 @@ export default function MeusTrabalhosPage() {
     const [initialInspectionState] = useState(() => getInitialInspectionState(initialUserState.nome));
     const [usuarioNome] = useState(initialUserState.nome);
     const [cargoUsuario] = useState(initialUserState.cargo);
+    
+    // Estados re-populados dinamicamente
     const [inspectionDate, setInspectionDate] = useState(initialInspectionState.inspectionDate);
     const [responsibleName, setResponsibleName] = useState(initialInspectionState.responsibleName);
     const [responsibleIdentifier, setResponsibleIdentifier] = useState(initialInspectionState.responsibleIdentifier);
@@ -176,6 +178,19 @@ export default function MeusTrabalhosPage() {
     
     const [feedback, setFeedback] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
     const [metadataDetected, setMetadataDetected] = useState(initialInspectionState.metadataDetected);
+
+    // SOLUÇÃO DO BUG DO POPUP (Não Atualiza):
+    // Sempre que o modal for aberto, forçamos a releitura do sessionStorage para capturar a nova data da foto recente
+    useEffect(() => {
+        if (showNovaInspecao && canUseStorage()) {
+            const freshState = getInitialInspectionState(initialUserState.nome);
+            setInspectionDate(freshState.inspectionDate);
+            setResponsibleName(freshState.responsibleName);
+            setResponsibleIdentifier(freshState.responsibleIdentifier);
+            setSelectedCollaboratorIds(freshState.selectedCollaboratorIds);
+            setMetadataDetected(freshState.metadataDetected);
+        }
+    }, [showNovaInspecao, initialUserState.nome]);
 
     useEffect(() => {
         let isMounted = true;
@@ -238,7 +253,6 @@ export default function MeusTrabalhosPage() {
             return;
         }
 
-        // Validação Estrita do Nome (QA): 3 a 80 caracteres, apenas letras e espaços
         const regexNomeValido = /^[A-Za-zÀ-ÿ\s]{3,80}$/;
         if (!regexNomeValido.test(nomeLimpo)) {
             setFeedback({ type: "warning", message: "Formato inválido: O nome do responsável deve ter entre 3 e 80 caracteres (apenas letras e espaços são permitidos)." });
@@ -274,20 +288,11 @@ export default function MeusTrabalhosPage() {
             const response = await authApi.post<LaudoResponse>("/api/laudos/", payloadBackend);
             const novoLaudoId = response.data.id;
 
+            // BUG SOLVED: Limpamos os storages de rascunho antigos para que na próxima abertura
+            // a nova foto ditem as regras e limpem o campo "Cauan Ricardo" anterior do rascunho
             if (canUseStorage()) {
-                const payloadStorage: InspectionDraftStorage = {
-                    inspectionDate,
-                    responsibleName: nomeLimpo,
-                    responsibleIdentifier: identificadorLimpo,
-                    selectedCollaboratorIds,
-                    savedAt: new Date().toISOString(),
-                };
-
-                window.sessionStorage.setItem(INSPECTION_DRAFT_KEY, JSON.stringify(payloadStorage));
-                window.sessionStorage.setItem(
-                    INSPECTION_METADATA_KEY,
-                    JSON.stringify({ inspectionDate, dataInspecao: inspectionDate, date: inspectionDate })
-                );
+                window.sessionStorage.removeItem(INSPECTION_DRAFT_KEY);
+                window.sessionStorage.removeItem(INSPECTION_METADATA_KEY);
             }
 
             setShowNovaInspecao(false);
@@ -554,12 +559,10 @@ export default function MeusTrabalhosPage() {
                                                     maxLength={80} 
                                                     value={responsibleName} 
                                                     onChange={(event) => {
-                                                        // SOLUÇÃO BUG #131 (Digitação): Remove instantaneamente números e símbolos especiais ($)
                                                         const apenasLetras = event.target.value.replace(/[^A-Za-zÀ-ÿ\s]/g, "");
                                                         setResponsibleName(apenasLetras);
                                                     }}
                                                     onPaste={(event) => {
-                                                        // SOLUÇÃO BUG #131 (Colagem): Intercepta, remove lixo e limita caracteres a 80
                                                         event.preventDefault();
                                                         const pastedText = event.clipboardData.getData("text");
                                                         const filtered = pastedText.replace(/[^A-Za-zÀ-ÿ\s]/g, "").slice(0, 80);
@@ -635,7 +638,6 @@ export default function MeusTrabalhosPage() {
                                         </div>
                                         <div className="rounded-2xl border border-slate-200 bg-white p-4">
                                             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Responsável</p>
-                                            {/* O resumo lateral renderiza estavelmente 'Pendente' caso o nome ainda não seja válido */}
                                             <p className="mt-1 text-sm font-black text-slate-950">
                                                 {responsibleName.trim().length >= 3 ? responsibleName : "Pendente"}
                                             </p>
