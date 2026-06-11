@@ -13,7 +13,9 @@ import {
     Settings,
     User,
     Calendar,
-    FileText
+    FileText,
+    AlertTriangle,
+    XCircle
 } from "lucide-react";
 
 import { clearAuthSession, authApi } from "../../lib/authApi";
@@ -171,7 +173,8 @@ export default function MeusTrabalhosPage() {
     const [responsibleName, setResponsibleName] = useState(initialInspectionState.responsibleName);
     const [responsibleIdentifier, setResponsibleIdentifier] = useState(initialInspectionState.responsibleIdentifier);
     const [selectedCollaboratorIds, setSelectedCollaboratorIds] = useState<string[]>(initialInspectionState.selectedCollaboratorIds);
-    const [feedback, setFeedback] = useState<{ type: "success" | "warning"; message: string } | null>(null);
+    
+    const [feedback, setFeedback] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
     const [metadataDetected, setMetadataDetected] = useState(initialInspectionState.metadataDetected);
 
     useEffect(() => {
@@ -196,7 +199,7 @@ export default function MeusTrabalhosPage() {
                 }
             } catch (error) {
                 console.error("Erro ao carregar dados da API:", error);
-                setFeedback({ type: "warning", message: "Não foi possível sincronizar os trabalhos com o servidor." });
+                setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar seus trabalhos técnicos." });
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -225,29 +228,48 @@ export default function MeusTrabalhosPage() {
 
     async function handleCreateInspection() {
         if (!inspectionDate) {
-            setFeedback({ type: "warning", message: "Selecione uma data válida para prosseguir." });
+            setFeedback({ type: "warning", message: "Atenção: Selecione uma data válida no calendário para prosseguir com o laudo." });
             return;
         }
 
-        if (!responsibleName.trim()) {
-            setFeedback({ type: "warning", message: "Informe o nome do responsável técnico." });
+        const nomeLimpo = responsibleName.trim();
+        if (!nomeLimpo) {
+            setFeedback({ type: "warning", message: "Atenção: O campo de responsável técnico é obrigatório e não pode ficar em branco." });
+            return;
+        }
+
+        // Validação Estrita do Nome (QA): 3 a 80 caracteres, apenas letras e espaços
+        const regexNomeValido = /^[A-Za-zÀ-ÿ\s]{3,80}$/;
+        if (!regexNomeValido.test(nomeLimpo)) {
+            setFeedback({ type: "warning", message: "Formato inválido: O nome do responsável deve ter entre 3 e 80 caracteres (apenas letras e espaços são permitidos)." });
+            return;
+        }
+
+        const identificadorLimpo = responsibleIdentifier.trim().toUpperCase();
+        if (!identificadorLimpo) {
+            setFeedback({ type: "warning", message: "Atenção: O Identificador Profissional (CREA/CFT/CPF) é obrigatório." });
+            return;
+        }
+
+        const regexIdentificadorValido = /^[A-Z0-9.\-/]{4,20}$/;
+        if (!regexIdentificadorValido.test(identificadorLimpo)) {
+            setFeedback({ type: "warning", message: "Formato inválido: O identificador deve possuir entre 4 e 20 caracteres (números, letras maiúsculas, pontos ou hifens)." });
             return;
         }
 
         setSalvando(true);
+        setFeedback(null);
 
         try {
             const colabsIdsNumericos = selectedCollaboratorIds.map(Number);
 
             const payloadBackend = {
                 data: inspectionDate, 
-                responsavel: responsibleName,
-                credencial_responsavel: responsibleIdentifier || "N/A",
+                responsavel: nomeLimpo,
+                credencial_responsavel: identificadorLimpo,
                 colaboradores_ids: colabsIdsNumericos, 
                 resumo: {} 
             };
-
-            console.log("Enviando Payload ao Servidor:", payloadBackend);
 
             const response = await authApi.post<LaudoResponse>("/api/laudos/", payloadBackend);
             const novoLaudoId = response.data.id;
@@ -255,8 +277,8 @@ export default function MeusTrabalhosPage() {
             if (canUseStorage()) {
                 const payloadStorage: InspectionDraftStorage = {
                     inspectionDate,
-                    responsibleName,
-                    responsibleIdentifier,
+                    responsibleName: nomeLimpo,
+                    responsibleIdentifier: identificadorLimpo,
                     selectedCollaboratorIds,
                     savedAt: new Date().toISOString(),
                 };
@@ -269,50 +291,38 @@ export default function MeusTrabalhosPage() {
             }
 
             setShowNovaInspecao(false);
-            setFeedback({ type: "success", message: "Inspeção criada! Seguindo para envio das mídias..." });
+            setFeedback({ type: "success", message: "Inspeção iniciada com sucesso! Redirecionando para a captação de imagens..." });
             
             router.push(`/upload-imagens?laudoId=${novoLaudoId}`);
         } catch (error: unknown) {
-            console.error("=== DIAGNÓSTICO DO ERRO 400 ===");
-            
+            console.error("Erro ao submeter laudo:", error);
             let detalheServidor = "";
 
-            // Importe o axios no topo do seu arquivo se já não estiver importado: import axios from "axios";
-            // Aqui usamos a checagem nativa, segura e síncrona do próprio axios
             if (error && typeof error === "object" && "isAxiosError" in error) {
-                // Forçamos a tipagem segura para uma estrutura conhecida do AxiosError
                 const axiosError = error as { response?: { status?: number; data?: { detail?: unknown } } };
-                
-                console.error("Status retornado:", axiosError.response?.status);
-                console.error("Dados detalhados do erro do backend:", axiosError.response?.data);
-
                 const backendData = axiosError.response?.data;
+                
                 if (backendData?.detail) {
                     if (Array.isArray(backendData.detail)) {
-                        // Fazemos um mapeamento 100% tipado sem utilizar 'any' para satisfazer o ESLint
                         detalheServidor = backendData.detail
                             .map((errItem: unknown) => {
                                 const e = errItem as { loc?: (string | number)[]; msg?: string };
-                                const campoFailing = e.loc ? e.loc.join(".") : "campo";
-                                const msgFailing = e.msg || "inválido";
-                                return `${campoFailing} -> ${msgFailing}`;
+                                const campoFailing = e.loc ? e.loc.join(".") : "propriedade";
+                                const msgFailing = e.msg || "está incorreta";
+                                return `${campoFailing}: ${msgFailing}`;
                             })
                             .join(" | ");
                     } else {
                         detalheServidor = String(backendData.detail);
                     }
                 }
-            } else {
-                console.error("Erro desconhecido capturado fora do ecossistema HTTP:", error);
             }
 
-            const mensagemExibicao = detalheServidor 
-                ? `Erro no Backend: ${detalheServidor}`
-                : "O servidor rejeitou os dados (Erro 400). Verifique as propriedades enviadas e o console.";
-
             setFeedback({ 
-                type: "warning", 
-                message: mensagemExibicao
+                type: "error", 
+                message: detalheServidor 
+                    ? `Erro de validação do servidor: ${detalheServidor}` 
+                    : "Falha na requisição: O servidor recusou os dados enviados. Revise os campos e tente novamente."
             });
         } finally {
             setSalvando(false);
@@ -390,10 +400,25 @@ export default function MeusTrabalhosPage() {
                 </div>
 
                 {feedback && (
-                    <div className={`mb-6 rounded-3xl border px-5 py-4 shadow-sm ${feedback.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                    <div className={`mb-6 rounded-2xl border px-5 py-4 shadow-sm transition-all animate-fadeIn ${
+                        feedback.type === "success" 
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-900" 
+                            : feedback.type === "warning"
+                            ? "border-amber-200 bg-amber-50 text-amber-950"
+                            : "border-rose-200 bg-rose-50 text-rose-950"
+                    }`}>
                         <div className="flex items-start gap-3">
-                            <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
-                            <p className="text-sm font-medium leading-6">{feedback.message}</p>
+                            {feedback.type === "success" && <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-emerald-600" />}
+                            {feedback.type === "warning" && <AlertTriangle size={19} className="mt-0.5 shrink-0 text-amber-600" />}
+                            {feedback.type === "error" && <XCircle size={19} className="mt-0.5 shrink-0 text-rose-600" />}
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider mb-0.5">
+                                    {feedback.type === "success" && "Operação Concluída"}
+                                    {feedback.type === "warning" && "Aviso de Validação"}
+                                    {feedback.type === "error" && "Erro de Processamento"}
+                                </p>
+                                <p className="text-sm font-medium leading-relaxed">{feedback.message}</p>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -503,7 +528,7 @@ export default function MeusTrabalhosPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowNovaInspecao(false)}
-                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 cursor-pointer"
+                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 cursor-pointer text-xl font-bold"
                                     aria-label="Fechar"
                                 >
                                     ×
@@ -523,9 +548,52 @@ export default function MeusTrabalhosPage() {
 
                                             <div>
                                                 <label htmlFor="responsible-name" className="mb-1 block text-sm font-bold text-slate-800">Responsável técnico</label>
-                                                <input id="responsible-name" type="text" value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} placeholder="Nome do responsável técnico" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#0a5483] focus:ring-4 focus:ring-cyan-100" />
+                                                <input 
+                                                    id="responsible-name" 
+                                                    type="text" 
+                                                    maxLength={80} 
+                                                    value={responsibleName} 
+                                                    onChange={(event) => {
+                                                        // SOLUÇÃO BUG #131 (Digitação): Remove instantaneamente números e símbolos especiais ($)
+                                                        const apenasLetras = event.target.value.replace(/[^A-Za-zÀ-ÿ\s]/g, "");
+                                                        setResponsibleName(apenasLetras);
+                                                    }}
+                                                    onPaste={(event) => {
+                                                        // SOLUÇÃO BUG #131 (Colagem): Intercepta, remove lixo e limita caracteres a 80
+                                                        event.preventDefault();
+                                                        const pastedText = event.clipboardData.getData("text");
+                                                        const filtered = pastedText.replace(/[^A-Za-zÀ-ÿ\s]/g, "").slice(0, 80);
+                                                        setResponsibleName(filtered);
+                                                    }}
+                                                    placeholder="Nome do responsável técnico" 
+                                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#0a5483] focus:ring-4 focus:ring-cyan-100" 
+                                                />
+                                                <div className="flex justify-end mt-1">
+                                                    <span className="text-[10px] text-gray-400 font-medium">{responsibleName.length}/80 caracteres</span>
+                                                </div>
+
                                                 <label htmlFor="responsible-identifier" className="mb-1 mt-3 block text-sm font-bold text-slate-800">Identificador</label>
-                                                <input id="responsible-identifier" type="text" value={responsibleIdentifier} onChange={(event) => setResponsibleIdentifier(event.target.value)} placeholder="CREA / CFT / CPF" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#0a5483] focus:ring-4 focus:ring-cyan-100" />
+                                                <input 
+                                                    id="responsible-identifier" 
+                                                    type="text" 
+                                                    maxLength={20} 
+                                                    value={responsibleIdentifier} 
+                                                    onChange={(event) => {
+                                                        const idTratado = event.target.value.replace(/[^A-Za-z0-9.\-/]/g, "");
+                                                        setResponsibleIdentifier(idTratado);
+                                                    }}
+                                                    onPaste={(event) => {
+                                                        event.preventDefault();
+                                                        const pastedText = event.clipboardData.getData("text");
+                                                        const filtered = pastedText.replace(/[^A-Za-z0-9.\-/]/g, "").slice(0, 20);
+                                                        setResponsibleIdentifier(filtered);
+                                                    }}
+                                                    placeholder="CREA / CFT / CPF" 
+                                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#0a5483] focus:ring-4 focus:ring-cyan-100" 
+                                                />
+                                                <div className="flex justify-end mt-1">
+                                                    <span className="text-[10px] text-gray-400 font-medium">{responsibleIdentifier.length}/20 caracteres</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -567,8 +635,13 @@ export default function MeusTrabalhosPage() {
                                         </div>
                                         <div className="rounded-2xl border border-slate-200 bg-white p-4">
                                             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Responsável</p>
-                                            <p className="mt-1 text-sm font-black text-slate-950">{responsibleName || "Pendente"}</p>
-                                            {responsibleIdentifier && <p className="mt-1 text-xs text-slate-500">{responsibleIdentifier}</p>}
+                                            {/* O resumo lateral renderiza estavelmente 'Pendente' caso o nome ainda não seja válido */}
+                                            <p className="mt-1 text-sm font-black text-slate-950">
+                                                {responsibleName.trim().length >= 3 ? responsibleName : "Pendente"}
+                                            </p>
+                                            {responsibleIdentifier && responsibleIdentifier.trim().length >= 4 && (
+                                                <p className="mt-1 text-xs text-slate-500 uppercase font-semibold">{responsibleIdentifier}</p>
+                                            )}
                                         </div>
                                         <div className="rounded-2xl border border-slate-200 bg-white p-4">
                                             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Colaboradores</p>
