@@ -10,7 +10,6 @@ import {
     Plus,
     Settings,
     User,
-    Calendar,
     FileText,
     AlertTriangle,
     XCircle,
@@ -164,13 +163,13 @@ function validarCPF(cpf: string): boolean {
     let soma = 0;
     for (let i = 0; i < 9; i++) soma += parseInt(numeros.charAt(i)) * (10 - i);
     let resto = 11 - (soma % 11);
-    let digitoVerificador1 = resto === 10 || resto === 11 ? 0 : resto;
+    const digitoVerificador1 = resto === 10 || resto === 11 ? 0 : resto;
     if (digitoVerificador1 !== parseInt(numeros.charAt(9))) return false;
     
     soma = 0;
     for (let i = 0; i < 10; i++) soma += parseInt(numeros.charAt(i)) * (11 - i);
     resto = 11 - (soma % 11);
-    let digitoVerificador2 = resto === 10 || resto === 11 ? 0 : resto;
+    const digitoVerificador2 = resto === 10 || resto === 11 ? 0 : resto;
     return digitoVerificador2 === parseInt(numeros.charAt(10));
 }
 
@@ -623,7 +622,7 @@ export default function MeusTrabalhosPage() {
                                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Responsável Técnico</p>
                                     <p className="text-sm font-bold text-gray-800 mt-0.5">{inspecaoSelecionada.responsavel}</p>
-                                    <p className="text-2xs text-gray-500 font-semibold uppercase mt-0.5">ID Profissional: {inspecaoSelecionada.credencial_responsavel}</p>
+                                    <p className="text-xs text-gray-600 font-medium mt-0.5">ID Profissional: {inspecaoSelecionada.credencial_responsavel}</p>
                                 </div>
 
                                 {inspecaoSelecionada.usuarios && inspecaoSelecionada.usuarios.length > 0 && (
@@ -813,7 +812,7 @@ export default function MeusTrabalhosPage() {
                                                             Tipo: {tipoAtualDetectado}
                                                         </span>
                                                     ) : (
-                                                        <span className="text-[10px] text-gray-400 font-medium italic">Digite para o sistema detectar o padrão</span>
+                                                        <span className="text-[10px] text-gray-400 font-medium italic">Digite para o system detectar o padrão</span>
                                                     )}
                                                     <span className="text-[10px] text-gray-400 font-medium">{responsibleIdentifier.length}/20 caracteres</span>
                                                 </div>
