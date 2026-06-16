@@ -158,6 +158,36 @@ function formatDateForDisplay(value: string) {
     return value;
 }
 
+function validarCPF(cpf: string): boolean {
+    const numeros = cpf.replace(/\D/g, "");
+    if (numeros.length !== 11 || /^(\d)\1{10}$/.test(numeros)) return false;
+    
+    let soma = 0;
+    for (let i = 0; i < 9; i++) soma += parseInt(numeros.charAt(i)) * (10 - i);
+    let resto = 11 - (soma % 11);
+    const digitoVerificador1 = resto === 10 || resto === 11 ? 0 : resto;
+    if (digitoVerificador1 !== parseInt(numeros.charAt(9))) return false;
+    
+    soma = 0;
+    for (let i = 0; i < 10; i++) soma += parseInt(numeros.charAt(i)) * (11 - i);
+    resto = 11 - (soma % 11);
+    const digitoVerificador2 = resto === 10 || resto === 11 ? 0 : resto;
+    return digitoVerificador2 === parseInt(numeros.charAt(10));
+}
+
+function detectarTipoIdentificador(valor: string): "CPF/CFT" | "CREA" | "DESCONHECIDO" {
+    const limpo = valor.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!limpo) return "DESCONHECIDO";
+    
+    if (/^\d+$/.test(limpo) && limpo.length <= 11) {
+        return "CPF/CFT";
+    }
+    if (/[A-Z]/.test(valor.toUpperCase()) || valor.includes("/") || (limpo.length > 11 && limpo.length <= 20)) {
+        return "CREA";
+    }
+    return "CPF/CFT"; 
+}
+
 export default function MeusTrabalhosPage() {
     const router = useRouter();
     const pathname = usePathname();
@@ -181,9 +211,7 @@ export default function MeusTrabalhosPage() {
     const [responsibleIdentifier, setResponsibleIdentifier] = useState(initialInspectionState.responsibleIdentifier);
     const [selectedCollaboratorIds, setSelectedCollaboratorIds] = useState<string[]>(initialInspectionState.selectedCollaboratorIds);
     
-    // Novo estado para rastrear múltiplos erros de validação
     const [errosValidacao, setErrosValidacao] = useState<string[]>([]);
-    // Novo estado para mapear chaves de campos inválidos e aplicar estilos de borda vermelha
     const [camposInvalidos, setCamposInvalidos] = useState<Record<string, boolean>>({});
     
     const [feedback, setFeedback] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
@@ -197,7 +225,6 @@ export default function MeusTrabalhosPage() {
             setResponsibleIdentifier(freshState.responsibleIdentifier);
             setSelectedCollaboratorIds(freshState.selectedCollaboratorIds);
             setMetadataDetected(freshState.metadataDetected);
-            // Limpa mensagens de erro ao reabrir o modal
             setErrosValidacao([]);
             setCamposInvalidos({});
         }
@@ -246,11 +273,9 @@ export default function MeusTrabalhosPage() {
     }
 
     async function handleCreateInspection() {
-        // Inicialização dos acumuladores de validação simultânea
         const listaErros: string[] = [];
         const mapaCampos: Record<string, boolean> = {};
 
-        // 1. Validação do Campo: Data da Inspeção
         if (!inspectionDate) {
             listaErros.push("Selecione uma data válida no calendário para prosseguir com a inspeção.");
             mapaCampos["inspectionDate"] = true;
@@ -259,7 +284,6 @@ export default function MeusTrabalhosPage() {
             mapaCampos["inspectionDate"] = true;
         }
 
-        // 2. Validação do Campo: Responsável Técnico
         const nomeLimpo = responsibleName.trim();
         const regexNomeValido = /^[A-Za-zÀ-ÿ\s]{3,80}$/;
         if (!nomeLimpo) {
@@ -270,24 +294,36 @@ export default function MeusTrabalhosPage() {
             mapaCampos["responsibleName"] = true;
         }
 
-        // 3. Validação do Campo: Identificador Profissional
         const identificadorLimpo = responsibleIdentifier.trim().toUpperCase();
-        const regexIdentificadorValido = /^[A-Z0-9.\-/]{4,20}$/;
         if (!identificadorLimpo) {
-            listaErros.push("O Identificador Profissional (CREA/CFT/CPF) é obrigatório.");
+            listaErros.push("O Identificador Profissional (CREA, CFT ou CPF) é obrigatório.");
             mapaCampos["responsibleIdentifier"] = true;
-        } else if (!regexIdentificadorValido.test(identificadorLimpo)) {
-            listaErros.push("O identificador deve possuir entre 4 e 20 caracteres (números, letras maiúsculas, pontos ou hifens).");
-            mapaCampos["responsibleIdentifier"] = true;
+        } else {
+            const tipoDetectado = detectarTipoIdentificador(responsibleIdentifier);
+            
+            if (tipoDetectado === "CPF/CFT") {
+                const apenasNumeros = identificadorLimpo.replace(/\D/g, "");
+                if (apenasNumeros.length !== 11) {
+                    listaErros.push("Identificador inválido: Para registros do tipo CPF ou CFT, insira exatamente 11 dígitos numéricos.");
+                    mapaCampos["responsibleIdentifier"] = true;
+                } else if (!validarCPF(apenasNumeros)) {
+                    listaErros.push("Identificador inválido: O número de CPF/CFT informado não é matemático ou possui dígitos verificadores incorretos.");
+                    mapaCampos["responsibleIdentifier"] = true;
+                }
+            } else if (tipoDetectado === "CREA") {
+                const regexCreaValido = /^[A-Z0-9.\-/]{5,20}$/;
+                if (!regexCreaValido.test(identificadorLimpo)) {
+                    listaErros.push("Identificador inválido: O número de registro CREA deve possuir entre 5 e 20 caracteres válidos (ex: 506248963-1 ou 123456/SP).");
+                    mapaCampos["responsibleIdentifier"] = true;
+                }
+            }
         }
 
-        // Atualiza os estados visuais com os erros capturados
         setErrosValidacao(listaErros);
         setCamposInvalidos(mapaCampos);
 
-        // Se houver algum erro na lista, interrompe o envio e exibe tudo de uma vez
         if (listaErros.length > 0) {
-            setFeedback(null); // Remove feedbacks globais antigos para priorizar a lista de validação do formulário
+            setFeedback(null);
             return;
         }
 
@@ -351,6 +387,8 @@ export default function MeusTrabalhosPage() {
             setSalvando(false);
         }
     }
+
+    const tipoAtualDetectado = detectarTipoIdentificador(responsibleIdentifier);
 
     return (
         <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
@@ -454,7 +492,6 @@ export default function MeusTrabalhosPage() {
                 ) : (
                     <div className="grid gap-6 md:grid-cols-2 mt-4">
                         
-                        {/* LISTA 1: INSPEÇÕES EM ANDAMENTO */}
                         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-md">
                             <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
                                 <div className="flex items-center gap-3">
@@ -473,7 +510,7 @@ export default function MeusTrabalhosPage() {
 
                             {inspecoesEmAndamento.length === 0 ? (
                                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-xs text-slate-400 font-medium">
-                                    Nenhuma inspeção ativa no momento.
+                                    Nenhuma inspeção activa no momento.
                                 </div>
                             ) : (
                                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
@@ -502,7 +539,6 @@ export default function MeusTrabalhosPage() {
                             )}
                         </section>
 
-                        {/* LISTA 2: INSPEÇÕES CONCLUÍDAS */}
                         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-md">
                             <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
                                 <div className="flex items-center gap-3">
@@ -552,7 +588,6 @@ export default function MeusTrabalhosPage() {
                     </div>
                 )}
 
-                {/* POP-UP DE VISUALIZAÇÃO DE DETALHES DA INSPEÇÃO */}
                 {inspecaoSelecionada && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
                         <div className="w-full max-w-lg rounded-[24px] border border-gray-100 bg-white p-6 shadow-2xl animate-fadeIn">
@@ -641,7 +676,6 @@ export default function MeusTrabalhosPage() {
                     </div>
                 )}
 
-                {/* POP-UP DE CRIAÇÃO (COM QUADRO DE ERROS SIMULTÂNEOS) */}
                 {showNovaInspecao && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
                         <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[30px] border border-white/70 bg-white p-6 shadow-[0_30px_120px_rgba(15,23,42,0.25)]">
@@ -663,7 +697,6 @@ export default function MeusTrabalhosPage() {
                                 </button>
                             </div>
 
-                            {/* QUADRO DE ERROS SIMULTÂNEOS DENTRO DO MODAL */}
                             {errosValidacao.length > 0 && (
                                 <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-rose-950 transition-all animate-fadeIn">
                                     <div className="flex items-start gap-3">
@@ -697,7 +730,6 @@ export default function MeusTrabalhosPage() {
                                                     onChange={(event) => { 
                                                         setInspectionDate(event.target.value); 
                                                         setMetadataDetected(false); 
-                                                        // Limpeza dinâmica ao digitar
                                                         setCamposInvalidos(p => ({ ...p, inspectionDate: false }));
                                                     }} 
                                                     className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:ring-4 focus:ring-cyan-100 ${
@@ -717,13 +749,6 @@ export default function MeusTrabalhosPage() {
                                                     onChange={(event) => {
                                                         const apenasLetras = event.target.value.replace(/[^A-Za-zÀ-ÿ\s]/g, "");
                                                         setResponsibleName(apenasLetras);
-                                                        setCamposInvalidos(p => ({ ...p, responsibleName: false }));
-                                                    }}
-                                                    onPaste={(event) => {
-                                                        event.preventDefault();
-                                                        const pastedText = event.clipboardData.getData("text");
-                                                        const filtered = pastedText.replace(/[^A-Za-zÀ-ÿ\s]/g, "").slice(0, 80);
-                                                        setResponsibleName(filtered);
                                                         setCamposInvalidos(p => ({ ...p, responsibleName: false }));
                                                     }}
                                                     placeholder="Nome do responsável técnico" 
@@ -746,19 +771,23 @@ export default function MeusTrabalhosPage() {
                                                         setResponsibleIdentifier(idTratado);
                                                         setCamposInvalidos(p => ({ ...p, responsibleIdentifier: false }));
                                                     }}
-                                                    onPaste={(event) => {
-                                                        event.preventDefault();
-                                                        const pastedText = event.clipboardData.getData("text");
-                                                        const filtered = pastedText.replace(/[^A-Za-z0-9.\-/]/g, "").slice(0, 20);
-                                                        setResponsibleIdentifier(filtered);
-                                                        setCamposInvalidos(p => ({ ...p, responsibleIdentifier: false }));
-                                                    }}
                                                     placeholder="CREA / CFT / CPF" 
                                                     className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:ring-4 focus:ring-cyan-100 ${
                                                         camposInvalidos["responsibleIdentifier"] ? "border-rose-500 focus:border-rose-500 ring-rose-100" : "border-slate-200 focus:border-[#0a5483]"
                                                     }`} 
                                                 />
-                                                <div className="flex justify-end mt-1">
+                                                <div className="flex justify-between items-center mt-1.5 px-0.5">
+                                                    {responsibleIdentifier.trim().length > 0 ? (
+                                                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                                            tipoAtualDetectado === "CPF/CFT" 
+                                                                ? "bg-blue-50 text-blue-700 border border-blue-100" 
+                                                                : "bg-purple-50 text-purple-700 border border-purple-100"
+                                                        }`}>
+                                                            Tipo: {tipoAtualDetectado}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-gray-400 font-medium italic">Digite para o sistema detectar o padrão</span>
+                                                    )}
                                                     <span className="text-[10px] text-gray-400 font-medium">{responsibleIdentifier.length}/20 caracteres</span>
                                                 </div>
                                             </div>
@@ -806,7 +835,9 @@ export default function MeusTrabalhosPage() {
                                                 {responsibleName.trim().length >= 3 ? responsibleName : "Pendente"}
                                             </p>
                                             {responsibleIdentifier && responsibleIdentifier.trim().length >= 4 && (
-                                                <p className="mt-1 text-xs text-slate-500 uppercase font-semibold">{responsibleIdentifier}</p>
+                                                <p className="mt-1 text-xs text-slate-500 uppercase font-semibold">
+                                                    {responsibleIdentifier} ({tipoAtualDetectado})
+                                                </p>
                                             )}
                                         </div>
                                     </div>
