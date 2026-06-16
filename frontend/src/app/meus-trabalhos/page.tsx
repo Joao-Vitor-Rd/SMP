@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -165,13 +164,13 @@ function validarCPF(cpf: string): boolean {
     let soma = 0;
     for (let i = 0; i < 9; i++) soma += parseInt(numeros.charAt(i)) * (10 - i);
     let resto = 11 - (soma % 11);
-    const digitoVerificador1 = resto === 10 || resto === 11 ? 0 : resto;
+    let digitoVerificador1 = resto === 10 || resto === 11 ? 0 : resto;
     if (digitoVerificador1 !== parseInt(numeros.charAt(9))) return false;
     
     soma = 0;
     for (let i = 0; i < 10; i++) soma += parseInt(numeros.charAt(i)) * (11 - i);
     resto = 11 - (soma % 11);
-    const digitoVerificador2 = resto === 10 || resto === 11 ? 0 : resto;
+    let digitoVerificador2 = resto === 10 || resto === 11 ? 0 : resto;
     return digitoVerificador2 === parseInt(numeros.charAt(10));
 }
 
@@ -185,7 +184,7 @@ function detectarTipoIdentificador(valor: string): "CPF/CFT" | "CREA" | "DESCONH
     if (/[A-Z]/.test(valor.toUpperCase()) || valor.includes("/") || (limpo.length > 11 && limpo.length <= 20)) {
         return "CREA";
     }
-    return "CPF/CFT"; 
+    return "CPF/CFT";
 }
 
 export default function MeusTrabalhosPage() {
@@ -215,6 +214,7 @@ export default function MeusTrabalhosPage() {
     const [camposInvalidos, setCamposInvalidos] = useState<Record<string, boolean>>({});
     
     const [feedback, setFeedback] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
+    const [modalFeedback, setModalFeedback] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
     const [metadataDetected, setMetadataDetected] = useState(initialInspectionState.metadataDetected);
 
     useEffect(() => {
@@ -227,6 +227,7 @@ export default function MeusTrabalhosPage() {
             setMetadataDetected(freshState.metadataDetected);
             setErrosValidacao([]);
             setCamposInvalidos({});
+            setModalFeedback(null);
         }
     }, [showNovaInspecao, initialUserState.nome]);
 
@@ -323,12 +324,15 @@ export default function MeusTrabalhosPage() {
         setCamposInvalidos(mapaCampos);
 
         if (listaErros.length > 0) {
-            setFeedback(null);
+            setModalFeedback({
+                type: "error",
+                message: "Revise os campos do formulário para corrigir as pendências apontadas."
+            });
             return;
         }
 
         setSalvando(true);
-        setFeedback(null);
+        setModalFeedback(null);
 
         try {
             const colabsIdsNumericos = selectedCollaboratorIds.map(Number);
@@ -377,7 +381,7 @@ export default function MeusTrabalhosPage() {
                 }
             }
 
-            setFeedback({ 
+            setModalFeedback({ 
                 type: "error", 
                 message: detalheServidor 
                     ? `Erro de validação do servidor: ${detalheServidor}` 
@@ -491,7 +495,6 @@ export default function MeusTrabalhosPage() {
                     </div>
                 ) : (
                     <div className="grid gap-6 md:grid-cols-2 mt-4">
-                        
                         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-md">
                             <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
                                 <div className="flex items-center gap-3">
@@ -696,6 +699,30 @@ export default function MeusTrabalhosPage() {
                                     ×
                                 </button>
                             </div>
+
+                            {modalFeedback && (
+                                <div className={`mt-4 rounded-2xl border px-5 py-4 shadow-sm transition-all animate-fadeIn ${
+                                    modalFeedback.type === "success" 
+                                        ? "border-emerald-200 bg-emerald-50 text-emerald-900" 
+                                        : modalFeedback.type === "warning"
+                                        ? "border-amber-200 bg-amber-50 text-amber-950"
+                                        : "border-rose-200 bg-rose-50 text-rose-950"
+                                }`}>
+                                    <div className="flex items-start gap-3">
+                                        {modalFeedback.type === "success" && <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-emerald-600" />}
+                                        {modalFeedback.type === "warning" && <AlertTriangle size={19} className="mt-0.5 shrink-0 text-amber-600" />}
+                                        {modalFeedback.type === "error" && <XCircle size={19} className="mt-0.5 shrink-0 text-rose-600" />}
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-wider mb-0.5">
+                                                {modalFeedback.type === "success" && "Operação Concluída"}
+                                                {modalFeedback.type === "warning" && "Aviso de Validação"}
+                                                {modalFeedback.type === "error" && "Erro de Processamento"}
+                                            </p>
+                                            <p className="text-sm font-medium leading-relaxed">{modalFeedback.message}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {errosValidacao.length > 0 && (
                                 <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-rose-950 transition-all animate-fadeIn">
