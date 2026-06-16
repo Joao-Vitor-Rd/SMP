@@ -164,7 +164,6 @@ export default function MeusTrabalhosPage() {
     const [showPopUp, setShowPopUp] = useState(false);
     const [showNovaInspecao, setShowNovaInspecao] = useState(false);
     
-    // Corrigido e padronizado sem caracteres especiais para evitar problemas
     const [inspecaoSelecionada, setInspecaoSelecionada] = useState<LaudoResponse | null>(null);
     
     const [laudos, setLaudos] = useState<LaudoResponse[]>([]);
@@ -182,6 +181,11 @@ export default function MeusTrabalhosPage() {
     const [responsibleIdentifier, setResponsibleIdentifier] = useState(initialInspectionState.responsibleIdentifier);
     const [selectedCollaboratorIds, setSelectedCollaboratorIds] = useState<string[]>(initialInspectionState.selectedCollaboratorIds);
     
+    // Novo estado para rastrear múltiplos erros de validação
+    const [errosValidacao, setErrosValidacao] = useState<string[]>([]);
+    // Novo estado para mapear chaves de campos inválidos e aplicar estilos de borda vermelha
+    const [camposInvalidos, setCamposInvalidos] = useState<Record<string, boolean>>({});
+    
     const [feedback, setFeedback] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
     const [metadataDetected, setMetadataDetected] = useState(initialInspectionState.metadataDetected);
 
@@ -193,6 +197,9 @@ export default function MeusTrabalhosPage() {
             setResponsibleIdentifier(freshState.responsibleIdentifier);
             setSelectedCollaboratorIds(freshState.selectedCollaboratorIds);
             setMetadataDetected(freshState.metadataDetected);
+            // Limpa mensagens de erro ao reabrir o modal
+            setErrosValidacao([]);
+            setCamposInvalidos({});
         }
     }, [showNovaInspecao, initialUserState.nome]);
 
@@ -239,37 +246,48 @@ export default function MeusTrabalhosPage() {
     }
 
     async function handleCreateInspection() {
+        // Inicialização dos acumuladores de validação simultânea
+        const listaErros: string[] = [];
+        const mapaCampos: Record<string, boolean> = {};
+
+        // 1. Validação do Campo: Data da Inspeção
         if (!inspectionDate) {
-            setFeedback({ type: "warning", message: "Atenção: Selecione uma data válida no calendário para prosseguir com a inspeção." });
-            return;
+            listaErros.push("Selecione uma data válida no calendário para prosseguir com a inspeção.");
+            mapaCampos["inspectionDate"] = true;
+        } else if (new Date(inspectionDate) > new Date(getHojeString())) {
+            listaErros.push("Não é permitido abrir inspeções com datas futuras.");
+            mapaCampos["inspectionDate"] = true;
         }
 
-        if (new Date(inspectionDate) > new Date(getHojeString())) {
-            setFeedback({ type: "warning", message: "Atenção: Não é permitido abrir inspeções com datas futuras." });
-            return;
-        }
-
+        // 2. Validação do Campo: Responsável Técnico
         const nomeLimpo = responsibleName.trim();
-        if (!nomeLimpo) {
-            setFeedback({ type: "warning", message: "Atenção: O campo de responsável técnico é obrigatório e não pode ficar em branco." });
-            return;
-        }
-
         const regexNomeValido = /^[A-Za-zÀ-ÿ\s]{3,80}$/;
-        if (!regexNomeValido.test(nomeLimpo)) {
-            setFeedback({ type: "warning", message: "Formato inválido: O nome do responsável deve ter entre 3 e 80 caracteres (apenas letras e espaços são permitidos)." });
-            return;
+        if (!nomeLimpo) {
+            listaErros.push("O campo de responsável técnico é obrigatório e não pode ficar em branco.");
+            mapaCampos["responsibleName"] = true;
+        } else if (!regexNomeValido.test(nomeLimpo)) {
+            listaErros.push("O nome do responsável deve ter entre 3 e 80 caracteres (apenas letras e espaços são permitidos).");
+            mapaCampos["responsibleName"] = true;
         }
 
+        // 3. Validação do Campo: Identificador Profissional
         const identificadorLimpo = responsibleIdentifier.trim().toUpperCase();
+        const regexIdentificadorValido = /^[A-Z0-9.\-/]{4,20}$/;
         if (!identificadorLimpo) {
-            setFeedback({ type: "warning", message: "Atenção: O Identificador Profissional (CREA/CFT/CPF) é obrigatório." });
-            return;
+            listaErros.push("O Identificador Profissional (CREA/CFT/CPF) é obrigatório.");
+            mapaCampos["responsibleIdentifier"] = true;
+        } else if (!regexIdentificadorValido.test(identificadorLimpo)) {
+            listaErros.push("O identificador deve possuir entre 4 e 20 caracteres (números, letras maiúsculas, pontos ou hifens).");
+            mapaCampos["responsibleIdentifier"] = true;
         }
 
-        const regexIdentificadorValido = /^[A-Z0-9.\-/]{4,20}$/;
-        if (!regexIdentificadorValido.test(identificadorLimpo)) {
-            setFeedback({ type: "warning", message: "Formato inválido: O identificador deve possuir entre 4 e 20 caracteres (números, letras maiúsculas, pontos ou hifens)." });
+        // Atualiza os estados visuais com os erros capturados
+        setErrosValidacao(listaErros);
+        setCamposInvalidos(mapaCampos);
+
+        // Se houver algum erro na lista, interrompe o envio e exibe tudo de uma vez
+        if (listaErros.length > 0) {
+            setFeedback(null); // Remove feedbacks globais antigos para priorizar a lista de validação do formulário
             return;
         }
 
@@ -534,7 +552,7 @@ export default function MeusTrabalhosPage() {
                     </div>
                 )}
 
-                {/* POP-UP DE VISUALIZAÇÃO DE DETALHES DA INSPEÇÃO (CLIQUE DA LISTA) - CORRIGIDO AQUI */}
+                {/* POP-UP DE VISUALIZAÇÃO DE DETALHES DA INSPEÇÃO */}
                 {inspecaoSelecionada && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
                         <div className="w-full max-w-lg rounded-[24px] border border-gray-100 bg-white p-6 shadow-2xl animate-fadeIn">
@@ -623,7 +641,7 @@ export default function MeusTrabalhosPage() {
                     </div>
                 )}
 
-                {/* POP-UP DE CRIAÇÃO */}
+                {/* POP-UP DE CRIAÇÃO (COM QUADRO DE ERROS SIMULTÂNEOS) */}
                 {showNovaInspecao && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
                         <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[30px] border border-white/70 bg-white p-6 shadow-[0_30px_120px_rgba(15,23,42,0.25)]">
@@ -645,6 +663,25 @@ export default function MeusTrabalhosPage() {
                                 </button>
                             </div>
 
+                            {/* QUADRO DE ERROS SIMULTÂNEOS DENTRO DO MODAL */}
+                            {errosValidacao.length > 0 && (
+                                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-rose-950 transition-all animate-fadeIn">
+                                    <div className="flex items-start gap-3">
+                                        <XCircle size={19} className="mt-0.5 shrink-0 text-rose-600" />
+                                        <div className="w-full">
+                                            <p className="text-xs font-black uppercase tracking-wider mb-1.5">
+                                                Existem campos pendentes de correção ({errosValidacao.length})
+                                            </p>
+                                            <ul className="list-disc list-inside space-y-1 text-sm font-medium leading-relaxed">
+                                                {errosValidacao.map((erro, index) => (
+                                                    <li key={index}>{erro}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
                                 <div className="space-y-5">
                                     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
@@ -657,8 +694,15 @@ export default function MeusTrabalhosPage() {
                                                     type="date" 
                                                     max={getHojeString()} 
                                                     value={inspectionDate} 
-                                                    onChange={(event) => { setInspectionDate(event.target.value); setMetadataDetected(false); }} 
-                                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#0a5483] focus:ring-4 focus:ring-cyan-100" 
+                                                    onChange={(event) => { 
+                                                        setInspectionDate(event.target.value); 
+                                                        setMetadataDetected(false); 
+                                                        // Limpeza dinâmica ao digitar
+                                                        setCamposInvalidos(p => ({ ...p, inspectionDate: false }));
+                                                    }} 
+                                                    className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:ring-4 focus:ring-cyan-100 ${
+                                                        camposInvalidos["inspectionDate"] ? "border-rose-500 focus:border-rose-500 ring-rose-100" : "border-slate-200 focus:border-[#0a5483]"
+                                                    }`} 
                                                 />
                                                 <p className="mt-2 text-xs text-slate-500">{metadataDetected ? "Preenchido a partir dos metadados encontrados." : "Informe manualmente se não houver metadados."}</p>
                                             </div>
@@ -673,15 +717,19 @@ export default function MeusTrabalhosPage() {
                                                     onChange={(event) => {
                                                         const apenasLetras = event.target.value.replace(/[^A-Za-zÀ-ÿ\s]/g, "");
                                                         setResponsibleName(apenasLetras);
+                                                        setCamposInvalidos(p => ({ ...p, responsibleName: false }));
                                                     }}
                                                     onPaste={(event) => {
                                                         event.preventDefault();
                                                         const pastedText = event.clipboardData.getData("text");
                                                         const filtered = pastedText.replace(/[^A-Za-zÀ-ÿ\s]/g, "").slice(0, 80);
                                                         setResponsibleName(filtered);
+                                                        setCamposInvalidos(p => ({ ...p, responsibleName: false }));
                                                     }}
                                                     placeholder="Nome do responsável técnico" 
-                                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#0a5483] focus:ring-4 focus:ring-cyan-100" 
+                                                    className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:ring-4 focus:ring-cyan-100 ${
+                                                        camposInvalidos["responsibleName"] ? "border-rose-500 focus:border-rose-500 ring-rose-100" : "border-slate-200 focus:border-[#0a5483]"
+                                                    }`} 
                                                 />
                                                 <div className="flex justify-end mt-1">
                                                     <span className="text-[10px] text-gray-400 font-medium">{responsibleName.length}/80 caracteres</span>
@@ -696,15 +744,19 @@ export default function MeusTrabalhosPage() {
                                                     onChange={(event) => {
                                                         const idTratado = event.target.value.replace(/[^A-Za-z0-9.\-/]/g, "");
                                                         setResponsibleIdentifier(idTratado);
+                                                        setCamposInvalidos(p => ({ ...p, responsibleIdentifier: false }));
                                                     }}
                                                     onPaste={(event) => {
                                                         event.preventDefault();
                                                         const pastedText = event.clipboardData.getData("text");
                                                         const filtered = pastedText.replace(/[^A-Za-z0-9.\-/]/g, "").slice(0, 20);
                                                         setResponsibleIdentifier(filtered);
+                                                        setCamposInvalidos(p => ({ ...p, responsibleIdentifier: false }));
                                                     }}
                                                     placeholder="CREA / CFT / CPF" 
-                                                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#0a5483] focus:ring-4 focus:ring-cyan-100" 
+                                                    className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:ring-4 focus:ring-cyan-100 ${
+                                                        camposInvalidos["responsibleIdentifier"] ? "border-rose-500 focus:border-rose-500 ring-rose-100" : "border-slate-200 focus:border-[#0a5483]"
+                                                    }`} 
                                                 />
                                                 <div className="flex justify-end mt-1">
                                                     <span className="text-[10px] text-gray-400 font-medium">{responsibleIdentifier.length}/20 caracteres</span>
