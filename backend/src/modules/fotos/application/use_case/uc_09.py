@@ -42,7 +42,7 @@ class Uc09UploadMultiplasImagensUseCase:
         self.foto_storage = foto_storage
         self.trecho_repository = trecho_repository
 
-    async def execute(self, files: list[ImagemUploadInputDTO]) -> ProcessamentoFotosResponseDTO:
+    async def execute(self, files: list[ImagemUploadInputDTO], responsavel_id: int | None = None) -> ProcessamentoFotosResponseDTO:
         success: list[FotoUploadSucessoDTO] = []
         failed: list[FotoUploadFalhaDTO] = []
         foto_ids_processadas: list[int] = []
@@ -154,7 +154,7 @@ class Uc09UploadMultiplasImagensUseCase:
 
         trecho_criado: TrechoCriadoDTO | None = None
         if foto_ids_processadas:
-            trecho = self.trecho_repository.create_with_fotos(foto_ids_processadas)
+            trecho = self.trecho_repository.create_with_fotos(foto_ids_processadas, responsavel_id=responsavel_id)
             trecho_criado = TrechoCriadoDTO(
                 id_trecho=trecho.id_trecho,
                 foto_ids=trecho.foto_ids,

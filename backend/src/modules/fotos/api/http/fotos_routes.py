@@ -129,7 +129,7 @@ async def listar_revisao_mapa(
 )
 async def upload_multiplas_imagens(
     files: List[UploadFile] = File(..., description="Arquivos de imagem no campo files"),
-    _: dict = Depends(verify_any_user),
+    user_data: dict = Depends(verify_any_user),
     use_case: Uc09UploadMultiplasImagensUseCase = Depends(get_uc09),
 ):
     if not files:
@@ -144,7 +144,14 @@ async def upload_multiplas_imagens(
         for index, file in enumerate(files)
     ]
 
-    resultado = await use_case.execute(arquivos)
+    responsavel_id = None
+    if user_data and user_data.get("sub"):
+        try:
+            responsavel_id = int(user_data.get("sub"))
+        except Exception:
+            pass
+
+    resultado = await use_case.execute(arquivos, responsavel_id=responsavel_id)
 
     if resultado.success and not resultado.failed:
         status_code = status.HTTP_201_CREATED
