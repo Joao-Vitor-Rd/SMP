@@ -1,8 +1,8 @@
 from typing import Annotated, Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import update
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status # type: ignore
+from sqlalchemy import update # type: ignore
+from sqlalchemy.orm import Session # type: ignore
+from pydantic import BaseModel # type: ignore
 
 from src.shared.infrastructure.db import get_session
 from src.shared.auth.dependencies import verify_any_user
@@ -77,14 +77,16 @@ async def criar_laudo(
     response_model=List[LaudoResponseDTO],
     status_code=status.HTTP_200_OK,
     summary="Listar todos os Laudos",
-    description="Retorna uma lista com todos os laudos cadastrados no sistema, ordenados por data decrescente."
+    description="Retorna uma lista com todos os laudos cadastrados no sistema conforme as permissões do usuário."
 )
 async def listar_laudos(
-    _: Annotated[dict, Depends(verify_any_user)],
+    current_user: Annotated[dict, Depends(verify_any_user)],
     use_case: ListarLaudosUseCase = Depends(get_uc_listar_laudos),
 ) -> Any:
     try:
-        return use_case.execute()
+        user_id = current_user.get("id")
+        cargo = current_user.get("cargo")
+        return use_case.execute(user_id=user_id, cargo=cargo)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

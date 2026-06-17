@@ -78,3 +78,22 @@ class LaudoRepository(ILaudoRepository):
             .first()
         )
         return Laudo.model_validate(laudo_orm) if laudo_orm else None
+
+    def list_by_user_permissions(self, user_id: int) -> List[Laudo]:
+        try:
+            self.session.expire_all()
+        except Exception:
+            pass
+
+        from src.shared.domain.entities.user import UserORM
+        
+        laudos_orm = (
+            self.session.query(LaudoORM)
+            .leftjoin(LaudoORM.usuarios)
+            .filter(
+                (LaudoORM.usuarios.any(UserORM.id == user_id))
+            )
+            .order_by(LaudoORM.data.desc())
+            .all()
+        )
+        return [Laudo.model_validate(laudo_orm) for laudo_orm in laudos_orm]
