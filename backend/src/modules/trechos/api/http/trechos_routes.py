@@ -1,8 +1,14 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.modules.trechos.application.dtos.trecho_dto import TrechoListResponseDTO
+from src.modules.trechos.application.dtos.trecho_dto import (
+    PaginatedTrechoListResponseDTO,
+    TrechoListItemDTO,
+    TrechoUpdateDTO,
+)
 from src.modules.trechos.application.dtos.trecho_filter_dto import TrechoBoundingBoxFilterDTO
 from src.modules.trechos.application.use_case.uc_listar_trechos import UcListarTrechosUseCase
+from src.modules.trechos.application.use_case.uc_atualizar_trecho import UcAtualizarTrechoUseCase
 from src.modules.trechos.infrastructure.repositories.trecho_repository import TrechoRepository
 from src.shared.auth.dependencies import verify_any_user
 from src.shared.infrastructure.db import get_session
@@ -18,6 +24,12 @@ def get_uc_listar_trechos(
     trecho_repository: TrechoRepository = Depends(get_trecho_repository),
 ) -> UcListarTrechosUseCase:
     return UcListarTrechosUseCase(trecho_repository=trecho_repository)
+
+
+def get_uc_atualizar_trecho(
+    trecho_repository: TrechoRepository = Depends(get_trecho_repository),
+) -> UcAtualizarTrechoUseCase:
+    return UcAtualizarTrechoUseCase(trecho_repository=trecho_repository)
 
 
 def get_bbox_filter(
@@ -94,13 +106,64 @@ def get_bbox_filter(
 
 @router.get(
     "/",
-    response_model=TrechoListResponseDTO,
-    summary="Listar trechos com fotos e localização",
-    description="Retorna todos os trechos e as fotos associadas com latitude/longitude de cada foto",
+    response_model=PaginatedTrechoListResponseDTO,
+    summary="Listar trechos com fotos, localização, filtros e paginação",
+    description="Retorna os trechos e fotos associadas paginados e filtrados.",
 )
 async def listar_trechos(
-    _: dict = Depends(verify_any_user),
+    cidade: str | None = Query(default=None),
+    uf: str | None = Query(default=None),
+    responsavel_tecnico: str | None = Query(default=None, alias="responsavelTecnico"),
+    classificacao_qualidade: str | None = Query(default=None, alias="classificacaoQualidade"),
+    data_inicio: datetime | None = Query(default=None, alias="dataInicio"),
+    data_fim: datetime | None = Query(default=None, alias="dataFim"),
+    meus_trabalhos: bool = Query(default=False, alias="meusTrabalhos"),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1, le=100),
+    user_data: dict = Depends(verify_any_user),
     use_case: UcListarTrechosUseCase = Depends(get_uc_listar_trechos),
     bbox_filter: TrechoBoundingBoxFilterDTO | None = Depends(get_bbox_filter),
-) -> TrechoListResponseDTO:
-    return use_case.execute(bbox_filter=bbox_filter)
+) -> PaginatedTrechoListResponseDTO:
+    responsavel_id = None
+    if meus_trabalhos:
+        if user_data and user_data.get("sub"):
+            try:
+                responsavel_id = int(user_data.get("sub"))
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Usuário não autenticado ou inválido para filtrar 'Meus Trabalhos'."
+                )
+
+    return use_case.execute(
+        bbox_filter=bbox_filter,
+        cidade=cidade,
+        uf=uf,
+        responsavel_tecnico=responsavel_tecnico,
+        classificacao_qualidade=classificacao_qualidade,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        responsavel_id=responsavel_id,
+        page=page,
+        limit=limit,
+    )
+
+
+@router.put(
+    "/{id_trecho}",
+    response_model=TrechoListItemDTO,
+    summary="Atualizar um Trecho existente",
+    description="Atualiza cidade, uf, responsavelTecnico, classificacaoQualidade e defeitos de um Trecho.",
+)
+async def atualizar_trecho(
+    id_trecho: str,
+    payload: TrechoUpdateDTO,
+    _: dict = Depends(verify_any_user),
+    use_case: UcAtualizarTrechoUseCase = Depends(get_uc_atualizar_trecho),
+) -> TrechoListItemDTO:
+    try:
+        return use_case.execute(id_trecho=id_trecho, dto=payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
