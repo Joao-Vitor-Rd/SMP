@@ -115,7 +115,7 @@ function getInitialInspectionState(userName: string) {
     const credencialPadrao = usuarioRaw?.crea || usuarioRaw?.cft || usuarioRaw?.identificador_profissional || "";
 
     return {
-        inspectionDate: metadataDate || draft?.inspectionDate || getHojeString(),
+        inspectionDate: metadataDate || draft?.inspectionDate || "",
         responsibleName: draft?.responsibleName || userName,
         responsibleIdentifier: draft?.responsibleIdentifier || credencialPadrao,
         selectedCollaboratorIds: draft?.selectedCollaboratorIds || [],
@@ -216,51 +216,72 @@ export default function MeusTrabalhosPage() {
     const [modalFeedback, setModalFeedback] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
     const [metadataDetected, setMetadataDetected] = useState(initialInspectionState.metadataDetected);
 
-    useEffect(() => {
-        if (showNovaInspecao && canUseStorage()) {
+    // CORREÇÃO DO LINT: Transferido toda a lógica de reinicialização de estados reativos que estava no useEffect para este Event Handler
+    const handleAbrirNovaInspecao = () => {
+        if (canUseStorage()) {
             const freshState = getInitialInspectionState(initialUserState.nome);
-            setInspectionDate(freshState.inspectionDate);
+            
+            const sessionMetadata = parseJson<{ inspectionDate?: string; dataInspecao?: string; date?: string }>(
+                window.sessionStorage.getItem(INSPECTION_METADATA_KEY)
+            );
+            
+            if (sessionMetadata) {
+                const parsedSessionDate = formatDateForInput(sessionMetadata.inspectionDate ?? sessionMetadata.dataInspecao ?? sessionMetadata.date ?? null);
+                setInspectionDate(parsedSessionDate);
+                setMetadataDetected(true);
+            } else {
+                setInspectionDate("");
+                setMetadataDetected(false);
+            }
+
             setResponsibleName(freshState.responsibleName);
             setResponsibleIdentifier(freshState.responsibleIdentifier);
             setSelectedCollaboratorIds(freshState.selectedCollaboratorIds);
-            setMetadataDetected(freshState.metadataDetected);
             setErrosValidacao([]);
             setCamposInvalidos({});
             setModalFeedback(null);
         }
-    }, [showNovaInspecao, initialUserState.nome]);
+        setShowNovaInspecao(true);
+    };
 
-    useEffect(() => {
-        let isMounted = true;
+useEffect(() => {
+    let isMounted = true;
 
-        async function carregarDadosDoServidor() {
-            try {
-                const [resLaudos, resColabs] = await Promise.all([
-                    authApi.get<LaudoResponse[]>("/api/laudos/"),
-                    authApi.get<ColaboradorResponse[]>("/api/supervisores/me/colaboradores").catch(() => ({ data: [] }))
-                ]);
+    async function carregarDadosDoServidor() {
+        try {
+            const [resLaudos, resColabs] = await Promise.all([
+                authApi.get<LaudoResponse[]>("/api/laudos/"),
+                authApi.get<ColaboradorResponse[]>("/api/supervisores/me/colaboradores").catch(() => ({ data: [] }))
+            ]);
 
-                if (!isMounted) return;
+            if (!isMounted) return;
 
-                if (Array.isArray(resLaudos.data)) {
-                    const ordenados = resLaudos.data.sort((a, b) => b.id - a.id);
-                    setLaudos(ordenados);
-                }
-
-                if (Array.isArray(resColabs.data)) {
-                    setColaboradores(resColabs.data);
-                }
-            } catch (error) {
-                console.error("Erro ao carregar dados da API:", error);
-                setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar suas inspeções." });
-            } finally {
-                if (isMounted) setLoading(false);
+            if (Array.isArray(resLaudos.data)) {
+                const ordenados = resLaudos.data.sort((a, b) => b.id - a.id);
+                setLaudos(ordenados);
             }
-        }
 
-        carregarDadosDoServidor();
-        return () => { isMounted = false; };
-    }, []);
+            if (Array.isArray(resColabs.data)) {
+                setColaboradores(resColabs.data);
+            }
+        } catch (error) {
+            console.error("Erro ao carregar dados da API:", error);
+            setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar suas inspeções." });
+        } finally {
+            if (isMounted) setLoading(false);
+        }
+    }
+
+    carregarDadosDoServidor();
+
+    const handleFocus = () => { void carregarDadosDoServidor(); };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+        isMounted = false;
+        window.removeEventListener("focus", handleFocus);
+    };
+}, []);
 
     const inspecoesEmAndamento = laudos.filter(l => l.status === "em_andamento" || !l.resumo || Object.keys(l.resumo).length === 0);
     const inspecoesConcluidas = laudos.filter(l => l.status === "concluido" || (l.resumo && Object.keys(l.resumo).length > 0));
@@ -456,7 +477,7 @@ export default function MeusTrabalhosPage() {
                     </div>
                     <button
                         type="button"
-                        onClick={() => setShowNovaInspecao(true)}
+                        onClick={handleAbrirNovaInspecao}
                         className="inline-flex items-center gap-2 rounded-xl bg-[#0a5483] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#083d61] cursor-pointer"
                     >
                         <Plus size={16} /> Nova inspeção
@@ -515,7 +536,7 @@ export default function MeusTrabalhosPage() {
                                     Nenhuma inspeção activa no momento.
                                 </div>
                             ) : (
-                                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                                <div className="space-y-3 max-h-125 overflow-y-auto pr-1">
                                     {inspecoesEmAndamento.map((item) => (
                                         <div 
                                             key={item.id} 
@@ -562,7 +583,7 @@ export default function MeusTrabalhosPage() {
                                     Nenhuma inspeção concluída encontrada.
                                 </div>
                             ) : (
-                                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                                <div className="space-y-3 max-h-125 overflow-y-auto pr-1">
                                     {inspecoesConcluidas.map((item) => (
                                         <div 
                                             key={item.id} 
@@ -592,7 +613,7 @@ export default function MeusTrabalhosPage() {
 
                 {inspecaoSelecionada && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
-                        <div className="w-full max-w-lg rounded-[24px] border border-gray-100 bg-white p-6 shadow-2xl animate-fadeIn">
+                        <div className="w-full max-w-lg rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl animate-fadeIn">
                             <div className="flex items-start justify-between border-b border-gray-100 pb-3">
                                 <div>
                                     <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md mb-1.5 ${

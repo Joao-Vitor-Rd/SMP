@@ -3,8 +3,8 @@
 import axios from "axios";
 import exifr from "exifr";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -343,18 +343,33 @@ function applyManualCoordinateDraft(
   };
 }
 
-async function deriveHasLocationFromFile(file: File | UploadFileLike): Promise<boolean> {
-  if (!("arrayBuffer" in file)) return false;
+async function deriveMetadataFromFile(file: File | UploadFileLike): Promise<{ hasLocation: boolean; isoDate: string | null }> {
+  if (!("arrayBuffer" in file)) return { hasLocation: false, isoDate: null };
   try {
-    const gps = await exifr.gps(file);
-    if (gps == null) return false;
-    const lat = gps.latitude;
-    const lng = gps.longitude;
-    if (typeof lat !== "number" || typeof lng !== "number") return false;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-    return true;
-  } catch {
-    return false;
+    const [gps, exif] = await Promise.all([
+      exifr.gps(file as File).catch(() => null),
+      exifr.parse(file as File, ["DateTimeOriginal", "CreateDate", "DateTime"]).catch(() => null),
+    ]);
+
+    const lat = gps?.latitude;
+    const lng = gps?.longitude;
+    const hasLocation =
+      typeof lat === "number" && typeof lng === "number" &&
+      Number.isFinite(lat) && Number.isFinite(lng);
+
+    const rawDate = exif?.DateTimeOriginal ?? exif?.CreateDate ?? exif?.DateTime ?? null;
+    let isoDate: string | null = null;
+    if (rawDate) {
+      const d = rawDate instanceof Date ? rawDate : new Date(rawDate);
+      if (!isNaN(d.getTime())) {
+        isoDate = d.toISOString().slice(0, 10); 
+      }
+    }
+
+    return { hasLocation, isoDate };
+  } catch (error) {
+    console.error("[EXIF] Erro ao extrair metadados:", error);
+    return { hasLocation: false, isoDate: null };
   }
 }
 
@@ -374,7 +389,6 @@ function getProgressWidthClass(progress: number) {
 
 const FOTO_UPLOAD_ENDPOINT = "/api/fotos/upload-multiplas";
 
-/* COMPONENTE ISOLADO PARA EVITAR QUE O INPUT PERCA O FOCO AO DIGITAR */
 interface UploadItemRowProps {
   item: UploadItem;
   updateQueueItem: (itemId: string, updater: (current: UploadItem) => UploadItem) => void;
@@ -473,94 +487,94 @@ function UploadItemRow({ item, updateQueueItem, onRemove }: UploadItemRowProps) 
         </div>
       </div>
 
-{itemNeedsManualLocation(item) ? (
-  <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-3">
-    <p className="text-[0.65rem] font-bold uppercase tracking-wider text-amber-900/80">
-      Pendentes de localização — coordenadas manuais
-    </p>
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div>
-        <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
-          Latitude
-        </label>
-        <input
-          id={`lat-${item.id}`}
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          disabled={!!item.locationException}
-          value={item.manualLat}
-          onChange={(e) => {
-            const v = filterCoordInput(e.target.value);
-            updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, v, undefined));
-          }}
-          placeholder="-23,5505"
-          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${latInvalid ? "border-red-400 focus:ring-red-200" : "border-gray-200"}`}
-        />
-        {latInvalid && (
-          <p className="mt-1 text-[11px] font-medium text-red-600 animate-fade-in">
-            Latitude inválida. Use números decimais entre −90 e 90.
+      {itemNeedsManualLocation(item) ? (
+        <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-3">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-amber-900/80">
+            Pendentes de localização — coordenadas manuais
           </p>
-        )}
-      </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                Latitude
+              </label>
+              <input
+                id={`lat-${item.id}`}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                disabled={!!item.locationException}
+                value={item.manualLat}
+                onChange={(e) => {
+                  const v = filterCoordInput(e.target.value);
+                  updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, v, undefined));
+                }}
+                placeholder="-23,5505"
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${latInvalid ? "border-red-400 focus:ring-red-200" : "border-gray-200"}`}
+              />
+              {latInvalid && (
+                <p className="mt-1 text-[11px] font-medium text-red-600 animate-fade-in">
+                  Latitude inválida. Use números decimais entre −90 e 90.
+                </p>
+              )}
+            </div>
 
-      <div>
-        <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
-          Longitude
-        </label>
-        <input
-          id={`lng-${item.id}`}
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          disabled={!!item.locationException}
-          value={item.manualLng}
-          onChange={(e) => {
-            const v = filterCoordInput(e.target.value);
-            updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, undefined, v));
-          }}
-          placeholder="-46,6333"
-          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${lngInvalid ? "border-red-400 focus:ring-red-200" : "border-gray-200"}`}
-        />
-        {lngInvalid && (
-          <p className="mt-1 text-[11px] font-medium text-red-600 animate-fade-in">
-            Longitude inválida. Use números decimais entre −180 e 180.
-          </p>
-        )}
-      </div>
-    </div>
+            <div>
+              <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                Longitude
+              </label>
+              <input
+                id={`lng-${item.id}`}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                disabled={!!item.locationException}
+                value={item.manualLng}
+                onChange={(e) => {
+                  const v = filterCoordInput(e.target.value);
+                  updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, undefined, v));
+                }}
+                placeholder="-46,6333"
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${lngInvalid ? "border-red-400 focus:ring-red-200" : "border-gray-200"}`}
+              />
+              {lngInvalid && (
+                <p className="mt-1 text-[11px] font-medium text-red-600 animate-fade-in">
+                  Longitude inválida. Use números decimais entre −180 e 180.
+                </p>
+              )}
+            </div>
+          </div>
 
-    <div>
-      <p className="mb-2 text-xs font-semibold text-gray-600">Sem dados de posição?</p>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() =>
-            updateQueueItem(item.id, (c) => ({
-              ...c,
-              locationException: c.locationException === "sem_gps" ? null : "sem_gps",
-              manualLat: "",
-              manualLng: "",
-              locationSource: null,
-            }))
-          }
-          className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
-            item.locationException === "sem_gps"
-              ? "border-[#0a5483] bg-[#0a5483] text-white"
-              : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-          }`}
-        >
-          Sem GPS
-        </button>
-      </div>
-    </div>
-  </div>
-) : null}
+          <div>
+            <p className="mb-2 text-xs font-semibold text-gray-600">Sem dados de posição?</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  updateQueueItem(item.id, (c) => ({
+                    ...c,
+                    locationException: c.locationException === "sem_gps" ? null : "sem_gps",
+                    manualLat: "",
+                    manualLng: "",
+                    locationSource: null,
+                  }))
+                }
+                className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                  item.locationException === "sem_gps"
+                    ? "border-[#0a5483] bg-[#0a5483] text-white"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Sem GPS
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-export default function UploadImagensPage() {
+function UploadImagensConteudo() {
   const router = useRouter();
   const pathname = usePathname();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -570,6 +584,8 @@ export default function UploadImagensPage() {
   const [cargoUsuario] = useState(initialUserState.cargo);
   const [isDragging, setIsDragging] = useState(false);
   const [items, setItems] = useState<UploadItem[]>(() => readStoredUploadQueue());
+  const searchParams = useSearchParams();
+  const laudoId = searchParams.get("laudoId");
   const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<UploadItem[]>([]);
 
@@ -838,11 +854,24 @@ export default function UploadImagensPage() {
       if (item.originalFile) originalFileCache.set(item.id, item.originalFile);
     });
 
+    let dataPatchDisparado = false;
+
     void Promise.resolve().then(() => {
       nextItems.forEach((item) => {
         if (item.status !== "pending" || item.hasLocation !== null) return;
-        void deriveHasLocationFromFile(resolveOriginalFile(item) ?? item.file).then((hasLoc) => {
-          updateQueueItem(item.id, (current) => ({ ...current, hasLocation: hasLoc, locationSource: hasLoc ? "gps" : current.locationSource }));
+        void deriveMetadataFromFile(resolveOriginalFile(item) ?? item.file).then(({ hasLocation, isoDate }) => {
+          updateQueueItem(item.id, (current) => ({
+            ...current,
+            hasLocation,
+            locationSource: hasLocation ? "gps" : current.locationSource,
+          }));
+
+if (isoDate && laudoId && !dataPatchDisparado) {
+  dataPatchDisparado = true;
+  void authApi.patch(`/api/laudos/${laudoId}/`, { data: isoDate })
+    .then((res) => console.log("[EXIF] PATCH sucesso:", res.data))
+    .catch((err) => console.warn("[EXIF] Não foi possível atualizar a data do laudo:", err?.response?.data ?? err.message));
+}
         });
       });
     });
@@ -1021,7 +1050,7 @@ export default function UploadImagensPage() {
                 disabled={!podeMapearCoordenadas}
                 onClick={() => {
                   void prepareReviewItems().finally(() => {
-                    router.push("/mapa");
+                    router.push("/mapa");                 
                   });
                 }}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold uppercase tracking-wide transition ${
@@ -1038,5 +1067,20 @@ export default function UploadImagensPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function UploadImagensPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-10 w-10 animate-spin text-[#0a5483]" />
+          <p className="text-sm font-medium text-gray-500">Carregando gerenciador de upload...</p>
+        </div>
+      </div>
+    }>
+      <UploadImagensConteudo />
+    </Suspense>
   );
 }
