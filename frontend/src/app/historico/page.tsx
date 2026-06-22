@@ -9,15 +9,17 @@ import {
   FileText,
   Map,
   Download,
-  LogIn,
   LogOut,
   Search,
   SlidersHorizontal,
   User,
-  Settings
+  Settings,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 
 import AppSidebar from "../../../components/AppSidebar";
+import { authApi } from "../../lib/authApi";
 
 interface TrechoInspecao {
   id: string;
@@ -27,7 +29,6 @@ interface TrechoInspecao {
   pci: number;
   responsavel: string;
   tag_alerta?: string;
-  is_meu_trabalho?: boolean;
 }
 
 interface LogradouroGrupo {
@@ -39,79 +40,37 @@ interface LogradouroGrupo {
   trechos: TrechoInspecao[];
 }
 
-// 1. Tiramos a massa de dados estáticos de dentro do componente para não ser recriada a cada render
-const MOCK_HISTORICO_NACIONAL: LogradouroGrupo[] = [
-  {
-    id_logradouro: "log-1",
-    via: "Rua Coronel Perdigão",
-    municipio: "Quixadá",
-    uf: "CE",
-    pci_media: 32,
-    trechos: [
-      {
-        id: "tr-1",
-        codigo_trecho: "AN-2026-047",
-        nome_trecho: "Trecho 01 - Início",
-        data: "2026-03-31",
-        pci: 28,
-        responsavel: "Carlos Eduardo Santos",
-        tag_alerta: "QUEDA BRUSCA",
-        is_meu_trabalho: true
-      },
-      {
-        id: "tr-2",
-        codigo_trecho: "AN-2026-042",
-        nome_trecho: "Trecho 02 - Cruzamento",
-        data: "2026-02-15",
-        pci: 35,
-        responsavel: "Carlos Eduardo Santos",
-        is_meu_trabalho: true
-      },
-      {
-        id: "tr-3",
-        codigo_trecho: "AN-2025-112",
-        nome_trecho: "Trecho 03 - Final",
-        data: "2025-12-10",
-        pci: 33,
-        responsavel: "Maria Alacoque Lima",
-        is_meu_trabalho: false
-      }
-    ]
-  },
-  {
-    id_logradouro: "log-2",
-    via: "Av. José de Freitas Queiroz",
-    municipio: "Quixadá",
-    uf: "CE",
-    pci_media: 85,
-    trechos: [
-      {
-        id: "tr-4",
-        codigo_trecho: "AN-2026-011",
-        nome_trecho: "Trecho Único - Próximo ao Campus",
-        data: "2026-05-20",
-        pci: 85,
-        responsavel: "Francisco Bruno Silva",
-        is_meu_trabalho: false
-      }
-    ]
-  }
-];
+interface TrechoListItemDTO {
+  id_trecho: string;
+  criado_em: string | null;
+  foto_ids: number[];
+  fotos: Array<{ id: number; caminho_arquivo: string; latitude: number | null; longitude: number | null }>;
+  via?: string;
+  municipio?: string;
+  uf?: string;
+  nome_trecho?: string;
+  pci?: number;
+  responsavel_nome?: string;
+}
 
-// Função utilitária para pegar os dados do localStorage sem quebrar no SSR do Next.js
+interface TrechoListResponseDTO {
+  items: TrechoListItemDTO[];
+}
+
 function obterUsuarioInicial() {
-  if (typeof window === "undefined") return { autenticado: false, nome: "", cargo: "" };
+  if (typeof window === "undefined") return { autenticado: false, id: null, nome: "", cargo: "" };
   try {
     const usuarioSalvo = localStorage.getItem("usuario");
-    if (!usuarioSalvo) return { autenticado: false, nome: "", cargo: "" };
+    if (!usuarioSalvo) return { autenticado: false, id: null, nome: "", cargo: "" };
     const user = JSON.parse(usuarioSalvo);
     return {
       autenticado: true,
+      id: user.id || null,
       nome: user.nome?.trim() || user.username?.trim() || "Usuário Conectado",
       cargo: user.cargo === "supervisor" ? "Supervisor" : user.cargo === "tecnico" ? "Técnico" : "Colaborador"
     };
   } catch {
-    return { autenticado: false, nome: "", cargo: "" };
+    return { autenticado: false, id: null, nome: "", cargo: "" };
   }
 }
 
@@ -119,8 +78,6 @@ export default function HistoricoInspecoesPage() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // --- CONTROLE DE SESSÃO REAL ---
-  // Inicializamos sintonizado diretamente com o localStorage para mitigar flashes visuais
   const usuarioInicial = useMemo(() => obterUsuarioInicial(), []);
   const [isAutenticado, setIsAutenticado] = useState<boolean>(usuarioInicial.autenticado);
   const [usuarioNome, setUsuarioNome] = useState<string>(usuarioInicial.nome);
@@ -128,14 +85,12 @@ export default function HistoricoInspecoesPage() {
   const [carregandoSessao, setCarregandoSessao] = useState<boolean>(true); 
   const [showPopUp, setShowPopUp] = useState<boolean>(false);
 
-  // --- ESTADOS DA LISTAGEM (Correção da piscada) ---
-  // Populamos os estados diretamente no nascimento do componente
-  const [dadosAgrupados, setDadosAgrupados] = useState<LogradouroGrupo[]>(MOCK_HISTORICO_NACIONAL);
-  const [viasExpandidas, setViasExpandidas] = useState<string[]>(["log-1"]);
-  const [trechoFocado, setTrechoFocado] = useState<TrechoInspecao | null>(MOCK_HISTORICO_NACIONAL[0]?.trechos[0] || null);
-  const [loading, setLoading] = useState<boolean>(false); // Removido o loading inicial agressivo
+  const [dadosAgrupados, setDadosAgrupados] = useState<LogradouroGrupo[]>([]);
+  const [viasExpandidas, setViasExpandidas] = useState<string[]>([]);
+  const [trechoFocado, setTrechoFocado] = useState<TrechoInspecao | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // --- FILTROS ---
   const [filtroPesquisa, setFiltroPesquisa] = useState<string>("");
   const [filtroCidade, setFiltroCidade] = useState<string>("");
   const [filtroUF, setFiltroUF] = useState<string>("");
@@ -143,10 +98,8 @@ export default function HistoricoInspecoesPage() {
   const [filtroCriticidade, setFiltroCriticidade] = useState<string>("");
   const [filtroDataInicio, setFiltroDataInicio] = useState<string>("");
   const [filtroDataFim, setFiltroDataFim] = useState<string>("");
-  const [filtroMeusTrabalhos, setFiltroMeusTrabalhos] = useState<boolean>(false);
   const [mostrarPainelFiltros, setMostrarPainelFiltros] = useState<boolean>(false);
 
-  // Apenas a checagem HTTP assíncrona fica no useEffect
   useEffect(() => {
     async function checarSessaoReal() {
       try {
@@ -163,8 +116,6 @@ export default function HistoricoInspecoesPage() {
             localStorage.removeItem("usuario");
             setIsAutenticado(false);
           }
-        } else {
-          if (!localStorage.getItem("usuario")) setIsAutenticado(false);
         }
       } catch {
         if (!localStorage.getItem("usuario")) setIsAutenticado(false);
@@ -174,6 +125,72 @@ export default function HistoricoInspecoesPage() {
     }
     checarSessaoReal();
   }, []);
+
+  useEffect(() => {
+    async function carregarTrechosDoBackend() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await authApi.get<TrechoListResponseDTO>("/api/trechos/");
+        const trechosLista = response.data?.items || [];
+
+        const mapaGrupos: Record<string, LogradouroGrupo> = {};
+
+        trechosLista.forEach((item: TrechoListItemDTO) => {
+          const via = item.via || "Via Desconhecida";
+          const municipio = item.municipio || "Município Não Informado";
+          const uf = item.uf || "CE";
+          const chaveLogradouro = `${via}-${municipio}-${uf}`;
+
+          const novoTrecho: TrechoInspecao = {
+            id: item.id_trecho,
+            codigo_trecho: item.id_trecho,
+            nome_trecho: item.nome_trecho || `Trecho ${item.id_trecho}`,
+            data: item.criado_em ? item.criado_em.split("T")[0] : new Date().toISOString().split("T")[0],
+            pci: item.pci !== undefined ? item.pci : 100,
+            responsavel: item.responsavel_nome || "Não designado"
+          };
+
+          if (!mapaGrupos[chaveLogradouro]) {
+            mapaGrupos[chaveLogradouro] = {
+              id_logradouro: chaveLogradouro,
+              via: via,
+              municipio: municipio,
+              uf: uf,
+              pci_media: 0,
+              trechos: []
+            };
+          }
+          mapaGrupos[chaveLogradouro].trechos.push(novoTrecho);
+        });
+
+        const listaAgrupadaFinal = Object.values(mapaGrupos).map((grupo) => {
+          const somaPci = grupo.trechos.reduce((acc, t) => acc + t.pci, 0);
+          grupo.pci_media = Math.round(somaPci / grupo.trechos.length);
+          return grupo;
+        });
+
+        setDadosAgrupados(listaAgrupadaFinal);
+        
+        if (listaAgrupadaFinal.length > 0) {
+          setViasExpandidas([listaAgrupadaFinal[0].id_logradouro]);
+          if (listaAgrupadaFinal[0].trechos.length > 0) {
+            setTrechoFocado(listaAgrupadaFinal[0].trechos[0]);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao integrar com api de trechos:", err);
+        setError("Não foi possível sincronizar o histórico com o servidor.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (isAutenticado !== undefined) {
+      void carregarTrechosDoBackend();
+    }
+  }, [isAutenticado]);
 
   const handleLogout = async () => {
     try {
@@ -210,7 +227,6 @@ export default function HistoricoInspecoesPage() {
         if (filtroCidade && !grupo.municipio.toLowerCase().includes(filtroCidade.toLowerCase())) return false;
         if (filtroUF && grupo.uf.toLowerCase() !== filtroUF.toLowerCase()) return false;
         if (filtroResponsavel && !trecho.responsavel.toLowerCase().includes(filtroResponsavel.toLowerCase())) return false;
-        if (filtroMeusTrabalhos && isAutenticado && !trecho.is_meu_trabalho) return false;
 
         if (filtroCriticidade) {
           if (filtroCriticidade === "CRITICO" && trecho.pci > 40) return false;
@@ -224,7 +240,7 @@ export default function HistoricoInspecoesPage() {
         return true;
       });
     }
-  }, [dadosAgrupados, filtroPesquisa, filtroCidade, filtroUF, filtroResponsavel, filtroCriticidade, filtroDataInicio, filtroDataFim, filtroMeusTrabalhos, isAutenticado]);
+  }, [dadosAgrupados, filtroPesquisa, filtroCidade, filtroUF, filtroResponsavel, filtroCriticidade, filtroDataInicio, filtroDataFim]);
 
   const toggleVia = (idLogradouro: string) => {
     setViasExpandidas((prev) =>
@@ -234,11 +250,9 @@ export default function HistoricoInspecoesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900 w-full">
-      {/* SIDEBAR GLOBAL COMPARTILHADO */}
       {isAutenticado && <AppSidebar activePath={pathname} />}
 
       <main className="flex-1 p-8 overflow-y-auto">
-        {/* HEADER SUPERIOR PADRONIZADO */}
         <header className="flex justify-between items-start mb-10">
           <div>
             <h1 className="text-xl font-bold text-gray-800">Sistema de Monitoramento de Pavimentação</h1>
@@ -304,7 +318,6 @@ export default function HistoricoInspecoesPage() {
           </div>
         </header>
 
-        {/* TITULO DA TELA */}
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-extrabold text-gray-900">Histórico de Inspeções</h2>
@@ -318,7 +331,6 @@ export default function HistoricoInspecoesPage() {
           </button>
         </div>
 
-        {/* FILTROS */}
         <section className="bg-white rounded-2xl p-6 border border-gray-200 shadow-md mb-6 space-y-4">
           <div className="flex gap-3">
             <div className="relative flex-1">
@@ -343,7 +355,7 @@ export default function HistoricoInspecoesPage() {
           </div>
 
           {mostrarPainelFiltros && (
-            <div className="pt-4 border-t border-gray-100 grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
+            <div className="pt-4 border-t border-gray-100 grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Cidade</label>
                 <input
@@ -406,30 +418,31 @@ export default function HistoricoInspecoesPage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-[#0a5483]"
                 />
               </div>
-              {isAutenticado && (
-                <div className="flex items-end pb-2">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 select-none">
-                    <input
-                      type="checkbox"
-                      checked={filtroMeusTrabalhos}
-                      onChange={(e) => setFiltroMeusTrabalhos(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 text-[#0a5483] accent-[#0a5483]"
-                    />
-                    Meus Trabalhos
-                  </label>
-                </div>
-              )}
             </div>
           )}
         </section>
 
-        {/* LISTAGEM */}
-        {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center text-gray-400 gap-2">
-            <div className="w-6 h-6 border-2 border-[#0a5483] border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs font-bold">Carregando...</p>
+        {loading && (
+          <div className="py-20 flex flex-col items-center justify-center text-gray-400 gap-3">
+            <Loader2 className="w-8 h-8 text-[#0a5483] animate-spin" />
+            <p className="text-xs font-bold text-gray-500">Buscando histórico no servidor...</p>
           </div>
-        ) : (
+        )}
+
+        {error && (
+          <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 text-sm font-medium mb-6">
+            <AlertCircle size={18} className="shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && dadosFiltrados.length === 0 && (
+          <div className="text-center py-16 bg-white border border-dashed border-gray-200 rounded-2xl">
+            <p className="text-sm font-medium text-gray-400">Nenhum trecho ou inspeção encontrado para os filtros selecionados.</p>
+          </div>
+        )}
+
+        {!loading && !error && dadosFiltrados.length > 0 && (
           <div className="space-y-6">
             {dadosFiltrados.map((grupo) => {
               const isExpandido = viasExpandidas.includes(grupo.id_logradouro);
@@ -451,7 +464,7 @@ export default function HistoricoInspecoesPage() {
                         <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold mt-1 uppercase">
                           <span className="flex items-center gap-0.5"><MapPin size={12} /> {grupo.municipio}, {grupo.uf}</span>
                           <span>•</span>
-                          <span>{grupo.trechos.length} trechos inspecionados</span>
+                          <span>{grupo.trechos.length} subtrechos agrupados</span>
                         </div>
                       </div>
                     </div>
@@ -493,7 +506,14 @@ export default function HistoricoInspecoesPage() {
                             </div>
                             
                             <div className="flex items-center gap-3 mt-2 sm:mt-0 text-gray-400 self-end sm:self-auto">
-                              <div title="Ver Laudo" className="cursor-pointer hover:text-gray-700">
+                              <div 
+                                title="Ver Detalhes do Trecho" 
+                                className="cursor-pointer hover:text-gray-700"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/laudos/${trecho.id}`);
+                                }}
+                              >
                                 <FileText size={16} />
                               </div>
                               <div title="Focar Mapa" className={`cursor-pointer ${isFocado ? "text-[#0a5483]" : "hover:text-gray-700"}`}>
