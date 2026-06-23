@@ -109,14 +109,19 @@ async def atualizar_laudo(
     response_model=List[LaudoResponseDTO],
     status_code=status.HTTP_200_OK,
     summary="Listar todos os Laudos",
-    description="Retorna uma lista com todos os laudos cadastrados no sistema, ordenados por data decrescente."
+    description="Retorna laudos do usuário logado. Supervisores veem todos; técnicos veem apenas os seus."
 )
 async def listar_laudos(
-    _: Annotated[dict, Depends(verify_any_user)],
+    current_user: Annotated[dict, Depends(verify_any_user)],
     use_case: ListarLaudosUseCase = Depends(get_uc_listar_laudos),
-) -> List[LaudoResponseDTO]:
+):
     try:
-        return use_case.execute()
+        cargo = current_user.get("cargo", "")
+        is_tecnico = cargo in ("tecnico", "colaborador")
+
+        usuario_id = current_user.get("id") if is_tecnico else None
+
+        return use_case.execute(usuario_id=usuario_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
