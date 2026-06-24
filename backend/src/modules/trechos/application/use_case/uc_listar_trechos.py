@@ -72,16 +72,16 @@ class UcListarTrechosUseCase:
 
             trecho_items.append(
                 TrechoListItemDTO(
-                    id_trecho=getattr(trecho, "id_trecho", None),
-                    criado_em=getattr(trecho, "criado_em", None),
-                    foto_ids=getattr(trecho, "foto_ids", []),
+                    id_trecho=trecho.id_trecho,
+                    criado_em=trecho.criado_em,
+                    foto_ids=trecho.foto_ids,
                     fotos=fotos,
-                    cidade=getattr(trecho, "cidade", None),
-                    uf=getattr(trecho, "uf", None),
-                    responsavel_tecnico=getattr(trecho, "responsavel_tecnico", None),
-                    classificacao_qualidade=getattr(trecho, "classificacao_qualidade", None),
-                    defeitos=getattr(trecho, "defeitos", None),
-                    responsavel_id=getattr(trecho, "responsavel_id", None),
+                    cidade=trecho.cidade,
+                    uf=trecho.uf,
+                    responsavel_tecnico=trecho.responsavel_tecnico,
+                    classificacao_qualidade=trecho.classificacao_qualidade,
+                    defeitos=trecho.defeitos,
+                    responsavel_id=trecho.responsavel_id,
                 )
             )
 

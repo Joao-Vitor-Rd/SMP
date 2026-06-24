@@ -59,4 +59,10 @@ def trecho_com_fotos():
                 longitude=None,
             ),
         ],
+        cidade="São Paulo",
+        uf="SP",
+        responsavel_tecnico="Responsavel Teste",
+        classificacao_qualidade="Regular",
+        defeitos={},
+        responsavel_id=1,
     )
