@@ -578,8 +578,26 @@ export default function UploadImagensPage() {
     }
     return [];
   });
+
   const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<UploadItem[]>([]);
+
+  // Limpa a fila e o review ao sair da página (unmount), garantindo que ao navegar
+  // para outra seção e voltar, a fila comece sempre vazia (cenário 1).
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
+      }
+      clearConfirmationSummary();
+      // Revoga blob URLs dos itens ainda na fila para liberar memória.
+      itemsRef.current.forEach((item) => {
+        if (isBlobUrl(item.previewUrl)) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+    };
+  }, []);
 
   const totalSelectedSize = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0), [items]);
 
