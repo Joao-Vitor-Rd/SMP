@@ -154,7 +154,10 @@ class Uc09UploadMultiplasImagensUseCase:
 
         trecho_criado: TrechoCriadoDTO | None = None
         if foto_ids_processadas:
-            trecho = self.trecho_repository.create_with_fotos(foto_ids_processadas, responsavel_id=responsavel_id)
+            if responsavel_id is not None:
+                trecho = self.trecho_repository.create_with_fotos(foto_ids_processadas, responsavel_id=responsavel_id)
+            else:
+                trecho = self.trecho_repository.create_with_fotos(foto_ids_processadas)
             trecho_criado = TrechoCriadoDTO(
                 id_trecho=trecho.id_trecho,
                 foto_ids=trecho.foto_ids,

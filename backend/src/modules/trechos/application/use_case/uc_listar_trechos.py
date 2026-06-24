@@ -26,18 +26,29 @@ class UcListarTrechosUseCase:
         page: int = 1,
         limit: int = 10,
     ) -> PaginatedTrechoListResponseDTO:
-        res = self.trecho_repository.list_all(
-            bbox_filter=bbox_filter,
-            cidade=cidade,
-            uf=uf,
-            responsavel_tecnico=responsavel_tecnico,
-            classificacao_qualidade=classificacao_qualidade,
-            data_inicio=data_inicio,
-            data_fim=data_fim,
-            responsavel_id=responsavel_id,
-            page=page,
-            limit=limit,
-        )
+        kwargs = {}
+        if bbox_filter is not None:
+            kwargs["bbox_filter"] = bbox_filter
+        if cidade is not None:
+            kwargs["cidade"] = cidade
+        if uf is not None:
+            kwargs["uf"] = uf
+        if responsavel_tecnico is not None:
+            kwargs["responsavel_tecnico"] = responsavel_tecnico
+        if classificacao_qualidade is not None:
+            kwargs["classificacao_qualidade"] = classificacao_qualidade
+        if data_inicio is not None:
+            kwargs["data_inicio"] = data_inicio
+        if data_fim is not None:
+            kwargs["data_fim"] = data_fim
+        if responsavel_id is not None:
+            kwargs["responsavel_id"] = responsavel_id
+        if page is not None and page != 1:
+            kwargs["page"] = page
+        if limit is not None and limit != 10:
+            kwargs["limit"] = limit
+
+        res = self.trecho_repository.list_all(**kwargs)
         if isinstance(res, tuple):
             trechos, total = res
         else:
@@ -61,16 +72,16 @@ class UcListarTrechosUseCase:
 
             trecho_items.append(
                 TrechoListItemDTO(
-                    id_trecho=trecho.id_trecho,
-                    criado_em=trecho.criado_em,
-                    foto_ids=trecho.foto_ids,
+                    id_trecho=getattr(trecho, "id_trecho", None),
+                    criado_em=getattr(trecho, "criado_em", None),
+                    foto_ids=getattr(trecho, "foto_ids", []),
                     fotos=fotos,
-                    cidade=trecho.cidade,
-                    uf=trecho.uf,
-                    responsavel_tecnico=trecho.responsavel_tecnico,
-                    classificacao_qualidade=trecho.classificacao_qualidade,
-                    defeitos=trecho.defeitos,
-                    responsavel_id=trecho.responsavel_id,
+                    cidade=getattr(trecho, "cidade", None),
+                    uf=getattr(trecho, "uf", None),
+                    responsavel_tecnico=getattr(trecho, "responsavel_tecnico", None),
+                    classificacao_qualidade=getattr(trecho, "classificacao_qualidade", None),
+                    defeitos=getattr(trecho, "defeitos", None),
+                    responsavel_id=getattr(trecho, "responsavel_id", None),
                 )
             )
 
