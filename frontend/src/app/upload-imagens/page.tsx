@@ -374,7 +374,6 @@ function getProgressWidthClass(progress: number) {
 
 const FOTO_UPLOAD_ENDPOINT = "/api/fotos/upload-multiplas";
 
-/* COMPONENTE ISOLADO PARA EVITAR QUE O INPUT PERCA O FOCO AO DIGITAR */
 interface UploadItemRowProps {
   item: UploadItem;
   updateQueueItem: (itemId: string, updater: (current: UploadItem) => UploadItem) => void;
@@ -570,9 +569,6 @@ export default function UploadImagensPage() {
   const [cargoUsuario] = useState(initialUserState.cargo);
   const [isDragging, setIsDragging] = useState(false);
   const [items, setItems] = useState<UploadItem[]>(() => {
-    // Sempre inicia com fila vazia ao montar a página.
-    // Qualquer inspeção anterior que tenha ficado persistida no sessionStorage é descartada,
-    // garantindo que cada nova visita à tela de upload comece com um lote limpo de imagens.
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
     }
@@ -582,15 +578,12 @@ export default function UploadImagensPage() {
   const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<UploadItem[]>([]);
 
-  // Limpa a fila e o review ao sair da página (unmount), garantindo que ao navegar
-  // para outra seção e voltar, a fila comece sempre vazia (cenário 1).
   useEffect(() => {
     return () => {
       if (typeof window !== "undefined") {
         window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
       }
       clearConfirmationSummary();
-      // Revoga blob URLs dos itens ainda na fila para liberar memória.
       itemsRef.current.forEach((item) => {
         if (isBlobUrl(item.previewUrl)) {
           URL.revokeObjectURL(item.previewUrl);
