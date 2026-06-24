@@ -20,7 +20,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   { Icon: Maximize, label: "Expandir", href: "/expandir" },
   { Icon: FileText, label: "Documentos", href: "/documentos" },
   { Icon: Map, label: "Mapa indisponível", href: null },
-  { Icon: History, label: "Histórico", href: "/historico" },
+  { Icon: History, label: "Histórico", href: "/historico" }, // 6º Ícone mapeado para a sua pasta
 ];
 
 export default function AppSidebar({ activePath }: AppSidebarProps) {
@@ -28,12 +28,15 @@ export default function AppSidebar({ activePath }: AppSidebarProps) {
 
   return (
     <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
-      <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
+      {/* Topo / Logo */}
+      <div className="p-3 bg-[#165D7A] rounded-xl text-white mb-10">
         <Activity size={26} strokeWidth={2.5} />
       </div>
 
+      {/* Itens de Navegação */}
       <div className="flex flex-col gap-9 items-center w-full mb-auto">
         {SIDEBAR_ITEMS.map(({ Icon, label, href }) => {
+          // Verifica se o caminho atual bate exatamente com o link do botão
           const isActive = href ? activePath === href : false;
           const isDisabled = href === null;
 
@@ -49,9 +52,9 @@ export default function AppSidebar({ activePath }: AppSidebarProps) {
                   router.push(href);
                 }
               }}
-              className={`transition-all duration-200 p-2 rounded-xl ${
+              className={`transition-all duration-200 p-2 rounded-xl relative ${
                 isActive
-                  ? "bg-[#0a5483] text-white shadow-[0_8px_24px_rgba(10,84,131,0.35)]"
+                  ? "bg-[#165D7A] text-white shadow-[0_8px_24px_rgba(22,93,122,0.35)]"
                   : "text-gray-400 hover:text-gray-200 hover:bg-white/5 disabled:cursor-default disabled:opacity-100"
               }`}
             >
@@ -61,6 +64,7 @@ export default function AppSidebar({ activePath }: AppSidebarProps) {
         })}
       </div>
 
+      {/* Notificações no Rodapé */}
       <div className="relative group cursor-pointer pb-4">
         <button type="button" title="Notificações" className="text-gray-400 group-hover:text-white transition-colors">
           <Bell size={26} strokeWidth={1.5} />
@@ -69,7 +73,6 @@ export default function AppSidebar({ activePath }: AppSidebarProps) {
           3
         </span>
       </div>
-
     </aside>
   );
 }

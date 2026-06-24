@@ -569,7 +569,15 @@ export default function UploadImagensPage() {
   const [usuarioNome] = useState(initialUserState.nome);
   const [cargoUsuario] = useState(initialUserState.cargo);
   const [isDragging, setIsDragging] = useState(false);
-  const [items, setItems] = useState<UploadItem[]>(() => readStoredUploadQueue());
+  const [items, setItems] = useState<UploadItem[]>(() => {
+    // Sempre inicia com fila vazia ao montar a página.
+    // Qualquer inspeção anterior que tenha ficado persistida no sessionStorage é descartada,
+    // garantindo que cada nova visita à tela de upload comece com um lote limpo de imagens.
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
+    }
+    return [];
+  });
   const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<UploadItem[]>([]);
 

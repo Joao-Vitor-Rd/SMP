@@ -65,6 +65,27 @@ class LaudoRepository(ILaudoRepository):
             .all()
         )
         return [self._to_domain(laudo_orm) for laudo_orm in laudos_orm]
+    
+
+    def list_by_usuario(self, usuario_id: int) -> List[Laudo]:
+        try:
+            self.session.expire_all()
+        except Exception:
+            pass
+
+        laudos_orm = (
+            self.session.query(LaudoORM)
+            .join(LaudoORM.usuarios)          
+            .filter(UserORM.id == usuario_id)  
+            .union(
+                self.session.query(LaudoORM)
+                .filter(LaudoORM.responsavel_user_id == usuario_id)  
+            )
+            .order_by(LaudoORM.data.desc())
+            .all()
+        )
+
+        return [self._to_domain(laudo_orm) for laudo_orm in laudos_orm]
 
     def update(
         self,
@@ -135,15 +156,14 @@ class LaudoRepository(ILaudoRepository):
         return self._to_domain(laudo_orm) if laudo_orm else None
     
     def _to_domain(self, laudo_orm: LaudoORM) -> Laudo:
+        # CORREÇÃO: Toda a lógica interna da função foi recuada em 4 espaços
         usuarios = []
-
         for user in laudo_orm.usuarios:
             colaborador = (
                 self.session.query(ColaboradorORM)
                 .filter(ColaboradorORM.user_id == user.id)
                 .first()
             )
-
             usuarios.append(
                 UsuarioLaudo(
                     id=colaborador.id if colaborador else user.id,
@@ -156,6 +176,7 @@ class LaudoRepository(ILaudoRepository):
             id=laudo_orm.id,
             data=laudo_orm.data,
             responsavel=laudo_orm.responsavel,
+            responsavel_user_id=getattr(laudo_orm, "responsavel_user_id", None),
             credencial_responsavel=laudo_orm.credencial_responsavel,
             usuarios=usuarios,
             resumo=laudo_orm.resumo or {},

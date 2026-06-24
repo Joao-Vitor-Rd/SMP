@@ -35,9 +35,10 @@ type LaudoResponse = {
     id: number;
     data: string;
     responsavel: string;
+    responsavel_id?: number; // ID numérico do responsável — usado para filtro de acesso
     credencial_responsavel: string;
     resumo: Record<string, number>;
-    usuarios: Array<{ nome: string; cargo: string }>;
+    usuarios: Array<{ id?: number; nome: string; cargo: string }>;
 };
 
 type ColaboradorResponse = {
@@ -79,10 +80,13 @@ function getInitialUserState() {
     const usuario = parseJson<UsuarioStorage>(window.localStorage.getItem("usuario"));
     const nomeExibicao = usuario?.nome?.trim() || usuario?.username?.trim() || "Engenheiro(a)";
 
+    const cargo = usuario?.cargo;
+
     return {
         id: usuario?.id,
         nome: nomeExibicao,
-        cargo: usuario?.cargo === "supervisor" ? "Supervisor" : usuario?.cargo === "tecnico" ? "Técnico" : "Colaborador",
+        cargo: cargo === "supervisor" ? "Supervisor" : cargo === "tecnico" ? "Técnico" : "Colaborador",
+        isTecnico: cargo === "tecnico" || cargo === "colaborador",
     };
 }
 
@@ -167,6 +171,8 @@ export default function MeusTrabalhosPage() {
     const [initialInspectionState] = useState(() => getInitialInspectionState(initialUserState.nome));
     const [usuarioNome] = useState(initialUserState.nome);
     const [cargoUsuario] = useState(initialUserState.cargo);
+    const [usuarioId] = useState(initialUserState.id);
+    const [isTecnico] = useState(initialUserState.isTecnico ?? false);
     const [inspectionDate, setInspectionDate] = useState(initialInspectionState.inspectionDate);
     const [responsibleName, setResponsibleName] = useState(initialInspectionState.responsibleName);
     const [responsibleIdentifier, setResponsibleIdentifier] = useState(initialInspectionState.responsibleIdentifier);
@@ -187,7 +193,19 @@ export default function MeusTrabalhosPage() {
                 if (!isMounted) return;
 
                 if (Array.isArray(resLaudos.data)) {
-                    const ordenados = resLaudos.data.sort((a, b) => b.id - a.id);
+                    // Filtro defensivo no cliente: técnicos/colaboradores só visualizam
+                    // laudos onde são o responsável ou foram adicionados como colaboradores.
+                    // O filtro primário deve existir no backend; este é uma segunda camada.
+                    const laudosFiltrados = isTecnico && usuarioId
+                        ? resLaudos.data.filter((laudo) => {
+                            const eResponsavel = laudo.responsavel_id === usuarioId;
+                            const eColaborador = Array.isArray(laudo.usuarios)
+                                && laudo.usuarios.some((u) => u.id === usuarioId);
+                            return eResponsavel || eColaborador;
+                        })
+                        : resLaudos.data;
+
+                    const ordenados = laudosFiltrados.sort((a, b) => b.id - a.id);
                     setLaudos(ordenados);
                 }
 
