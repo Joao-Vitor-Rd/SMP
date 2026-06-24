@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
 	AlertTriangle,
@@ -19,8 +19,9 @@ import {
 
 import { clearAuthSession } from "../../lib/authApi";
 import AppSidebar from "../../../components/AppSidebar";
+import { colaboradoresService, ColaboradorDTO } from "../../lib/colaborador-service";
 
-// Tipagens
+// Tipagens originais intocadas
 type CargoUsuario = "engenheiro" | "tecnico" | "supervisor" | "";
 
 type Colaborador = {
@@ -32,7 +33,7 @@ type Colaborador = {
 	dataExpiracao: string; // Formato YYYY-MM-DD
 };
 
-// Funções de utilidade
+// Funções de utilidade originais intocadas
 function canUseStorage() {
 	return typeof window !== "undefined";
 }
@@ -57,33 +58,17 @@ function isExpiringSoon(dateStr: string) {
 	return diffDays > 0 && diffDays <= 30;
 }
 
-// Dados iniciais mockados para demonstração
-const mockColaboradores: Colaborador[] = [
-	{
-		id: "1",
-		nome: "João Silva Santos",
-		email: "joao.aluno@universidade.edu.br",
-		instituicao: "UFC - Campus Quixadá",
-		status: "Ativo",
-		dataExpiracao: "2026-12-31",
-	},
-	{
-		id: "2",
-		nome: "Maria Oliveira",
-		email: "maria.tecnica@cft.org.br",
-		instituicao: "IFCE",
-		status: "Ativo",
-		dataExpiracao: "2026-06-25", // Próximo de expirar (baseado em Jun/2026)
-	},
-	{
-		id: "3",
-		nome: "Carlos Mendes",
-		email: "carlos.mendes@ufc.br",
-		instituicao: "UFC - Campus Pici",
-		status: "Expirado",
-		dataExpiracao: "2026-05-10",
-	},
-];
+// NOVO: Função para adaptar o retorno do backend para o formato exato que a sua tela já usava
+function mapearBackendParaFrontend(dto: ColaboradorDTO): Colaborador {
+	return {
+		id: String(dto.id),
+		nome: dto.nome,
+		email: dto.email,
+		instituicao: dto.instituicao_ensino || "Não informada",
+		status: dto.acesso_liberado ? "Ativo" : "Expirado",
+		dataExpiracao: dto.limite_acesso ? dto.limite_acesso.split('T')[0] : ""
+	};
+}
 
 export default function CentralAcessosPage() {
 	const router = useRouter();
@@ -94,7 +79,7 @@ export default function CentralAcessosPage() {
 	const [cargoUsuario] = useState(initialUserState.cargo);
 
 	// Estados da Feature (US-06)
-	const [colaboradores, setColaboradores] = useState<Colaborador[]>(mockColaboradores);
+	const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
 	const [abaAtiva, setAbaAtiva] = useState<"notificacoes" | "solicitacoes">("solicitacoes");
 	const [subAbaAtiva, setSubAbaAtiva] = useState<"pendentes" | "vinculos">("vinculos");
 	const [feedback, setFeedback] = useState<{ type: "success" | "warning"; message: string } | null>(null);
@@ -104,6 +89,21 @@ export default function CentralAcessosPage() {
 	const [showModalRevogar, setShowModalRevogar] = useState(false);
 	const [showModalRenovar, setShowModalRenovar] = useState(false);
 	const [novaDataExpiracao, setNovaDataExpiracao] = useState("");
+
+	// NOVO: Buscar os dados do backend assim que a tela abre
+	useEffect(() => {
+		async function buscarDados() {
+			try {
+				const dadosBackend = await colaboradoresService.listarTodos();
+				const dadosFormatados = dadosBackend.map(mapearBackendParaFrontend);
+				setColaboradores(dadosFormatados);
+			} catch (error) {
+				console.error("Erro ao carregar colaboradores:", error);
+				setFeedback({ type: "warning", message: "Falha ao comunicar com o servidor." });
+			}
+		}
+		buscarDados();
+	}, []);
 
 	function handleLogout() {
 		clearAuthSession();
@@ -116,22 +116,29 @@ export default function CentralAcessosPage() {
 		setShowModalRevogar(true);
 	}
 
-	// Ação: Confirmar Revogação
-	function confirmarRevogacao() {
+	// Ação: Confirmar Revogação (AGORA LIGADA AO BACKEND)
+	async function confirmarRevogacao() {
 		if (!colaboradorSelecionado) return;
 
-		setColaboradores((prev) =>
-			prev.map((c) =>
-				c.id === colaboradorSelecionado.id ? { ...c, status: "Expirado" } : c
-			)
-		);
+		try {
+			// Chama a rota PATCH /acesso
+			await colaboradoresService.alternarAcesso(Number(colaboradorSelecionado.id));
 
-		setFeedback({ type: "success", message: `Acesso de ${colaboradorSelecionado.nome} foi revogado com sucesso.` });
-		setShowModalRevogar(false);
-		setColaboradorSelecionado(null);
+			setColaboradores((prev) =>
+				prev.map((c) =>
+					c.id === colaboradorSelecionado.id ? { ...c, status: "Expirado" } : c
+				)
+			);
 
-		// Remove o feedback após 5 segundos
-		setTimeout(() => setFeedback(null), 5000);
+			setFeedback({ type: "success", message: `Acesso de ${colaboradorSelecionado.nome} foi revogado com sucesso.` });
+		} catch (error) {
+			setFeedback({ type: "warning", message: "Erro ao tentar revogar o acesso no servidor." });
+		} finally {
+			setShowModalRevogar(false);
+			setColaboradorSelecionado(null);
+			// Remove o feedback após 5 segundos
+			setTimeout(() => setFeedback(null), 5000);
+		}
 	}
 
 	// Ação: Iniciar Renovação
@@ -141,23 +148,30 @@ export default function CentralAcessosPage() {
 		setShowModalRenovar(true);
 	}
 
-	// Ação: Confirmar Renovação
-	function confirmarRenovacao() {
+	// Ação: Confirmar Renovação (AGORA LIGADA AO BACKEND)
+	async function confirmarRenovacao() {
 		if (!colaboradorSelecionado || !novaDataExpiracao) return;
 
-		setColaboradores((prev) =>
-			prev.map((c) =>
-				c.id === colaboradorSelecionado.id
-					? { ...c, status: "Ativo", dataExpiracao: novaDataExpiracao }
-					: c
-			)
-		);
+		try {
+			// Chama a rota PATCH /limite-acesso
+			await colaboradoresService.atualizarLimite(Number(colaboradorSelecionado.id), novaDataExpiracao);
 
-		setFeedback({ type: "success", message: `Acesso de ${colaboradorSelecionado.nome} renovado até ${formatDateForDisplay(novaDataExpiracao)}.` });
-		setShowModalRenovar(false);
-		setColaboradorSelecionado(null);
+			setColaboradores((prev) =>
+				prev.map((c) =>
+					c.id === colaboradorSelecionado.id
+						? { ...c, status: "Ativo", dataExpiracao: novaDataExpiracao }
+						: c
+				)
+			);
 
-		setTimeout(() => setFeedback(null), 5000);
+			setFeedback({ type: "success", message: `Acesso de ${colaboradorSelecionado.nome} renovado até ${formatDateForDisplay(novaDataExpiracao)}.` });
+		} catch (error) {
+			setFeedback({ type: "warning", message: "Erro ao tentar renovar o acesso no servidor." });
+		} finally {
+			setShowModalRenovar(false);
+			setColaboradorSelecionado(null);
+			setTimeout(() => setFeedback(null), 5000);
+		}
 	}
 
 	return (
