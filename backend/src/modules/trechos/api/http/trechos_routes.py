@@ -9,6 +9,7 @@ from src.modules.trechos.application.dtos.trecho_dto import (
 from src.modules.trechos.application.dtos.trecho_filter_dto import TrechoBoundingBoxFilterDTO
 from src.modules.trechos.application.use_case.uc_listar_trechos import UcListarTrechosUseCase
 from src.modules.trechos.application.use_case.uc_atualizar_trecho import UcAtualizarTrechoUseCase
+from src.modules.trechos.application.use_case.uc_buscar_trecho_por_id import UcBuscarTrechoPorIdUseCase
 from src.modules.trechos.infrastructure.repositories.trecho_repository import TrechoRepository
 from src.shared.auth.dependencies import verify_any_user
 from src.shared.infrastructure.db import get_session
@@ -30,6 +31,12 @@ def get_uc_atualizar_trecho(
     trecho_repository: TrechoRepository = Depends(get_trecho_repository),
 ) -> UcAtualizarTrechoUseCase:
     return UcAtualizarTrechoUseCase(trecho_repository=trecho_repository)
+
+
+def get_uc_buscar_trecho_por_id(
+    trecho_repository: TrechoRepository = Depends(get_trecho_repository),
+) -> UcBuscarTrechoPorIdUseCase:
+    return UcBuscarTrechoPorIdUseCase(trecho_repository=trecho_repository)
 
 
 def get_bbox_filter(
@@ -147,6 +154,25 @@ async def listar_trechos(
         page=page,
         limit=limit,
     )
+
+
+@router.get(
+    "/{id_trecho}",
+    response_model=TrechoListItemDTO,
+    summary="Buscar um Trecho pelo ID",
+    description="Retorna os detalhes de um trecho específico pelo seu ID.",
+)
+async def buscar_trecho_por_id(
+    id_trecho: str,
+    _: dict = Depends(verify_any_user),
+    use_case: UcBuscarTrechoPorIdUseCase = Depends(get_uc_buscar_trecho_por_id),
+) -> TrechoListItemDTO:
+    try:
+        return use_case.execute(id_trecho=id_trecho)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.put(
