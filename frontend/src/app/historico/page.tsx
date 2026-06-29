@@ -15,7 +15,8 @@ import {
   User,
   Settings,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  XCircle
 } from "lucide-react";
 
 import AppSidebar from "../../../components/AppSidebar";
@@ -91,6 +92,7 @@ export default function HistoricoInspecoesPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Estados de Filtros
   const [filtroPesquisa, setFiltroPesquisa] = useState<string>("");
   const [filtroCidade, setFiltroCidade] = useState<string>("");
   const [filtroUF, setFiltroUF] = useState<string>("");
@@ -99,6 +101,9 @@ export default function HistoricoInspecoesPage() {
   const [filtroDataInicio, setFiltroDataInicio] = useState<string>("");
   const [filtroDataFim, setFiltroDataFim] = useState<string>("");
   const [mostrarPainelFiltros, setMostrarPainelFiltros] = useState<boolean>(false);
+
+  // Data de hoje formatada (YYYY-MM-DD) para limitar campos de data
+  const dataHojeStr = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   useEffect(() => {
     async function checarSessaoReal() {
@@ -166,10 +171,14 @@ export default function HistoricoInspecoesPage() {
         });
 
         const listaAgrupadaFinal = Object.values(mapaGrupos).map((grupo) => {
-          const somaPci = grupo.trechos.reduce((acc, t) => acc + t.pci, 0);
+          const somaPci = groupTrechosSoma(grupo);
           grupo.pci_media = Math.round(somaPci / grupo.trechos.length);
           return grupo;
         });
+
+        function groupTrechosSoma(grupo: LogradouroGrupo) {
+          return grupo.trechos.reduce((acc, t) => acc + t.pci, 0);
+        }
 
         setDadosAgrupados(listaAgrupadaFinal);
         
@@ -211,6 +220,22 @@ export default function HistoricoInspecoesPage() {
     return { bg: "bg-emerald-50 text-emerald-500 border-emerald-200", label: "Excelente" };
   };
 
+  // Função para limpar todos os filtros de uma vez
+  const handleLimparFiltros = () => {
+    setFiltroPesquisa("");
+    setFiltroCidade("");
+    setFiltroUF("");
+    setFiltroResponsavel("");
+    setFiltroCriticidade("");
+    setFiltroDataInicio("");
+    setFiltroDataFim("");
+  };
+
+  // Verifica se há alguma filtragem ativa para exibir ou ocultar o botão de limpar
+  const temFiltroAtivo = useMemo(() => {
+    return !!(filtroPesquisa || filtroCidade || filtroUF || filtroResponsavel || filtroCriticidade || filtroDataInicio || filtroDataFim);
+  }, [filtroPesquisa, filtroCidade, filtroUF, filtroResponsavel, filtroCriticidade, filtroDataInicio, filtroDataFim]);
+
   const dadosFiltrados = useMemo(() => {
     return dadosAgrupados
       .map((grupo) => {
@@ -234,6 +259,7 @@ export default function HistoricoInspecoesPage() {
           if (filtroCriticidade === "EXCELENTE" && trecho.pci <= 70) return false;
         }
 
+        // Se a data inserida for inválida ou no futuro (por segurança extra), ela não passará
         if (filtroDataInicio && new Date(trecho.data) < new Date(filtroDataInicio)) return false;
         if (filtroDataFim && new Date(trecho.data) > new Date(filtroDataFim)) return false;
 
@@ -250,7 +276,7 @@ export default function HistoricoInspecoesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900 w-full">
-      {isAutenticado && <AppSidebar activePath={pathname} />}
+      {isAutenticado && <AppSidebar activePath={pathname ?? "/historico"} />}
 
       <main className="flex-1 p-8 overflow-y-auto">
         <header className="flex justify-between items-start mb-10">
@@ -332,7 +358,7 @@ export default function HistoricoInspecoesPage() {
         </div>
 
         <section className="bg-white rounded-2xl p-6 border border-gray-200 shadow-md mb-6 space-y-4">
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-3.5 text-gray-400" size={18} />
               <input
@@ -343,15 +369,30 @@ export default function HistoricoInspecoesPage() {
                 className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:bg-white focus:border-[#0a5483] focus:ring-4 focus:ring-cyan-100 transition-all"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setMostrarPainelFiltros(!mostrarPainelFiltros)}
-              className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-bold transition-all cursor-pointer ${
-                mostrarPainelFiltros ? "bg-cyan-50 border-[#0a5483] text-[#0a5483]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <SlidersHorizontal size={16} /> Filtros Avançados
-            </button>
+            
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMostrarPainelFiltros(!mostrarPainelFiltros)}
+                className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-bold transition-all cursor-pointer ${
+                  mostrarPainelFiltros ? "bg-cyan-50 border-[#0a5483] text-[#0a5483]" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <SlidersHorizontal size={16} /> Filtros Avançados
+              </button>
+
+              {/* Botão para Limpar Filtros Dinâmico */}
+              {temFiltroAtivo && (
+                <button
+                  type="button"
+                  onClick={handleLimparFiltros}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-sm font-bold transition-all cursor-pointer"
+                  title="Limpar todas as buscas"
+                >
+                  <XCircle size={16} /> Limpar
+                </button>
+              )}
+            </div>
           </div>
 
           {mostrarPainelFiltros && (
@@ -361,7 +402,8 @@ export default function HistoricoInspecoesPage() {
                 <input
                   type="text"
                   value={filtroCidade}
-                  onChange={(e) => setFiltroCidade(e.target.value)}
+                  // Validação: Remove números e caracteres especiais do campo nome da cidade
+                  onChange={(e) => setFiltroCidade(e.target.value.replace(/[^a-zA-ZáàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s]/g, ""))}
                   placeholder="Ex: Quixadá"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-[#0a5483]"
                 />
@@ -372,7 +414,8 @@ export default function HistoricoInspecoesPage() {
                   type="text"
                   maxLength={2}
                   value={filtroUF}
-                  onChange={(e) => setFiltroUF(e.target.value)}
+                  // Validação: Remove números/especiais e força caixa alta
+                  onChange={(e) => setFiltroUF(e.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase())}
                   placeholder="Ex: CE"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none uppercase focus:border-[#0a5483]"
                 />
@@ -382,7 +425,7 @@ export default function HistoricoInspecoesPage() {
                 <input
                   type="text"
                   value={filtroResponsavel}
-                  onChange={(e) => setFiltroResponsavel(e.target.value)}
+                  onChange={(e) => setFiltroResponsavel(e.target.value.replace(/[^a-zA-ZáàâãéèêíïóôõöúçñÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s]/g, ""))}
                   placeholder="Nome do engenheiro"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-[#0a5483]"
                 />
@@ -405,7 +448,12 @@ export default function HistoricoInspecoesPage() {
                 <input
                   type="date"
                   value={filtroDataInicio}
-                  onChange={(e) => setFiltroDataInicio(e.target.value)}
+                  max={dataHojeStr} // Validação: Impede a seleção de datas futuras no calendário do navegador
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && val > dataHojeStr) return; // Validação: Impede inserção manual futura
+                    setFiltroDataInicio(val);
+                  }}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-[#0a5483]"
                 />
               </div>
@@ -414,7 +462,12 @@ export default function HistoricoInspecoesPage() {
                 <input
                   type="date"
                   value={filtroDataFim}
-                  onChange={(e) => setFiltroDataFim(e.target.value)}
+                  max={dataHojeStr} // Validação: Impede a seleção de datas futuras no calendário do navegador
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && val > dataHojeStr) return; // Validação: Impede inserção manual futura
+                    setFiltroDataFim(val);
+                  }}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-[#0a5483]"
                 />
               </div>
