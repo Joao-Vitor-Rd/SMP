@@ -62,7 +62,12 @@ export default function AppSidebar({ activePath }: AppSidebarProps) {
       </div>
 
       <div className="relative group cursor-pointer pb-4">
-        <button type="button" title="Notificações" className="text-gray-400 group-hover:text-white transition-colors">
+        <button 
+          type="button" 
+          title="Notificações" 
+          onClick={() => router.push('/gerenciar-colaboradores')} // Navegação adicionada aqui!
+          className="text-gray-400 group-hover:text-white transition-colors"
+        >
           <Bell size={26} strokeWidth={1.5} />
         </button>
         <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#1e2235] shadow-sm">
