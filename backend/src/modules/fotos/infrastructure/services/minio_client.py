@@ -26,3 +26,11 @@ def ensure_bucket_exists(bucket_name: str) -> None:
     client = get_minio_client()
     if not client.bucket_exists(bucket_name):
         client.make_bucket(bucket_name)
+
+
+def build_foto_storage():
+    from src.modules.fotos.infrastructure.services.minio_adapter import MinioAdapter
+
+    bucket_name = os.getenv("MINIO_BUCKET", "smp-fotos")
+    ensure_bucket_exists(bucket_name)
+    return MinioAdapter(get_minio_client(), bucket_name)

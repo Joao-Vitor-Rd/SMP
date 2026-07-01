@@ -15,3 +15,8 @@ class IFotoStorage(ABC):
     def get_presigned_url(self, caminho_arquivo: str, expira_em_segundos: int = 3600) -> str:
         """Gera uma URL assinada (presigned) para acesso temporário ao arquivo"""
         pass
+
+    @abstractmethod
+    def get_bytes(self, caminho_arquivo: str) -> bytes:
+        """Retorna o conteúdo binário do arquivo armazenado."""
+        pass

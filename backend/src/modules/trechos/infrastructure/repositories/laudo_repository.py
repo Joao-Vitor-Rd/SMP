@@ -154,7 +154,34 @@ class LaudoRepository(ILaudoRepository):
         )
 
         return self._to_domain(laudo_orm) if laudo_orm else None
-    
+
+    def publicar(self, laudo_id: int, resumo: dict) -> Optional[dict]:
+        laudo_orm = (
+            self.session.query(LaudoORM)
+            .filter(LaudoORM.id == laudo_id)
+            .first()
+        )
+
+        if not laudo_orm:
+            return None
+
+        laudo_orm.publicado_em = datetime.now(timezone.utc)
+        laudo_orm.publicacao_resumo = resumo
+
+        try:
+            self.session.commit()
+        except IntegrityError as exc:
+            self.session.rollback()
+            raise ValueError("Erro ao publicar laudo") from exc
+
+        self.session.refresh(laudo_orm)
+
+        return {
+            "id": laudo_orm.id,
+            "publicado_em": laudo_orm.publicado_em,
+            "resumo": laudo_orm.publicacao_resumo,
+        }
+
     def _to_domain(self, laudo_orm: LaudoORM) -> Laudo:
         # CORREÇÃO: Toda a lógica interna da função foi recuada em 4 espaços
         usuarios = []

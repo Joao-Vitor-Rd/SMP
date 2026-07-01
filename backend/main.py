@@ -13,6 +13,9 @@ from src.modules.upload.api.http.upload_routes import router as upload_router
 from src.modules.fotos.api.http.fotos_routes import router as fotos_router
 from src.modules.trechos.api.http.trechos_routes import router as trechos_router
 from src.modules.trechos.api.http.laudos_routes import router as laudos_router
+from src.modules.analise.api.http.analise_routes import router as analise_router
+from src.modules.analise.domain.entities.deteccao import DeteccaoORM
+from src.modules.analise.infrastructure.tasks.arq_pool import close_arq_pool
 from src.modules.fotos.infrastructure.services.minio_client import ensure_bucket_exists
 import os
 
@@ -63,6 +66,7 @@ async def startup_event():
 async def shutdown_event():
     """Fecha a conexão com Redis ao desligar a aplicação"""
     try:
+        await close_arq_pool()
         await RedisClient.close_client()
         print("✓ Conexão com Redis fechada com sucesso")
     except Exception as e:
@@ -74,6 +78,7 @@ app.include_router(colaborador_router, prefix="/api/colaboradores", tags=["Colab
 app.include_router(fotos_router, prefix="/api/fotos", tags=["Fotos"])
 app.include_router(trechos_router, prefix="/api/trechos", tags=["Trechos"])
 app.include_router(laudos_router, prefix="/api/laudos", tags=["Laudos"])
+app.include_router(analise_router, prefix="/api/v1/inspecoes", tags=["Análise IA"])
 app.include_router(upload_router, prefix="/api/uploads", tags=["Uploads"])
 app.include_router(fotos_router, prefix="/api/fotos", tags=["Fotos"])
 
