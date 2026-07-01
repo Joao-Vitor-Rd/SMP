@@ -318,12 +318,6 @@ export default function EditarPerfilPage() {
         }));
         setNomeEmEdicao(usuario.nome ?? '');
 
-        const tokenAcesso = localStorage.getItem('token_acesso');
-        if (!tokenAcesso) {
-          console.warn('Token de acesso não encontrado no localStorage');
-          return;
-        }
-
         const resposta = await authApi.get('/auth/me');
         const usuario_api = resposta.data;
 
