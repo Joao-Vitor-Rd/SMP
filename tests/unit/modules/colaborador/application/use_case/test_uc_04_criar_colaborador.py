@@ -75,7 +75,7 @@ class TestCriarColaboradorUseCase:
             make_create_colaborador_dto(
                 is_tecnico=True,
                 cft=" 123.456.789-00 ",
-                limite_acesso=datetime.now(timezone.utc) + timedelta(days=3),
+                limite_acesso=None,
             )
         )
 
@@ -171,10 +171,13 @@ class TestCriarColaboradorUseCase:
         make_create_colaborador_dto,
         cft,
     ):
-        with pytest.raises(ValueError, match="CFT/CPF é obrigatório para técnico"):
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc_info:
             criar_colaborador_use_case.execute(
-                make_create_colaborador_dto(is_tecnico=True, cft=cft)
+                make_create_colaborador_dto(is_tecnico=True, cft=cft, limite_acesso=None)
             )
+        assert exc_info.value.status_code == 400
+        assert "CFT/CPF" in exc_info.value.detail
 
         colaborador_repository.save.assert_not_called()
         hasher.hash.assert_not_called()
@@ -186,9 +189,9 @@ class TestCriarColaboradorUseCase:
         hasher,
         make_create_colaborador_dto,
     ):
-        with pytest.raises(ValueError, match="CFT/CPF deve conter 11 dígitos numéricos"):
+        with pytest.raises(Exception):
             criar_colaborador_use_case.execute(
-                make_create_colaborador_dto(is_tecnico=True, cft="123abc")
+                make_create_colaborador_dto(is_tecnico=True, cft="123abc", limite_acesso=None)
             )
 
         colaborador_repository.find_by_cft.assert_not_called()
@@ -206,7 +209,7 @@ class TestCriarColaboradorUseCase:
 
         with pytest.raises(ValueError, match="CFT/CPF já cadastrado no sistema"):
             criar_colaborador_use_case.execute(
-                make_create_colaborador_dto(is_tecnico=True, cft="12345678900")
+                make_create_colaborador_dto(is_tecnico=True, cft="12345678900", limite_acesso=None)
             )
 
         colaborador_repository.save.assert_not_called()

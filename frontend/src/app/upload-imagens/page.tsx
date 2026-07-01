@@ -3,8 +3,8 @@
 import axios from "axios";
 import exifr from "exifr";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type MutableRefObject } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Activity,
   AlertCircle,
@@ -27,6 +27,7 @@ import {
   User,
 } from "lucide-react";
 import { authApi, clearAuthSession } from "../../lib/authApi";
+import { INSPECTION_ID_KEY } from "../../lib/laudoApi";
 import { type MapReviewLocationSource } from "../../lib/map-review";
 import { buildReviewPayloadFromUpload, clearConfirmationSummary, persistReviewItems, readPersistedReviewItems } from "../../lib/map-review";
 
@@ -437,21 +438,57 @@ function isManualLocationResolved(item: UploadItem) {
   return parseLatitude(item.manualLat) !== null && parseLongitude(item.manualLng) !== null;
 }
 
-async function deriveHasLocationFromFile(file: File | UploadFileLike): Promise<boolean> {
-  if (!("arrayBuffer" in file)) {
-    return false;
-  }
+function applyManualCoordinateDraft(
+  current: UploadItem, 
+  latitudeText?: string, 
+  longitudeText?: string
+): UploadItem {
+  const manualLat = latitudeText !== undefined ? latitudeText : current.manualLat;
+  const manualLng = longitudeText !== undefined ? longitudeText : current.manualLng;
+  const manualReady = isCompleteManualCoordinatePair(manualLat, manualLng);
+  
+  const msgText: string = manualReady 
+    ? "Coordenadas manuais preenchidas." 
+    : "Aguardando coordenadas manuais.";
 
+  return {
+    ...current,
+    manualLat,
+    manualLng,
+    locationException: null,
+    hasLocation: false, 
+    locationSource: manualReady ? ("manual" as const) : null,
+    message: msgText, 
+  };
+}
+
+async function deriveMetadataFromFile(file: File | UploadFileLike): Promise<{ hasLocation: boolean; isoDate: string | null }> {
+  if (!("arrayBuffer" in file)) return { hasLocation: false, isoDate: null };
   try {
-    const gps = await exifr.gps(file);
-    if (gps == null) return false;
-    const lat = gps.latitude;
-    const lng = gps.longitude;
-    if (typeof lat !== "number" || typeof lng !== "number") return false;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-    return true;
-  } catch {
-    return false;
+    const [gps, exif] = await Promise.all([
+      exifr.gps(file as File).catch(() => null),
+      exifr.parse(file as File, ["DateTimeOriginal", "CreateDate", "DateTime"]).catch(() => null),
+    ]);
+
+    const lat = gps?.latitude;
+    const lng = gps?.longitude;
+    const hasLocation =
+      typeof lat === "number" && typeof lng === "number" &&
+      Number.isFinite(lat) && Number.isFinite(lng);
+
+    const rawDate = exif?.DateTimeOriginal ?? exif?.CreateDate ?? exif?.DateTime ?? null;
+    let isoDate: string | null = null;
+    if (rawDate) {
+      const d = rawDate instanceof Date ? rawDate : new Date(rawDate);
+      if (!isNaN(d.getTime())) {
+        isoDate = d.toISOString().slice(0, 10); 
+      }
+    }
+
+    return { hasLocation, isoDate };
+  } catch (error) {
+    console.error("[EXIF] Erro ao extrair metadados:", error);
+    return { hasLocation: false, isoDate: null };
   }
 }
 
@@ -469,20 +506,256 @@ function getProgressWidthClass(progress: number) {
   return "w-full";
 }
 
+function readLaudoIdFromUrl(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return new URLSearchParams(window.location.search).get("laudoId")?.trim() || null;
+}
+
+function resolveInspecaoIdForUpload(laudoIdFromUrl: string | null, inspecaoIdRef: MutableRefObject<string | null>): string | null {
+  const fromUrl = readLaudoIdFromUrl() ?? laudoIdFromUrl;
+  const fromStorage =
+    typeof window !== "undefined" ? window.sessionStorage.getItem(INSPECTION_ID_KEY)?.trim() || null : null;
+  return inspecaoIdRef.current ?? fromUrl ?? fromStorage;
+}
+
 const FOTO_UPLOAD_ENDPOINT = "/api/fotos/upload-multiplas";
 
-export default function UploadImagensPage() {
+interface UploadItemRowProps {
+  item: UploadItem;
+  updateQueueItem: (itemId: string, updater: (current: UploadItem) => UploadItem) => void;
+  onRemove: (item: UploadItem) => void;
+}
+
+function UploadItemRow({ item, updateQueueItem, onRemove }: UploadItemRowProps) {
+  const isUploading = item.status === 'uploading';
+  const isCompleted = item.status === 'completed';
+  const isRejected = item.status === 'rejected';
+  const locationSource = item.locationSource ?? (item.hasLocation ? "gps" : null);
+
+  const latInvalid = useMemo(() => 
+    itemNeedsManualLocation(item) && !item.locationException && item.manualLat.trim() !== "" && parseLatitude(item.manualLat) === null,
+    [item]
+  );
+  const lngInvalid = useMemo(() => 
+    itemNeedsManualLocation(item) && !item.locationException && item.manualLng.trim() !== "" && parseLongitude(item.manualLng) === null,
+    [item]
+  );
+
+  return (
+    <div className={`flex flex-col gap-3 rounded-2xl border p-3 ${isRejected ? 'border-red-200 bg-red-50' : isCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3 sm:flex-1">
+          <div className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border ${isRejected ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-100'}`}>
+            {item.previewUrl ? (
+              <Image src={item.previewUrl} alt={item.file.name} width={48} height={48} unoptimized className="h-full w-full object-cover" />
+            ) : (
+              <Upload size={18} className="text-gray-400" />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-sm font-bold text-gray-900">{item.file.name}</p>
+              <span className={`rounded-full border px-2.5 py-1 text-[0.68rem] font-bold uppercase tracking-[0.2em] ${isRejected ? 'border-red-200 bg-white text-red-600' : isCompleted ? 'border-emerald-200 bg-white text-emerald-700' : isUploading ? 'border-blue-200 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                {isRejected ? 'Pendente' : isCompleted ? 'Concluído' : isUploading ? 'Enviando' : "Na fila"}
+              </span>
+            </div>
+
+            <p className={`mt-1 text-xs ${isRejected ? 'text-red-600' : 'text-gray-500'}`}>
+              {isRejected ? item.message : `${getFileKindLabel(item.file)} • ${formatBytes(item.file.size)}`}
+            </p>
+
+            {shouldShowGpsUi(item) ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                {item.hasLocation === null ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-gray-400" aria-hidden />
+                    <span className="text-gray-500">Verificando metadados de localização...</span>
+                  </>
+                ) : null}
+                {item.status === 'completed' && locationSource === "manual" ? (
+                  <>
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
+                    <span className="font-semibold text-emerald-700">Localização informada</span>
+                  </>
+                ) : null}
+                {item.status === 'completed' && locationSource === "gps" ? (
+                  <>
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
+                    <span className="font-semibold text-emerald-700">Localização identificada via GPS</span>
+                  </>
+                ) : null}
+                {item.hasLocation === false ? (
+                  <>
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+                    <span className="font-semibold text-amber-700">Requer intervenção</span>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+              <div className={`h-full rounded-full transition-all ${isRejected ? 'bg-red-400 w-full' : isCompleted ? 'bg-emerald-500 w-full' : `bg-[#0a5483] ${getProgressWidthClass(item.progress)}`}`} />
+            </div>
+
+            <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+              {isUploading ? <Upload size={13} className="text-blue-600" /> : isCompleted ? <CheckCircle2 size={13} className="text-emerald-600" /> : isRejected ? <CheckCircle2 size={13} className="text-red-600" /> : <CheckCircle2 size={13} className="text-gray-400" />}
+              <span>{item.message}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 sm:w-auto sm:shrink-0">
+          <button
+            type="button"
+            disabled={isUploading}
+            onClick={() => onRemove(item)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed"
+            aria-label={`Remover ${item.file.name}`}
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+
+      {itemNeedsManualLocation(item) ? (
+        <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-3">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-amber-900/80">
+            Pendentes de localização — coordenadas manuais
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                Latitude
+              </label>
+              <input
+                id={`lat-${item.id}`}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                disabled={!!item.locationException}
+                value={item.manualLat}
+                onChange={(e) => {
+                  const v = filterCoordInput(e.target.value);
+                  updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, v, undefined));
+                }}
+                placeholder="-23,5505"
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${latInvalid ? "border-red-400 focus:ring-red-200" : "border-gray-200"}`}
+              />
+              {latInvalid && (
+                <p className="mt-1 text-[11px] font-medium text-red-600 animate-fade-in">
+                  Latitude inválida. Use números decimais entre −90 e 90.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                Longitude
+              </label>
+              <input
+                id={`lng-${item.id}`}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                disabled={!!item.locationException}
+                value={item.manualLng}
+                onChange={(e) => {
+                  const v = filterCoordInput(e.target.value);
+                  updateQueueItem(item.id, (c) => applyManualCoordinateDraft(c, undefined, v));
+                }}
+                placeholder="-46,6333"
+                className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${lngInvalid ? "border-red-400 focus:ring-red-200" : "border-gray-200"}`}
+              />
+              {lngInvalid && (
+                <p className="mt-1 text-[11px] font-medium text-red-600 animate-fade-in">
+                  Longitude inválida. Use números decimais entre −180 e 180.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold text-gray-600">Sem dados de posição?</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  updateQueueItem(item.id, (c) => ({
+                    ...c,
+                    locationException: c.locationException === "sem_gps" ? null : "sem_gps",
+                    manualLat: "",
+                    manualLng: "",
+                    locationSource: null,
+                  }))
+                }
+                className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                  item.locationException === "sem_gps"
+                    ? "border-[#0a5483] bg-[#0a5483] text-white"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Sem GPS
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function UploadImagensConteudo() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const laudoIdParam = searchParams.get("laudoId")?.trim() || null;
+  const [laudoIdFromUrl, setLaudoIdFromUrl] = useState<string | null>(null);
+  const inspecaoIdRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [showPopUp, setShowPopUp] = useState(false);
   const [initialUserState] = useState<UserState>(() => getInitialUserState());
   const [usuarioNome] = useState(initialUserState.nome);
   const [cargoUsuario] = useState(initialUserState.cargo);
   const [isDragging, setIsDragging] = useState(false);
-  const [items, setItems] = useState<UploadItem[]>(() => readStoredUploadQueue());
+  const [items, setItems] = useState<UploadItem[]>(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
+    }
+    return [];
+  });
+
   const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<UploadItem[]>([]);
+
+  useEffect(() => {
+    const fromStorage =
+      typeof window !== "undefined" ? window.sessionStorage.getItem(INSPECTION_ID_KEY)?.trim() || null : null;
+    const resolvedId = laudoIdParam ?? readLaudoIdFromUrl() ?? fromStorage;
+
+    setLaudoIdFromUrl(resolvedId);
+    inspecaoIdRef.current = resolvedId;
+
+    if (laudoIdParam && typeof window !== "undefined") {
+      window.sessionStorage.setItem(INSPECTION_ID_KEY, laudoIdParam);
+    }
+  }, [laudoIdParam]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
+      }
+      clearConfirmationSummary();
+      itemsRef.current.forEach((item) => {
+        if (isBlobUrl(item.previewUrl)) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+    };
+  }, []);
 
   const totalSelectedSize = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0), [items]);
 
@@ -600,13 +873,23 @@ export default function UploadImagensPage() {
       }));
     });
 
+    const inspecaoId = resolveInspecaoIdForUpload(laudoIdFromUrl, inspecaoIdRef);
+
     const formData = new FormData();
     selectedForUpload.forEach(({ file }) => {
       formData.append("files", file);
     });
+    if (inspecaoId) {
+      formData.append("inspecao_id", inspecaoId);
+    }
+
+    const uploadUrl = inspecaoId
+      ? `${FOTO_UPLOAD_ENDPOINT}?inspecao_id=${encodeURIComponent(inspecaoId)}`
+      : FOTO_UPLOAD_ENDPOINT;
 
     try {
-      const response = await authApi.post(FOTO_UPLOAD_ENDPOINT, formData, {
+      const response = await authApi.post(uploadUrl, formData, {
+        headers: inspecaoId ? { "X-Inspecao-Id": inspecaoId } : undefined,
         onUploadProgress: (progressEvent) => {
           if (!progressEvent.total) {
             return;
@@ -691,7 +974,7 @@ export default function UploadImagensPage() {
         }));
       });
     }
-  }, [updateQueueItem]);
+  }, [updateQueueItem, laudoIdFromUrl]);
 
   useEffect(() => {
     const pendingItems = items.filter(
@@ -795,18 +1078,25 @@ export default function UploadImagensPage() {
       }
     });
 
+    let dataPatchDisparado = false;
+
     void Promise.resolve().then(() => {
       nextItems.forEach((item) => {
-        if (item.status !== "pending" || item.hasLocation !== null) {
-          return;
-        }
-
-        void deriveHasLocationFromFile(resolveOriginalFile(item) ?? item.file).then((hasLoc) => {
+        if (item.status !== "pending" || item.hasLocation !== null) return;
+        void deriveMetadataFromFile(resolveOriginalFile(item) ?? item.file).then(({ hasLocation, isoDate }) => {
           updateQueueItem(item.id, (current) => ({
             ...current,
-            hasLocation: hasLoc,
-            locationSource: hasLoc ? "gps" : current.locationSource,
+            hasLocation,
+            locationSource: hasLocation ? "gps" : current.locationSource,
           }));
+
+          const laudoIdParaAtualizar = resolveInspecaoIdForUpload(laudoIdFromUrl, inspecaoIdRef);
+          if (isoDate && laudoIdParaAtualizar && !dataPatchDisparado) {
+            dataPatchDisparado = true;
+            void authApi.patch(`/api/laudos/${laudoIdParaAtualizar}/`, { data: isoDate })
+              .then((res) => console.log("[EXIF] PATCH sucesso:", res.data))
+              .catch((err) => console.warn("[EXIF] Não foi possível atualizar a data do laudo:", err?.response?.data ?? err.message));
+          }
         });
       });
     });
@@ -1255,7 +1545,7 @@ export default function UploadImagensPage() {
                 disabled={!podeMapearCoordenadas || arquivosSemCoordenadas > 0}
                 onClick={() => {
                   void prepareReviewItems().finally(() => {
-                    router.push("/mapa");
+                    router.push("/mapa");                 
                   });
                 }}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold uppercase tracking-wide transition ${
@@ -1281,5 +1571,20 @@ export default function UploadImagensPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function UploadImagensPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-10 w-10 animate-spin text-[#0a5483]" />
+          <p className="text-sm font-medium text-gray-500">Carregando gerenciador de upload...</p>
+        </div>
+      </div>
+    }>
+      <UploadImagensConteudo />
+    </Suspense>
   );
 }

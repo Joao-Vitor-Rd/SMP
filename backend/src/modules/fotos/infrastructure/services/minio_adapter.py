@@ -32,3 +32,12 @@ class MinioAdapter(IFotoStorage):
         # Como é desenvolvimento/teste, retornar URL pública simples
         # O caminho_arquivo já vem como "bucket/arquivo.jpg"
         return f"http://localhost:9000/{caminho_arquivo}"
+
+    def get_bytes(self, caminho_arquivo: str) -> bytes:
+        nome_objeto = caminho_arquivo.split(f"{self.bucket_name}/", 1)[-1]
+        response = self.client.get_object(self.bucket_name, nome_objeto)
+        try:
+            return response.read()
+        finally:
+            response.close()
+            response.release_conn()
