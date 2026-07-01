@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
 	AlertTriangle,
@@ -261,7 +261,7 @@ export default function CentralAcessosPage() {
 						</button>
 					</div>
 
-					{abaAtiva === "solicitacoes" && (
+					{abaAtiva === "solicitacoes" ? (
 						<>
 							<div className="flex gap-2 mb-6">
 								<button
@@ -358,6 +358,10 @@ export default function CentralAcessosPage() {
 								</div>
 							)}
 						</>
+					) : (
+						<div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+							Ainda não há notificações disponíveis. Verifique novamente mais tarde.
+						</div>
 					)}
 				</div>
 
