@@ -20,6 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    table_names = inspector.get_table_names()
+
+    if "fotos" not in table_names:
+        return
+
     fotos_columns = {column["name"] for column in inspector.get_columns("fotos")}
 
     if "laudo_id" not in fotos_columns:
