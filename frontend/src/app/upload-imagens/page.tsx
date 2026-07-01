@@ -600,24 +600,28 @@ function UploadImagensConteudo() {
   const [usuarioNome] = useState(initialUserState.nome);
   const [cargoUsuario] = useState(initialUserState.cargo);
   const [isDragging, setIsDragging] = useState(false);
-  const [items, setItems] = useState<UploadItem[]>(() => readStoredUploadQueue());
-  const searchParams = useSearchParams();
-  const laudoId = searchParams.get("laudoId");
+  const [items, setItems] = useState<UploadItem[]>(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
+    }
+    return [];
+  });
+
   const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<UploadItem[]>([]);
 
   useEffect(() => {
-    const fromUrl = readLaudoIdFromUrl();
-    setLaudoIdFromUrl(fromUrl);
-
-    const fromStorage =
-      typeof window !== "undefined" ? window.sessionStorage.getItem(INSPECTION_ID_KEY)?.trim() || null : null;
-    const resolved = fromUrl ?? fromStorage;
-    inspecaoIdRef.current = resolved;
-
-    if (fromUrl && typeof window !== "undefined") {
-      window.sessionStorage.setItem(INSPECTION_ID_KEY, fromUrl);
-    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(UPLOAD_QUEUE_STORAGE_KEY);
+      }
+      clearConfirmationSummary();
+      itemsRef.current.forEach((item) => {
+        if (isBlobUrl(item.previewUrl)) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+    };
   }, []);
 
   const totalSelectedSize = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0), [items]);
