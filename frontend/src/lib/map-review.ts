@@ -386,9 +386,9 @@ export async function saveInspectionPosition(itemId: string, latitude: number, l
         latitude,
         longitude,
         locationSource: "manual",
-        status: "ready",
+        status: "confirmed",
         updatedAt: now,
-        note: "Coordenadas ajustadas manualmente (aguardando confirmação no servidor)",
+        note: "Coordenadas ajustadas manualmente.",
       };
       persistReviewItems(stored);
       return;
@@ -405,8 +405,8 @@ export async function saveInspectionPosition(itemId: string, latitude: number, l
         longitude,
         locationSource: "manual",
         locationException: null,
-        status: "ready",
-        note: "Coordenadas ajustadas manualmente (aguardando confirmação no servidor)",
+        status: "confirmed",
+        note: "Coordenadas ajustadas manualmente.",
         updatedAt: now,
       },
     ]);

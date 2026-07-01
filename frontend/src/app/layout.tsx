@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import InspectionAnalysisProvider from "../../components/InspectionAnalysisProvider";
 
 export const metadata: Metadata = {
   title: "RoadSense AI",
@@ -16,7 +17,9 @@ export default function RootLayout({
       lang="pt-BR"
       className="h-full antialiased"
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <InspectionAnalysisProvider>{children}</InspectionAnalysisProvider>
+      </body>
     </html>
   );
 }
