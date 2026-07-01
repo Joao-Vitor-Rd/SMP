@@ -17,7 +17,8 @@ import {
     Eye
 } from "lucide-react";
 
-import { clearAuthSession, authApi } from "../../lib/authApi";
+import { authApi, clearAuthSession } from "../../lib/authApi";
+import { createLaudo, INSPECTION_ID_KEY, listLaudos, type LaudoResponse } from "../../lib/laudoApi";
 import AppSidebar from "../../../components/AppSidebar";
 
 type CargoUsuario = "supervisor" | "tecnico" | "colaborador" | "";
@@ -81,10 +82,13 @@ function getInitialUserState() {
     const usuario = parseJson<UsuarioStorage>(window.localStorage.getItem("usuario"));
     const nomeExibicao = usuario?.nome?.trim() || usuario?.username?.trim() || "Engenheiro(a)";
 
+    const cargo = usuario?.cargo;
+
     return {
         id: usuario?.id,
         nome: nomeExibicao,
-        cargo: usuario?.cargo === "supervisor" ? "Supervisor" : usuario?.cargo === "tecnico" ? "Técnico" : "Colaborador",
+        cargo: cargo === "supervisor" ? "Supervisor" : cargo === "tecnico" ? "Técnico" : "Colaborador",
+        isTecnico: cargo === "tecnico" || cargo === "colaborador",
     };
 }
 
@@ -204,6 +208,8 @@ export default function MeusTrabalhosPage() {
     const [usuarioNome] = useState(initialUserState.nome);
     const [cargoUsuario] = useState(initialUserState.cargo);
     
+    const [usuarioId] = useState(initialUserState.id);
+    const [isTecnico] = useState(initialUserState.isTecnico ?? false);
     const [inspectionDate, setInspectionDate] = useState(initialInspectionState.inspectionDate);
     const [responsibleName, setResponsibleName] = useState(initialInspectionState.responsibleName);
     const [responsibleIdentifier, setResponsibleIdentifier] = useState(initialInspectionState.responsibleIdentifier);
@@ -243,16 +249,32 @@ export default function MeusTrabalhosPage() {
         }
         setShowNovaInspecao(true);
     };
+        async function carregarDadosDoServidor() {
+            try {
+                const [laudosData, resColabs] = await Promise.all([
+                    listLaudos(),
+                    authApi.get<ColaboradorResponse[]>("/api/supervisores/me/colaboradores").catch(() => ({ data: [] }))
+                ]);
 
 useEffect(() => {
     let isMounted = true;
 
-    async function carregarDadosDoServidor() {
-        try {
-            const [resLaudos, resColabs] = await Promise.all([
-                authApi.get<LaudoResponse[]>("/api/laudos/"),
-                authApi.get<ColaboradorResponse[]>("/api/supervisores/me/colaboradores").catch(() => ({ data: [] }))
-            ]);
+                if (Array.isArray(laudosData)) {
+                    // Filtro defensivo no cliente: técnicos/colaboradores só visualizam
+                    // laudos onde são o responsável ou foram adicionados como colaboradores.
+                    // O filtro primário deve existir no backend; este é uma segunda camada.
+                    const laudosFiltrados = isTecnico && usuarioId
+                        ? laudosData.filter((laudo) => {
+                            const eResponsavel = laudo.responsavel_id === usuarioId;
+                            const eColaborador = Array.isArray(laudo.usuarios)
+                                && laudo.usuarios.some((u) => u.id === usuarioId);
+                            return eResponsavel || eColaborador;
+                        })
+                        : laudosData;
+
+                    const ordenados = laudosFiltrados.sort((a, b) => b.id - a.id);
+                    setLaudos(ordenados);
+                }
 
             if (!isMounted) return;
 
@@ -371,6 +393,24 @@ useEffect(() => {
             if (canUseStorage()) {
                 window.sessionStorage.removeItem(INSPECTION_DRAFT_KEY);
                 window.sessionStorage.removeItem(INSPECTION_METADATA_KEY);
+            const response = await createLaudo(payloadBackend);
+            const novoLaudoId = response.id;
+
+            if (canUseStorage()) {
+                const payloadStorage: InspectionDraftStorage = {
+                    inspectionDate,
+                    responsibleName,
+                    responsibleIdentifier,
+                    selectedCollaboratorIds,
+                    savedAt: new Date().toISOString(),
+                };
+
+                window.sessionStorage.setItem(INSPECTION_DRAFT_KEY, JSON.stringify(payloadStorage));
+                window.sessionStorage.setItem(
+                    INSPECTION_METADATA_KEY,
+                    JSON.stringify({ inspectionDate, dataInspecao: inspectionDate, date: inspectionDate })
+                );
+                window.sessionStorage.setItem(INSPECTION_ID_KEY, String(novoLaudoId));
             }
 
             setShowNovaInspecao(false);

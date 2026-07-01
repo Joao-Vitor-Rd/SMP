@@ -4,11 +4,18 @@ from unittest.mock import Mock
 import pytest
 
 from src.modules.colaborador.application.dtos.colaborador_dto import (
+    AtualizarLimiteAcessoDTO,
     CreateColaboradorDTO,
     UpdateColaboradorDTO,
 )
 from src.modules.colaborador.application.use_case.uc_04 import CriarColaboradorUseCase
 from src.modules.colaborador.application.use_case.uc_05 import AtualizarColaboradorUseCase
+from src.modules.colaborador.application.use_case.alterar_acesso import (
+    AlternarAcessoLiberdoUseCase,
+)
+from src.modules.colaborador.application.use_case.alterar_limite_acesso import (
+    AtualizarLimiteAcessoUseCase,
+)
 from src.modules.colaborador.domain.entities.colaborador import Colaborador
 
 
@@ -17,8 +24,11 @@ def colaborador_repository():
     mock = Mock()
     mock.find_by_cft.return_value = None
     mock.find_by_user_id.return_value = None
+    mock.find_by_id.return_value = None
     mock.save.side_effect = lambda colaborador: colaborador.model_copy(update={"id": 10})
     mock.update_colaborador.side_effect = lambda colaborador: colaborador
+    mock.update_acesso.side_effect = lambda colaborador_id: None
+    mock.update_limite_acesso.side_effect = lambda colaborador_id, limite_acesso: None
     return mock
 
 
@@ -117,6 +127,16 @@ def atualizar_colaborador_use_case(
 
 
 @pytest.fixture
+def alterar_acesso_use_case(colaborador_repository):
+    return AlternarAcessoLiberdoUseCase(repository=colaborador_repository)
+
+
+@pytest.fixture
+def atualizar_limite_acesso_use_case(colaborador_repository):
+    return AtualizarLimiteAcessoUseCase(repository=colaborador_repository)
+
+
+@pytest.fixture
 def make_create_colaborador_dto():
     def _make_create_colaborador_dto(**overrides):
         data = {
@@ -154,6 +174,46 @@ def colaborador_existente():
 
 
 @pytest.fixture
+def colaborador_para_acesso():
+    return Colaborador(
+        id=11,
+        nome="Ana Clara",
+        email="ana.clara@example.com",
+        is_tecnico=False,
+        id_profissional_responsavel=1,
+        cft=None,
+        uf="SP",
+        cidade="Sao Paulo",
+        empresa_ou_orgao="Empresa",
+        telefone="11999999999",
+        instituicao_ensino="Escola",
+        senha="senha-hash",
+        limite_acesso=datetime.now(timezone.utc) + timedelta(days=3),
+        acesso_liberado=False,
+    )
+
+
+@pytest.fixture
+def colaborador_tecnico():
+    return Colaborador(
+        id=12,
+        nome="Ana Tecnica",
+        email="ana.tecnica@example.com",
+        is_tecnico=True,
+        id_profissional_responsavel=1,
+        cft="12345678900",
+        uf="SP",
+        cidade="Sao Paulo",
+        empresa_ou_orgao="Empresa",
+        telefone="11999999999",
+        instituicao_ensino="Escola",
+        senha="senha-hash",
+        limite_acesso=None,
+        acesso_liberado=True,
+    )
+
+
+@pytest.fixture
 def make_update_colaborador_dto():
     def _make_update_colaborador_dto(**overrides):
         data = {
@@ -168,3 +228,15 @@ def make_update_colaborador_dto():
         return UpdateColaboradorDTO(**data)
 
     return _make_update_colaborador_dto
+
+
+@pytest.fixture
+def make_atualizar_limite_acesso_dto():
+    def _make_atualizar_limite_acesso_dto(**overrides):
+        data = {
+            "limite_acesso": datetime.now(timezone.utc) + timedelta(days=2),
+        }
+        data.update(overrides)
+        return AtualizarLimiteAcessoDTO(**data)
+
+    return _make_atualizar_limite_acesso_dto

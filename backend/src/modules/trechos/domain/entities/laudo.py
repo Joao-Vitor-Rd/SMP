@@ -33,10 +33,15 @@ class LaudoORM(Base):
         lazy="joined"
     )
     resumo = Column(JSON, nullable=False, default=dict)
+    # Campos de publicação (US-14). `publicacao_resumo` é separado de `resumo`
+    # para não colidir com o resumo de contagens usado na criação/listagem.
+    publicado_em = Column(DateTime(timezone=True), nullable=True)
+    publicacao_resumo = Column(JSON, nullable=True)
 
 class UsuarioLaudo(BaseModel):
     nome: str
     cargo: CargoEnum
+    id: int
 
     model_config = ConfigDict(from_attributes=True)
 

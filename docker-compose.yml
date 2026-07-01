@@ -88,6 +88,31 @@ services:
     networks:
       - smp_network
 
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: smp_worker
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      min_io:
+        condition: service_started
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/main.py:/app/main.py
+      - ./backend/alembic.ini:/app/alembic.ini
+      - ./backend/migrations:/app/migrations
+      - ./backend/src/modules/analise/infrastructure/models/weights:/app/src/modules/analise/infrastructure/models/weights:ro
+    networks:
+      - smp_network
+    entrypoint: []
+    command: arq src.modules.analise.infrastructure.tasks.worker.WorkerSettings
+
   frontend:
     build:
       context: ./frontend
