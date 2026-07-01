@@ -15,8 +15,8 @@ export type PublishLaudoPayload = {
 };
 
 export type LaudoPublicado = {
-  id: string;
-  inspecao_id: string;
+  id: string | number;
+  inspecao_id: string | number;
   publicado_em: string;
   resumo: FinalizarInspecaoResumo;
 };
@@ -28,10 +28,10 @@ export async function publishLaudo(
   payload: PublishLaudoPayload
 ): Promise<LaudoPublicado> {
   try {
-    const response = await authApi.post(`${LAUDOS_API_BASE}/`, {
-      inspecao_id: inspecaoId,
-      ...payload,
-    });
+    const response = await authApi.post(
+      `${LAUDOS_API_BASE}/${inspecaoId}/publicar`,
+      payload
+    );
 
     return response.data as LaudoPublicado;
   } catch (error) {

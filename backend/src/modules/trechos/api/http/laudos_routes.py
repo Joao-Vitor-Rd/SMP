@@ -6,11 +6,18 @@ from src.shared.infrastructure.db import get_session
 from src.shared.auth.dependencies import verify_any_user
 
 from src.modules.trechos.infrastructure.repositories.laudo_repository import LaudoRepository
-from src.modules.trechos.application.dtos.laudo_dto import LaudoCreateDTO, LaudoResponseDTO, LaudoUpdateDTO
+from src.modules.trechos.application.dtos.laudo_dto import (
+    LaudoCreateDTO,
+    LaudoResponseDTO,
+    LaudoUpdateDTO,
+    LaudoPublicacaoCreateDTO,
+    LaudoPublicadoDTO,
+)
 from src.modules.trechos.application.use_case.uc_criar_laudo import CriarLaudoUseCase
 from src.modules.trechos.application.use_case.uc_listar_laudos import ListarLaudosUseCase
 from src.modules.trechos.application.use_case.uc_buscar_laudo_por_id import BuscarLaudoPorIdUseCase
 from src.modules.trechos.application.use_case.uc_atualizar_laudo import AtualizarLaudoUseCase
+from src.modules.trechos.application.use_case.uc_publicar_laudo import PublicarLaudoUseCase
 
 router = APIRouter(tags=["Laudos"])
 
@@ -45,6 +52,12 @@ def get_uc_buscar_laudo_por_id(
     return BuscarLaudoPorIdUseCase(laudo_repository=laudo_repository)
 
 
+def get_uc_publicar_laudo(
+    laudo_repository: LaudoRepository = Depends(get_laudo_repository),
+) -> PublicarLaudoUseCase:
+    return PublicarLaudoUseCase(laudo_repository=laudo_repository)
+
+
 @router.post(
     "/",
     response_model=LaudoResponseDTO,
@@ -73,6 +86,34 @@ async def criar_laudo(
             detail=f"Erro ao criar laudo: {str(e)}"
         )
     
+@router.post(
+    "/{laudo_id}/publicar",
+    response_model=LaudoPublicadoDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Publicar Laudo",
+    description="Publica (finaliza) um laudo já revisado, registrando o resumo e a data de publicação."
+)
+async def publicar_laudo(
+    laudo_id: int,
+    dados: LaudoPublicacaoCreateDTO,
+    _: Annotated[dict, Depends(verify_any_user)],
+    use_case: PublicarLaudoUseCase = Depends(get_uc_publicar_laudo),
+) -> LaudoPublicadoDTO:
+    try:
+        return use_case.execute(laudo_id=laudo_id, dto=dados)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao publicar laudo: {str(e)}"
+        )
+
+
 @router.put(
     "/{laudo_id}",
     response_model=LaudoResponseDTO,

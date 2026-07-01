@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 const SuccessPopup = dynamic(() => import("../../../components/SuccessPopup"), { ssr: false });
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-import { getPublicApiBaseUrl } from "../../lib/authApi";
+import axios from "axios";
+import { authApi } from "../../lib/authApi";
 import Link from "next/link";
 
 const MENSAGEM_CREDENCIAIS_INVALIDAS =
@@ -19,45 +20,47 @@ type LoginErrorDetail = {
   mensagem?: string;
 };
 
-async function mensagemErroLogin(res: Response): Promise<string> {
-  try {
-    const body = await res.json();
-    const detail = body?.detail;
+async function mensagemErroLogin(error: unknown): Promise<string> {
+  if (axios.isAxiosError(error) && error.response) {
+    const res = error.response;
+    try {
+      const detail = res.data?.detail;
 
-    if (detail && typeof detail === "object") {
-      const { tentativas, mensagem } = detail as LoginErrorDetail;
-      const mensagemTratada = typeof mensagem === "string" ? mensagem.trim() : "";
+      if (detail && typeof detail === "object") {
+        const { tentativas, mensagem } = detail as LoginErrorDetail;
+        const mensagemTratada = typeof mensagem === "string" ? mensagem.trim() : "";
 
-      if (typeof tentativas === "number") {
-        if (tentativas >= LIMITE_TENTATIVAS_LOGIN) {
-          return mensagemTratada && !mensagemTratada.includes("horário indicado")
-            ? mensagemTratada
-            : MENSAGEM_CONTA_BLOQUEADA;
+        if (typeof tentativas === "number") {
+          if (tentativas >= LIMITE_TENTATIVAS_LOGIN) {
+            return mensagemTratada && !mensagemTratada.includes("horário indicado")
+              ? mensagemTratada
+              : MENSAGEM_CONTA_BLOQUEADA;
+          }
+
+          const restantes = LIMITE_TENTATIVAS_LOGIN - tentativas;
+          if (restantes > 0) {
+            return `Credenciais inválidas. Tentativas restantes: ${restantes}`;
+          }
         }
 
-        const restantes = LIMITE_TENTATIVAS_LOGIN - tentativas;
-        if (restantes > 0) {
-          return `Credenciais inválidas. Tentativas restantes: ${restantes}`;
+        if (mensagemTratada) {
+          return mensagemTratada;
         }
       }
 
-      if (mensagemTratada) {
-        return mensagemTratada;
+      if (typeof detail === "string" && detail.trim()) {
+        const detailTratado = detail.trim();
+        return detailTratado.includes("horário indicado")
+          ? MENSAGEM_CONTA_BLOQUEADA
+          : detailTratado;
       }
+    } catch {
+      // corpo ausente ou JSON inválido — usa fallback
     }
 
-    if (typeof detail === "string" && detail.trim()) {
-      const detailTratado = detail.trim();
-      return detailTratado.includes("horário indicado")
-        ? MENSAGEM_CONTA_BLOQUEADA
-        : detailTratado;
+    if (res.status === 429) {
+      return MENSAGEM_CONTA_BLOQUEADA;
     }
-  } catch {
-    // corpo ausente ou JSON inválido — usa fallback
-  }
-
-  if (res.status === 429) {
-    return MENSAGEM_CONTA_BLOQUEADA;
   }
 
   return MENSAGEM_CREDENCIAIS_INVALIDAS;
@@ -80,28 +83,21 @@ export default function LoginPage() {
     setCarregando(true);
 
     try {
-      const res = await fetch(`${getPublicApiBaseUrl()}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",  // Incluir cookies na requisição
-        body: JSON.stringify({ email, senha, lembrar_me: lembrarMe }),
+      const response = await authApi.post("/auth/login", {
+        email,
+        senha,
+        lembrar_me: lembrarMe,
       });
 
-      if (res.status === 401 || res.status === 400 || res.status === 403 || res.status === 429) {
-        setErro(await mensagemErroLogin(res));
-        return;
+      const data = response.data as {
+        usuario?: Record<string, unknown>;
+        token_acesso?: string;
+      };
+
+      if (data.token_acesso?.trim()) {
+        localStorage.setItem("accessToken", data.token_acesso.trim());
       }
 
-      if (!res.ok) {
-        setErro("Erro ao conectar com o servidor. Tente novamente.");
-        return;
-      }
-
-      const data = await res.json();
-      console.log("Resposta do servidor:", data);
-      console.log("Usuário recebido:", data.usuario);
-      
-      // Tokens agora estão em HttpOnly cookies, apenas salvar dados do usuário
       if (data.usuario) {
         localStorage.setItem("usuario", JSON.stringify(data.usuario));
       }
@@ -111,7 +107,32 @@ export default function LoginPage() {
         setShowSuccess(false);
         router.push("/editar-perfil");
       }, 2000);
-    } catch {
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 401 || status === 400 || status === 403 || status === 429) {
+          setErro(await mensagemErroLogin(error));
+          return;
+        }
+        if (status === 422) {
+          setErro("Dados inválidos. Verifique se o e-mail está correto.");
+          return;
+        }
+        if (status === 500) {
+          const detail = error.response?.data?.detail;
+          setErro(
+            typeof detail === "string" && detail.trim()
+              ? detail
+              : "Erro interno no servidor. Tente novamente em instantes."
+          );
+          return;
+        }
+        if (!error.response) {
+          setErro("Não foi possível conectar ao servidor. Verifique sua conexão.");
+          return;
+        }
+      }
+
       setErro("Não foi possível conectar ao servidor. Verifique sua conexão.");
     } finally {
       setCarregando(false);

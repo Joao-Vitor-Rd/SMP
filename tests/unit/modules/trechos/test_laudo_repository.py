@@ -5,13 +5,13 @@ from datetime import datetime, timezone
 
 from src.shared.infrastructure.db import Base
 from src.shared.domain.entities.user import UserORM, CargoEnum
+from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
 from src.modules.trechos.domain.entities.laudo import LaudoORM
 from src.modules.trechos.infrastructure.repositories.laudo_repository import LaudoRepository
 
 
 @pytest.fixture(name="db_session")
 def fixture_db_session():
-    # Usar um banco em memória SQLite para testar o repositório
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine)
@@ -23,41 +23,58 @@ def fixture_db_session():
 
 
 def test_deve_criar_laudo_com_sucesso(db_session):
-    # Dado que temos usuários no banco
-    user1 = UserORM(nome="João", email="joao@example.com", cargo=CargoEnum.SUPERVISOR)
+    # Dado que temos supervisor e colaboradores no banco
+    supervisor = UserORM(nome="Supervisor", email="supervisor@example.com", cargo=CargoEnum.SUPERVISOR)
+    user1 = UserORM(nome="João", email="joao@example.com", cargo=CargoEnum.COLABORADOR)
     user2 = UserORM(nome="Maria", email="maria@example.com", cargo=CargoEnum.COLABORADOR)
-    db_session.add_all([user1, user2])
+    db_session.add_all([supervisor, user1, user2])
+    db_session.commit()
+
+    colab1 = ColaboradorORM(user_id=user1.id, id_profissional_responsavel=supervisor.id, nome="João", email="joao@example.com")
+    colab2 = ColaboradorORM(user_id=user2.id, id_profissional_responsavel=supervisor.id, nome="Maria", email="maria@example.com")
+    db_session.add_all([colab1, colab2])
     db_session.commit()
 
     repo = LaudoRepository(db_session)
 
-    # Quando criamos um laudo com estes usuários
-    laudo = repo.create(responsavel="Responsavel Teste", usuarios_ids=[user1.id, user2.id])
+    # Quando criamos um laudo com estes colaboradores
+    laudo = repo.create(
+        responsavel="Responsavel Teste",
+        data=datetime.now(timezone.utc),
+        colaboradores_ids=[colab1.id, colab2.id],
+        resumo={},
+        credencial_responsavel="CREA-12345",
+    )
 
     # Então o laudo deve ser criado corretamente
     assert laudo.id is not None
     assert laudo.responsavel == "Responsavel Teste"
+    assert laudo.credencial_responsavel == "CREA-12345"
     assert len(laudo.usuarios) == 2
     assert laudo.usuarios[0].nome == "João"
-    assert laudo.usuarios[0].cargo == CargoEnum.SUPERVISOR
     assert laudo.usuarios[1].nome == "Maria"
-    assert laudo.usuarios[1].cargo == CargoEnum.COLABORADOR
 
 
 def test_deve_rejeitar_criar_laudo_com_usuario_inexistente(db_session):
     repo = LaudoRepository(db_session)
 
     # Quando tentamos criar com ID inexistente (999)
-    with pytest.raises(ValueError, match="Usuário\\(s\\) com ID\\(s\\) \\[999\\] não encontrado\\(s\\)"):
-        repo.create(responsavel="Responsavel Teste", usuarios_ids=[999])
+    with pytest.raises(ValueError, match="Colaborador\\(es\\) com ID\\(s\\) \\[999\\] não encontrado\\(s\\)"):
+        repo.create(
+            responsavel="Responsavel Teste",
+            data=datetime.now(timezone.utc),
+            colaboradores_ids=[999],
+            resumo={},
+            credencial_responsavel="CREA-12345",
+        )
 
 
 def test_deve_listar_todos_os_laudos_ordenados_por_data_decrescente(db_session):
     repo = LaudoRepository(db_session)
 
     # Criando laudos diretamente
-    laudo1 = LaudoORM(responsavel="Laudo Antigo")
-    laudo2 = LaudoORM(responsavel="Laudo Novo")
+    laudo1 = LaudoORM(responsavel="Laudo Antigo", credencial_responsavel="CREA-1")
+    laudo2 = LaudoORM(responsavel="Laudo Novo", credencial_responsavel="CREA-2")
     db_session.add_all([laudo1, laudo2])
     db_session.commit()
 
@@ -78,7 +95,7 @@ def test_deve_listar_todos_os_laudos_ordenados_por_data_decrescente(db_session):
 def test_deve_buscar_laudo_por_id(db_session):
     repo = LaudoRepository(db_session)
 
-    laudo1 = LaudoORM(responsavel="Laudo A")
+    laudo1 = LaudoORM(responsavel="Laudo A", credencial_responsavel="CREA-A")
     db_session.add(laudo1)
     db_session.commit()
 

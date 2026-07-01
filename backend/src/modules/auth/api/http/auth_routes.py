@@ -112,10 +112,10 @@ async def login(
             max_age=2592000 if login_data.lembrar_me else 28800  # 30 dias ou 8 horas
         )
         
-        # Retornar resposta sem expor os tokens
+        # Retornar resposta com tokens também no body (fallback Bearer para o SPA)
         return LoginResponseDTO(
-            token_acesso="",  # Vazio pois está no cookie
-            token_atualizacao="",  # Vazio pois está no cookie
+            token_acesso=login_response.token_acesso,
+            token_atualizacao=login_response.token_atualizacao,
             tipo_token="bearer",
             usuario=login_response.usuario
         )
@@ -179,9 +179,9 @@ async def refresh_token(
             max_age=900  # 15 minutos
         )
         
-        # Retornar resposta sem expor o token
+        # Retornar resposta com token também no body (fallback Bearer para o SPA)
         return RefreshTokenResponseDTO(
-            token_acesso="",  # Vazio pois está no cookie
+            token_acesso=result.token_acesso,
             tipo_token="bearer"
         )
     except ValueError as e:

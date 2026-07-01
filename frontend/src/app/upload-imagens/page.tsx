@@ -3,7 +3,7 @@
 import axios from "axios";
 import exifr from "exifr";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   AlertCircle,
@@ -19,6 +19,7 @@ import {
   User,
 } from "lucide-react";
 import { authApi, clearAuthSession } from "../../lib/authApi";
+import { INSPECTION_ID_KEY } from "../../lib/laudoApi";
 import { type MapReviewLocationSource } from "../../lib/map-review";
 import { buildReviewPayloadFromUpload, clearConfirmationSummary, persistReviewItems, readPersistedReviewItems } from "../../lib/map-review";
 import AppSidebar from "../../../components/AppSidebar";
@@ -372,6 +373,20 @@ function getProgressWidthClass(progress: number) {
   return "w-full";
 }
 
+function readLaudoIdFromUrl(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return new URLSearchParams(window.location.search).get("laudoId")?.trim() || null;
+}
+
+function resolveInspecaoIdForUpload(laudoIdFromUrl: string | null, inspecaoIdRef: MutableRefObject<string | null>): string | null {
+  const fromUrl = readLaudoIdFromUrl() ?? laudoIdFromUrl;
+  const fromStorage =
+    typeof window !== "undefined" ? window.sessionStorage.getItem(INSPECTION_ID_KEY)?.trim() || null : null;
+  return inspecaoIdRef.current ?? fromUrl ?? fromStorage;
+}
+
 const FOTO_UPLOAD_ENDPOINT = "/api/fotos/upload-multiplas";
 
 interface UploadItemRowProps {
@@ -562,6 +577,8 @@ function UploadItemRow({ item, updateQueueItem, onRemove }: UploadItemRowProps) 
 export default function UploadImagensPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const [laudoIdFromUrl, setLaudoIdFromUrl] = useState<string | null>(null);
+  const inspecaoIdRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [showPopUp, setShowPopUp] = useState(false);
   const [initialUserState] = useState<UserState>(() => getInitialUserState());
@@ -707,13 +724,23 @@ export default function UploadImagensPage() {
       }));
     });
 
+    const inspecaoId = resolveInspecaoIdForUpload(laudoIdFromUrl, inspecaoIdRef);
+
     const formData = new FormData();
     selectedForUpload.forEach(({ file }) => {
       formData.append("files", file);
     });
+    if (inspecaoId) {
+      formData.append("inspecao_id", inspecaoId);
+    }
+
+    const uploadUrl = inspecaoId
+      ? `${FOTO_UPLOAD_ENDPOINT}?inspecao_id=${encodeURIComponent(inspecaoId)}`
+      : FOTO_UPLOAD_ENDPOINT;
 
     try {
-      const response = await authApi.post(FOTO_UPLOAD_ENDPOINT, formData, {
+      const response = await authApi.post(uploadUrl, formData, {
+        headers: inspecaoId ? { "X-Inspecao-Id": inspecaoId } : undefined,
         onUploadProgress: (progressEvent) => {
           if (!progressEvent.total) return;
           const progress = Math.min(100, Math.round((progressEvent.loaded * 100) / progressEvent.total));
@@ -803,7 +830,7 @@ export default function UploadImagensPage() {
         updateQueueItem(item.id, (current) => ({ ...current, status: "rejected", progress: 0, message: mensagemErro }));
       });
     }
-  }, [updateQueueItem]);
+  }, [updateQueueItem, laudoIdFromUrl]);
 
   useEffect(() => {
     const pendingItems = items.filter((item) => item.status === "pending" && !uploadsEmAndamentoRef.current.has(item.id));
