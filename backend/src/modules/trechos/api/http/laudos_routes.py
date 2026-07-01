@@ -1,6 +1,8 @@
-from typing import Annotated, List
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from typing import Annotated, Any, List
+from fastapi import APIRouter, Depends, HTTPException, status # type: ignore
+from sqlalchemy import update # type: ignore
+from sqlalchemy.orm import Session # type: ignore
+from pydantic import BaseModel # type: ignore
 
 from src.shared.infrastructure.db import get_session
 from src.shared.auth.dependencies import verify_any_user
@@ -20,6 +22,10 @@ from src.modules.trechos.application.use_case.uc_atualizar_laudo import Atualiza
 from src.modules.trechos.application.use_case.uc_publicar_laudo import PublicarLaudoUseCase
 
 router = APIRouter(tags=["Laudos"])
+
+
+class AtualizarDataLaudoDTO(BaseModel):
+    data: str
 
 
 def get_laudo_repository(session: Annotated[Session, Depends(get_session)]) -> LaudoRepository:
@@ -150,7 +156,7 @@ async def atualizar_laudo(
     response_model=List[LaudoResponseDTO],
     status_code=status.HTTP_200_OK,
     summary="Listar todos os Laudos",
-    description="Retorna laudos do usuário logado. Supervisores veem todos; técnicos veem apenas os seus."
+    description="Retorna uma lista com todos os laudos cadastrados no sistema conforme as permissões do usuário."
 )
 async def listar_laudos(
     current_user: Annotated[dict, Depends(verify_any_user)],
@@ -196,4 +202,47 @@ async def buscar_laudo_por_id(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar laudo: {str(e)}"
+        )
+
+
+@router.patch(
+    "/{laudo_id}/",
+    status_code=status.HTTP_200_OK,
+    summary="Atualizar data do Laudo via metadados EXIF",
+    description="Atualiza parcialmente a propriedade de data do laudo quando metadados válidos são enviados pelo frontend."
+)
+async def atualizar_data_laudo(
+    laudo_id: int,
+    body: AtualizarDataLaudoDTO,
+    session: Annotated[Session, Depends(get_session)],
+    _: Annotated[dict, Depends(verify_any_user)],
+    buscar_use_case: BuscarLaudoPorIdUseCase = Depends(get_uc_buscar_laudo_por_id),
+):
+    from src.modules.trechos.domain.entities.laudo import LaudoORM
+
+    try:
+        laudo_existente = buscar_use_case.execute(laudo_id)
+
+        if laudo_existente is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Laudo com ID {laudo_id} não encontrado."
+            )
+
+        stmt = (
+            update(LaudoORM)
+            .where(LaudoORM.id == laudo_id)
+            .values(data=body.data)
+        )
+        session.execute(stmt)
+        session.commit()
+
+        return {"success": True, "message": "Data do laudo atualizada com sucesso pelo EXIF."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao atualizar a data do laudo: {str(e)}"
         )
