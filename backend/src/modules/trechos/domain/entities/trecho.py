@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -6,6 +7,13 @@ from sqlalchemy import Column, DateTime, String, Integer, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 
 from src.shared.infrastructure.db import Base
+
+if TYPE_CHECKING:
+    from src.modules.fotos.domain.entities.fotos import fotosORM
+    from src.shared.domain.entities.user import UserORM
+
+# Registra UserORM no metadata para resolver relationship("UserORM").
+from src.shared.domain.entities.user import UserORM as _UserORM  # noqa: F401
 
 
 class TrechoORM(Base):
