@@ -18,12 +18,10 @@ type AppSidebarProps = {
 };
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
-  { Icon: Folder, label: "Arquivos", href: "/meus-trabalhos" },
-  { Icon: Upload, label: "Enviar", href: "/upload-imagens" },
-  { Icon: Maximize, label: "Expandir", href: "/expandir" },
-  { Icon: FileText, label: "Documentos", href: "/documentos" },
-  { Icon: Map, label: "Mapa indisponível", href: null },
-  { Icon: History, label: "Histórico", href: "/historico" }, // 6º Ícone mapeado para a sua pasta
+  { Icon: Folder, label: "Meus trabalhos", href: "/meus-trabalhos" },
+  { Icon: Upload, label: "Upload de imagens ", href: "/upload-imagens" },
+  { Icon: FileText, label: "Relatório", href: "/relatorio" },
+  { Icon: History, label: "Histórico", href: "/historico" }, 
 ];
 
 export default function AppSidebar({ activePath }: AppSidebarProps) {
