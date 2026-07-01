@@ -1,5 +1,7 @@
 import axios, { AxiosError } from 'axios';
 
+export const ACCESS_TOKEN_STORAGE_KEY = 'accessToken';
+
 export function getPublicApiBaseUrl(): string {
   const raw = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').trim();
 
@@ -19,8 +21,6 @@ export function getPublicApiBaseUrl(): string {
   return raw;
 }
 
-const API_BASE_URL = getPublicApiBaseUrl();
-
 class SessionExpiredError extends Error {
   constructor(message: string = 'Sessão expirada') {
     super(message);
@@ -29,8 +29,7 @@ class SessionExpiredError extends Error {
 }
 
 const authApi = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true,  // Enviar cookies automaticamente
+  withCredentials: true,
 });
 
 // Flag para evitar múltiplas tentativas de refresh simultâneas
@@ -47,11 +46,32 @@ const addRefreshSubscriber = (callback: (token: string) => void) => {
 };
 
 authApi.interceptors.request.use((config) => {
+  config.baseURL = getPublicApiBaseUrl();
+  config.withCredentials = true;
+
+  // Leitura dinâmica a cada requisição — nunca no escopo global do módulo.
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('accessToken');
+    if (token?.trim()) {
+      config.headers = config.headers ?? {};
+      config.headers.Authorization = `Bearer ${token.trim()}`;
+    }
+  }
+
   return config;
 });
 
 authApi.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (typeof window !== 'undefined') {
+      const tokenAcesso = response.data?.token_acesso;
+      if (typeof tokenAcesso === 'string' && tokenAcesso.trim()) {
+        localStorage.setItem('accessToken', tokenAcesso.trim());
+      }
+    }
+
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
 
@@ -59,10 +79,8 @@ authApi.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Se o erro é 401 e ainda não tentamos refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // Se já está fazendo refresh, aguarde e retente
         return new Promise((resolve) => {
           addRefreshSubscriber(() => {
             resolve(authApi(originalRequest));
@@ -74,38 +92,35 @@ authApi.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Tentar renovar o token usando o refresh token armazenado no cookie
         const response = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
+          `${getPublicApiBaseUrl()}/auth/refresh`,
           {},
           {
-            withCredentials: true, // Enviar cookies com refresh token
+            withCredentials: true,
           }
         );
 
         isRefreshing = false;
 
-        // Notificar todos os subscribers que o token foi renovado
-        onRefreshed(response.data.token_acesso);
+        if (typeof window !== 'undefined') {
+          const tokenAcesso = response.data?.token_acesso;
+          if (typeof tokenAcesso === 'string' && tokenAcesso.trim()) {
+            localStorage.setItem('accessToken', tokenAcesso.trim());
+          }
+        }
 
-        // Tentar novamente a requisição original com o novo token
+        onRefreshed(response.data?.token_acesso ?? '');
+
         return authApi(originalRequest);
       } catch {
         isRefreshing = false;
-
-        // Se o refresh falhar, limpar sessão e rejeitar
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('usuario');
-        }
-
+        clearAuthSession();
         return Promise.reject(new SessionExpiredError());
       }
     }
 
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('usuario');
-      }
+      clearAuthSession();
       return Promise.reject(new SessionExpiredError());
     }
 
@@ -116,6 +131,7 @@ authApi.interceptors.response.use(
 export function clearAuthSession() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('usuario');
+    localStorage.removeItem('accessToken');
   }
 }
 

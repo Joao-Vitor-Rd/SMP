@@ -16,7 +16,8 @@ import {
     FileText
 } from "lucide-react";
 
-import { clearAuthSession, authApi } from "../../lib/authApi";
+import { authApi, clearAuthSession } from "../../lib/authApi";
+import { createLaudo, INSPECTION_ID_KEY, listLaudos, type LaudoResponse } from "../../lib/laudoApi";
 import AppSidebar from "../../../components/AppSidebar";
 
 type CargoUsuario = "supervisor" | "tecnico" | "colaborador" | "";
@@ -29,16 +30,6 @@ type UsuarioStorage = {
     cft?: string | null;
     identificador_profissional?: string | null;
     cargo?: CargoUsuario | string;
-};
-
-type LaudoResponse = {
-    id: number;
-    data: string;
-    responsavel: string;
-    responsavel_id?: number; // ID numérico do responsável — usado para filtro de acesso
-    credencial_responsavel: string;
-    resumo: Record<string, number>;
-    usuarios: Array<{ id?: number; nome: string; cargo: string }>;
 };
 
 type ColaboradorResponse = {
@@ -185,25 +176,25 @@ export default function MeusTrabalhosPage() {
 
         async function carregarDadosDoServidor() {
             try {
-                const [resLaudos, resColabs] = await Promise.all([
-                    authApi.get<LaudoResponse[]>("/api/laudos/"),
+                const [laudosData, resColabs] = await Promise.all([
+                    listLaudos(),
                     authApi.get<ColaboradorResponse[]>("/api/supervisores/me/colaboradores").catch(() => ({ data: [] }))
                 ]);
 
                 if (!isMounted) return;
 
-                if (Array.isArray(resLaudos.data)) {
+                if (Array.isArray(laudosData)) {
                     // Filtro defensivo no cliente: técnicos/colaboradores só visualizam
                     // laudos onde são o responsável ou foram adicionados como colaboradores.
                     // O filtro primário deve existir no backend; este é uma segunda camada.
                     const laudosFiltrados = isTecnico && usuarioId
-                        ? resLaudos.data.filter((laudo) => {
+                        ? laudosData.filter((laudo) => {
                             const eResponsavel = laudo.responsavel_id === usuarioId;
                             const eColaborador = Array.isArray(laudo.usuarios)
                                 && laudo.usuarios.some((u) => u.id === usuarioId);
                             return eResponsavel || eColaborador;
                         })
-                        : resLaudos.data;
+                        : laudosData;
 
                     const ordenados = laudosFiltrados.sort((a, b) => b.id - a.id);
                     setLaudos(ordenados);
@@ -265,10 +256,8 @@ export default function MeusTrabalhosPage() {
                 resumo: {} 
             };
 
-            console.log("Enviando Payload ao Servidor:", payloadBackend);
-
-            const response = await authApi.post<LaudoResponse>("/api/laudos/", payloadBackend);
-            const novoLaudoId = response.data.id;
+            const response = await createLaudo(payloadBackend);
+            const novoLaudoId = response.id;
 
             if (canUseStorage()) {
                 const payloadStorage: InspectionDraftStorage = {
@@ -284,6 +273,7 @@ export default function MeusTrabalhosPage() {
                     INSPECTION_METADATA_KEY,
                     JSON.stringify({ inspectionDate, dataInspecao: inspectionDate, date: inspectionDate })
                 );
+                window.sessionStorage.setItem(INSPECTION_ID_KEY, String(novoLaudoId));
             }
 
             setShowNovaInspecao(false);
