@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import { authApi, clearAuthSession } from "../../lib/authApi";
-import { createLaudo, INSPECTION_ID_KEY, listLaudos, type LaudoResponse } from "../../lib/laudoApi";
+import { INSPECTION_ID_KEY, listLaudos } from "../../lib/laudoApi";
 import AppSidebar from "../../../components/AppSidebar";
 
 type CargoUsuario = "supervisor" | "tecnico" | "colaborador" | "";
@@ -37,9 +37,10 @@ type LaudoResponse = {
     id: number;
     data: string;
     responsavel: string;
+    responsavel_id?: number;
     credencial_responsavel: string;
     resumo: Record<string, number>;
-    usuarios: Array<{ nome: string; cargo: string }>;
+    usuarios: Array<{ id?: number; nome: string; cargo: string }>;
     status?: "em_andamento" | "concluido"; 
 };
 
@@ -249,15 +250,20 @@ export default function MeusTrabalhosPage() {
         }
         setShowNovaInspecao(true);
     };
+
+    useEffect(() => {
+        let isMounted = true;
+
         async function carregarDadosDoServidor() {
             try {
                 const [laudosData, resColabs] = await Promise.all([
                     listLaudos(),
-                    authApi.get<ColaboradorResponse[]>("/api/supervisores/me/colaboradores").catch(() => ({ data: [] }))
+                    authApi
+                        .get<ColaboradorResponse[]>("/api/supervisores/me/colaboradores")
+                        .catch(() => ({ data: [] as ColaboradorResponse[] }))
                 ]);
 
-useEffect(() => {
-    let isMounted = true;
+                if (!isMounted) return;
 
                 if (Array.isArray(laudosData)) {
                     // Filtro defensivo no cliente: técnicos/colaboradores só visualizam
@@ -272,38 +278,31 @@ useEffect(() => {
                         })
                         : laudosData;
 
-                    const ordenados = laudosFiltrados.sort((a, b) => b.id - a.id);
+                    const ordenados = [...laudosFiltrados].sort((a, b) => b.id - a.id);
                     setLaudos(ordenados);
                 }
 
-            if (!isMounted) return;
-
-            if (Array.isArray(resLaudos.data)) {
-                const ordenados = resLaudos.data.sort((a, b) => b.id - a.id);
-                setLaudos(ordenados);
+                if (Array.isArray(resColabs.data)) {
+                    setColaboradores(resColabs.data);
+                }
+            } catch (error) {
+                console.error("Erro ao carregar dados da API:", error);
+                setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar suas inspeções." });
+            } finally {
+                if (isMounted) setLoading(false);
             }
-
-            if (Array.isArray(resColabs.data)) {
-                setColaboradores(resColabs.data);
-            }
-        } catch (error) {
-            console.error("Erro ao carregar dados da API:", error);
-            setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar suas inspeções." });
-        } finally {
-            if (isMounted) setLoading(false);
         }
-    }
 
-    carregarDadosDoServidor();
+        void carregarDadosDoServidor();
 
-    const handleFocus = () => { void carregarDadosDoServidor(); };
-    window.addEventListener("focus", handleFocus);
+        const handleFocus = () => { void carregarDadosDoServidor(); };
+        window.addEventListener("focus", handleFocus);
 
-    return () => {
-        isMounted = false;
-        window.removeEventListener("focus", handleFocus);
-    };
-}, []);
+        return () => {
+            isMounted = false;
+            window.removeEventListener("focus", handleFocus);
+        };
+    }, [isTecnico, usuarioId]);
 
     const inspecoesEmAndamento = laudos.filter(l => l.status === "em_andamento" || !l.resumo || Object.keys(l.resumo).length === 0);
     const inspecoesConcluidas = laudos.filter(l => l.status === "concluido" || (l.resumo && Object.keys(l.resumo).length > 0));
@@ -393,23 +392,6 @@ useEffect(() => {
             if (canUseStorage()) {
                 window.sessionStorage.removeItem(INSPECTION_DRAFT_KEY);
                 window.sessionStorage.removeItem(INSPECTION_METADATA_KEY);
-            const response = await createLaudo(payloadBackend);
-            const novoLaudoId = response.id;
-
-            if (canUseStorage()) {
-                const payloadStorage: InspectionDraftStorage = {
-                    inspectionDate,
-                    responsibleName,
-                    responsibleIdentifier,
-                    selectedCollaboratorIds,
-                    savedAt: new Date().toISOString(),
-                };
-
-                window.sessionStorage.setItem(INSPECTION_DRAFT_KEY, JSON.stringify(payloadStorage));
-                window.sessionStorage.setItem(
-                    INSPECTION_METADATA_KEY,
-                    JSON.stringify({ inspectionDate, dataInspecao: inspectionDate, date: inspectionDate })
-                );
                 window.sessionStorage.setItem(INSPECTION_ID_KEY, String(novoLaudoId));
             }
 

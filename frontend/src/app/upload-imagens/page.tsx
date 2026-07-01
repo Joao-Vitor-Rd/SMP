@@ -3,7 +3,7 @@
 import axios from "axios";
 import exifr from "exifr";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type MutableRefObject } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
@@ -592,6 +592,8 @@ function UploadItemRow({ item, updateQueueItem, onRemove }: UploadItemRowProps) 
 function UploadImagensConteudo() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const laudoIdParam = searchParams.get("laudoId")?.trim() || null;
   const [laudoIdFromUrl, setLaudoIdFromUrl] = useState<string | null>(null);
   const inspecaoIdRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -609,6 +611,19 @@ function UploadImagensConteudo() {
 
   const uploadsEmAndamentoRef = useRef<Set<string>>(new Set());
   const itemsRef = useRef<UploadItem[]>([]);
+
+  useEffect(() => {
+    const fromStorage =
+      typeof window !== "undefined" ? window.sessionStorage.getItem(INSPECTION_ID_KEY)?.trim() || null : null;
+    const resolvedId = laudoIdParam ?? readLaudoIdFromUrl() ?? fromStorage;
+
+    setLaudoIdFromUrl(resolvedId);
+    inspecaoIdRef.current = resolvedId;
+
+    if (laudoIdParam && typeof window !== "undefined") {
+      window.sessionStorage.setItem(INSPECTION_ID_KEY, laudoIdParam);
+    }
+  }, [laudoIdParam]);
 
   useEffect(() => {
     return () => {
@@ -911,12 +926,13 @@ function UploadImagensConteudo() {
             locationSource: hasLocation ? "gps" : current.locationSource,
           }));
 
-if (isoDate && laudoId && !dataPatchDisparado) {
-  dataPatchDisparado = true;
-  void authApi.patch(`/api/laudos/${laudoId}/`, { data: isoDate })
-    .then((res) => console.log("[EXIF] PATCH sucesso:", res.data))
-    .catch((err) => console.warn("[EXIF] Não foi possível atualizar a data do laudo:", err?.response?.data ?? err.message));
-}
+          const laudoIdParaAtualizar = resolveInspecaoIdForUpload(laudoIdFromUrl, inspecaoIdRef);
+          if (isoDate && laudoIdParaAtualizar && !dataPatchDisparado) {
+            dataPatchDisparado = true;
+            void authApi.patch(`/api/laudos/${laudoIdParaAtualizar}/`, { data: isoDate })
+              .then((res) => console.log("[EXIF] PATCH sucesso:", res.data))
+              .catch((err) => console.warn("[EXIF] Não foi possível atualizar a data do laudo:", err?.response?.data ?? err.message));
+          }
         });
       });
     });
