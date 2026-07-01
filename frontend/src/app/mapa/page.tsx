@@ -192,7 +192,10 @@ export default function MapaRevisaoPage() {
                 latitude,
                 longitude,
                 locationSource: "manual" as const,
-                status: "ready" as const,
+                // Coordenada manual salva = imagem validada. Marca como "confirmed"
+                // para sincronizar com a flag que o rodapé/submit verifica
+                // (pendingChanges = status !== "confirmed").
+                status: "confirmed" as const,
                 updatedAt: new Date().toISOString(),
                 note: "Posição ajustada manualmente no mapa.",
               }

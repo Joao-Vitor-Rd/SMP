@@ -20,6 +20,7 @@ class FotoRepository(IFotoRepository):
 			latitude=foto.latitude,
 			longitude=foto.longitude,
 			trecho_id=foto.trecho_id,
+			laudo_id=foto.laudo_id,
 			tipo_arquivo=foto.tipo_arquivo,
 		)
 
@@ -35,6 +36,15 @@ class FotoRepository(IFotoRepository):
 
 	def list_all(self) -> list[Foto]:
 		fotos = self.session.query(fotosORM).order_by(fotosORM.id.asc()).all()
+		return [Foto.model_validate(foto_orm) for foto_orm in fotos]
+
+	def list_by_inspecao_id(self, inspecao_id: int) -> list[Foto]:
+		fotos = (
+			self.session.query(fotosORM)
+			.filter(fotosORM.laudo_id == inspecao_id)
+			.order_by(fotosORM.id.asc())
+			.all()
+		)
 		return [Foto.model_validate(foto_orm) for foto_orm in fotos]
 
 	def find_by_id(self, foto_id: int) -> Foto | None:
@@ -62,6 +72,16 @@ class FotoRepository(IFotoRepository):
 
 		self.session.query(fotosORM).filter(fotosORM.id.in_(foto_ids)).update(
 			{fotosORM.trecho_id: trecho_id},
+			synchronize_session=False,
+		)
+		self.session.commit()
+
+	def associate_to_laudo(self, foto_ids: list[int], laudo_id: int) -> None:
+		if not foto_ids:
+			return
+
+		self.session.query(fotosORM).filter(fotosORM.id.in_(foto_ids)).update(
+			{fotosORM.laudo_id: laudo_id},
 			synchronize_session=False,
 		)
 		self.session.commit()

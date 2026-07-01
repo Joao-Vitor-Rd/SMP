@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from typing import List, Optional, Union
 from datetime import datetime
 from src.shared.enums.cargo_enum import CargoEnum
 
@@ -35,3 +35,26 @@ class LaudoResponseDTO(BaseModel):
     usuarios: List[UsuarioLaudoDTO] = Field(default_factory=dict)
     resumo: dict[str, int] = Field(default_factory=dict)
     credencial_responsavel: str
+
+
+class ResumoPublicacaoDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    via: str
+    km: str
+    pci: float
+    igg: float
+    observacoes: Optional[str] = None
+
+
+class LaudoPublicacaoCreateDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    inspecao_id: Optional[Union[int, str]] = None
+    resumo: ResumoPublicacaoDTO
+
+
+class LaudoPublicadoDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: int
+    inspecao_id: int
+    publicado_em: datetime
+    resumo: ResumoPublicacaoDTO

@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libglib2.0-0 \
+    libxcb1 \
+    libgl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements-worker.txt ./
+
+# PyTorch CPU-only primeiro; evita que ultralytics puxe wheels NVIDIA/CUDA.
+RUN pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    "torch>=2.0.0" "torchvision>=0.15.0"
+
+RUN pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements-worker.txt
+
+COPY src ./src
+COPY main.py .
+COPY .env .env
+COPY alembic.ini .
+COPY migrations ./migrations
+
+RUN mkdir -p src/modules/analise/infrastructure/models/weights
+
+ENTRYPOINT []
+CMD ["arq", "src.modules.analise.infrastructure.tasks.worker.WorkerSettings"]

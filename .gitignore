@@ -61,3 +61,8 @@ dist/
 
 # Logs
 *.log
+
+# Model weights (YOLO)
+*.pt
+*.pth
+*.onnx

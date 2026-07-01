@@ -17,6 +17,7 @@ from src.modules.fotos.application.dtos.foto_dto import (
 from src.modules.fotos.domain.entities.fotos import Foto
 from src.modules.fotos.domain.repositories.i_foto_repository import IFotoRepository
 from src.modules.fotos.domain.repositories.i_foto_storage import IFotoStorage
+from src.modules.trechos.domain.repositories.i_laudo_repository import ILaudoRepository
 from src.modules.trechos.domain.repositories.i_trecho_repository import ITrechoRepository
 
 
@@ -37,12 +38,26 @@ class Uc09UploadMultiplasImagensUseCase:
         foto_repository: IFotoRepository,
         foto_storage: IFotoStorage,
         trecho_repository: ITrechoRepository,
+        laudo_repository: ILaudoRepository | None = None,
     ):
         self.foto_repository = foto_repository
         self.foto_storage = foto_storage
         self.trecho_repository = trecho_repository
+        self.laudo_repository = laudo_repository
 
-    async def execute(self, files: list[ImagemUploadInputDTO], responsavel_id: int | None = None) -> ProcessamentoFotosResponseDTO:
+    async def execute(
+        self,
+        files: list[ImagemUploadInputDTO],
+        responsavel_id: int | None = None,
+        inspecao_id: int | None = None,
+    ) -> ProcessamentoFotosResponseDTO:
+        if inspecao_id is not None:
+            if self.laudo_repository is None:
+                raise ValueError("Repositório de laudo indisponível para validar a inspeção.")
+            laudo = self.laudo_repository.find_by_id(inspecao_id)
+            if laudo is None:
+                raise LookupError(f"Inspeção {inspecao_id} não encontrada.")
+
         success: list[FotoUploadSucessoDTO] = []
         failed: list[FotoUploadFalhaDTO] = []
         foto_ids_processadas: list[int] = []
@@ -95,6 +110,7 @@ class Uc09UploadMultiplasImagensUseCase:
                         caminho_arquivo=caminho_arquivo,
                         latitude=None,
                         longitude=None,
+                        laudo_id=inspecao_id,
                         tipo_arquivo=content_type,
                     )
                     foto_salva = self.foto_repository.save(foto_sem_gps)
@@ -121,6 +137,7 @@ class Uc09UploadMultiplasImagensUseCase:
                     caminho_arquivo=caminho_arquivo,
                     latitude=coordenadas.latitude,
                     longitude=coordenadas.longitude,
+                    laudo_id=inspecao_id,
                     tipo_arquivo=content_type,
                 )
 
@@ -168,6 +185,9 @@ class Uc09UploadMultiplasImagensUseCase:
                 item.model_copy(update={"trecho_id": trecho_por_foto.get(item.id)})
                 for item in success
             ]
+
+        if inspecao_id is not None and foto_ids_processadas:
+            self.foto_repository.associate_to_laudo(foto_ids_processadas, inspecao_id)
 
         return ProcessamentoFotosResponseDTO(success=success, failed=failed, trecho=trecho_criado)
 

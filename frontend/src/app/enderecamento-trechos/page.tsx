@@ -2,12 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowRight, Activity, Bell, CheckCircle2, FileText, Folder, History, Loader2, LogOut, Map, Maximize, Route, Settings, Upload, User } from "lucide-react";
+import { ArrowRight, Activity, Bell, CheckCircle2, FileText, Folder, History, Loader2, LogOut, Map, Maximize, Route, Settings, Sparkles, Upload, User } from "lucide-react";
 
 import { SessionExpiredError, clearAuthSession } from "../../lib/authApi";
 import { readConfirmationSummary } from "../../lib/map-review";
 import { loadTrechos, onTrechosBoundsUpdated, readPersistedTrechosBounds, type TrechoBoundingBox, type TrechoListItem } from "../../lib/trechosApi";
 import AppSidebar from "../../../components/AppSidebar";
+import InspectionAnalysisPanel from "../../../components/InspectionAnalysisPanel";
+
+const INSPECTION_ID_KEY = "smp:us14-inspecao-id";
+
+function getInitialInspecaoId(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.sessionStorage.getItem(INSPECTION_ID_KEY);
+}
 
 type UserState = {
   nome: string;
@@ -54,6 +64,7 @@ export default function EnderecamentoTrechosPage() {
   const [usuarioNome] = useState(initialUserState.nome);
   const [cargoUsuario] = useState(initialUserState.cargo);
   const [summary] = useState<{ confirmedAt?: string; total?: number } | null>(() => readConfirmationSummary());
+  const [inspecaoId] = useState<string | null>(() => getInitialInspecaoId());
   const [bounds, setBounds] = useState<TrechoBoundingBox | null>(() => readPersistedTrechosBounds());
   const [trechos, setTrechos] = useState<TrechoListItem[]>([]);
   const [loadingTrechos, setLoadingTrechos] = useState(true);
@@ -223,6 +234,30 @@ export default function EnderecamentoTrechosPage() {
                 <ArrowRight size={16} />
               </button>
             </div>
+          </section>
+
+          <section className="bg-white rounded-2xl shadow-md border border-gray-200 p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Sparkles size={20} className="text-gray-600" />
+              <div>
+                <h2 className="text-2xl font-extrabold text-gray-900">Análise de IA e Laudo</h2>
+                <p className="text-xs text-gray-500 font-medium italic mt-0.5">
+                  Acione a análise conforme DNIT 005/2003-TER, acompanhe o processamento e revise o laudo antes de finalizar
+                </p>
+              </div>
+            </div>
+
+            {summary ? (
+              <InspectionAnalysisPanel
+                inspecaoId={inspecaoId}
+                canAnalyze={Boolean(summary)}
+                disabledReason="Confirme a revisão das coordenadas no mapa para liberar a análise por IA."
+              />
+            ) : (
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                Confirme a revisão das coordenadas no mapa para liberar a análise por IA.
+              </div>
+            )}
           </section>
 
           <section className="bg-white rounded-2xl shadow-md border border-gray-200 p-8">

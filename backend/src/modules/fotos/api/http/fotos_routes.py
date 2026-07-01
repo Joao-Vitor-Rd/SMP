@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import List
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, status
 from fastapi.responses import JSONResponse
 import logging
 
@@ -25,6 +25,7 @@ from src.modules.fotos.application.use_case.uc_10_atualizar_localizacao_foto imp
 from src.modules.fotos.infrastructure.repositories.foto_repository import FotoRepository
 from src.modules.fotos.infrastructure.services.minio_adapter import MinioAdapter
 from src.modules.fotos.infrastructure.services.minio_client import ensure_bucket_exists, get_minio_client
+from src.modules.trechos.infrastructure.repositories.laudo_repository import LaudoRepository
 from src.modules.trechos.infrastructure.repositories.trecho_repository import TrechoRepository
 from src.shared.auth.dependencies import verify_any_user, verify_supervisor_ou_tecnico
 from src.shared.infrastructure.db import get_session
@@ -49,15 +50,21 @@ def get_trecho_repository(session=Depends(get_session)) -> TrechoRepository:
     return TrechoRepository(session)
 
 
+def get_laudo_repository(session=Depends(get_session)) -> LaudoRepository:
+    return LaudoRepository(session)
+
+
 def get_uc09(
     foto_repository: FotoRepository = Depends(get_foto_repository),
     foto_storage: MinioAdapter = Depends(get_foto_storage),
     trecho_repository: TrechoRepository = Depends(get_trecho_repository),
+    laudo_repository: LaudoRepository = Depends(get_laudo_repository),
 ) -> Uc09UploadMultiplasImagensUseCase:
     return Uc09UploadMultiplasImagensUseCase(
         foto_repository=foto_repository,
         foto_storage=foto_storage,
         trecho_repository=trecho_repository,
+        laudo_repository=laudo_repository,
     )
 
 
@@ -118,7 +125,11 @@ async def listar_revisao_mapa(
                                     "type": "string",
                                     "format": "binary",
                                 },
-                            }
+                            },
+                            "inspecao_id": {
+                                "type": "integer",
+                                "description": "ID da inspeção (laudo) à qual as fotos pertencem",
+                            },
                         },
                         "required": ["files"],
                     }
@@ -129,11 +140,18 @@ async def listar_revisao_mapa(
 )
 async def upload_multiplas_imagens(
     files: List[UploadFile] = File(..., description="Arquivos de imagem no campo files"),
+    inspecao_id_form: int | None = Form(None, alias="inspecao_id"),
+    inspecao_id_query: int | None = Query(None, alias="inspecao_id"),
+    x_inspecao_id: int | None = Header(None, alias="X-Inspecao-Id"),
     user_data: dict = Depends(verify_any_user),
     use_case: Uc09UploadMultiplasImagensUseCase = Depends(get_uc09),
 ):
     if not files:
         raise HTTPException(status_code=400, detail="Nenhum arquivo foi enviado")
+
+    inspecao_id = inspecao_id_form if inspecao_id_form is not None else inspecao_id_query
+    if inspecao_id is None and x_inspecao_id is not None:
+        inspecao_id = x_inspecao_id
 
     arquivos = [
         ImagemUploadInputDTO(
@@ -151,7 +169,16 @@ async def upload_multiplas_imagens(
         except Exception:
             pass
 
-    resultado = await use_case.execute(arquivos, responsavel_id=responsavel_id)
+    try:
+        resultado = await use_case.execute(
+            arquivos,
+            responsavel_id=responsavel_id,
+            inspecao_id=inspecao_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if resultado.success and not resultado.failed:
         status_code = status.HTTP_201_CREATED
