@@ -13,6 +13,10 @@ class IFotoRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_by_inspecao_id(self, inspecao_id: int) -> list[Foto]:
+        raise NotImplementedError
+
+    @abstractmethod
     def find_by_id(self, foto_id: int) -> Foto | None:
         raise NotImplementedError
 
@@ -22,6 +26,10 @@ class IFotoRepository(ABC):
 
     @abstractmethod
     def associate_to_trecho(self, foto_ids: list[int], trecho_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def associate_to_laudo(self, foto_ids: list[int], laudo_id: int) -> None:
         raise NotImplementedError
 
     @abstractmethod
