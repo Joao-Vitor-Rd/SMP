@@ -78,11 +78,11 @@ const MOCK_TRECHOS_LAUDOS: TrechoLaudoDetalhado[] = [
         igg: 18,
         classificacao: "Bom",
         defeitos: [
-          { tipo: "Trincas por Fadiga (Couro de Jacaré)", quantidade: 5 },
-          { tipo: "Fendas e Trincas Isoladas Transversais", quantidade: 3 },
-          { tipo: "Panelas / Buracos", quantidade: 1 },
-          { tipo: "Exsudação", quantidade: 2 }
-        ]
+          { tipo: "Trincas interligadas", quantidade: 5 },
+          { tipo: "Trincas isoladas", quantidade: 3 },
+          { tipo: "Panelas (buracos)", quantidade: 1 },
+          { tipo: "Desgaste superficial", quantidade: 2 },
+        ],
       }
     ]
   }

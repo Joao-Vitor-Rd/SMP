@@ -16,7 +16,7 @@ export const LAUDO_SUBTITULO = "Sistema de Monitoramento de Pavimentos — SMP";
 export const DEFEITOS_DNIT_LAUDO: readonly DefeitoDNITLaudo[] = [
   {
     codigo: "DNIT-01",
-    descricao: "Panelas",
+    descricao: "Panelas (buracos)",
     severidade: "Moderada",
     extensao: "12,5 m²",
   },
