@@ -2,6 +2,7 @@ import axios from "axios";
 
 import { SessionExpiredError, authApi } from "./authApi";
 
+/** Taxonomia oficial DNIT 005/2003-TER — exatamente 5 classificações. */
 export type DefeitoDNIT =
   | "Panelas (buracos)"
   | "Trincas isoladas"

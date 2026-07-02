@@ -2,6 +2,8 @@ from enum import Enum
 
 
 class DefeitoDNIT(str, Enum):
+    """Taxonomia oficial DNIT 005/2003-TER — exatamente 5 classificações."""
+
     PANELAS = "Panelas (buracos)"
     TRINCAS_ISOLADAS = "Trincas isoladas"
     TRINCAS_INTERLIGADAS = "Trincas interligadas"
