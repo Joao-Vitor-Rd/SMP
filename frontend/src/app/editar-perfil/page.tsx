@@ -299,7 +299,6 @@ export default function EditarPerfilPage() {
         const cargo = (usuario?.cargo ?? '') as CargoUsuario;
 
         if (!usuario) {
-          console.warn('Nenhum usuário encontrado no localStorage');
           return;
         }
 
@@ -387,12 +386,6 @@ export default function EditarPerfilPage() {
   }, []);
 
   async function handleFinalizarCadastro() {
-    console.log('=== INICIANDO CADASTRO DE COLABORADOR ===');
-    console.log('Perfil atual:', perfil);
-    console.log('ID do perfil:', perfil.id);
-    console.log('Tipo de equipe:', tipoEquipe);
-    console.log('Convite:', convite);
-    
     if (!convite.nome.trim() || !convite.email.trim()) {
       mostrarFeedback('Preencha os campos obrigatórios do acesso.', 'error', 'Campos obrigatórios');
       return;
@@ -449,12 +442,8 @@ export default function EditarPerfilPage() {
           : null,
       };
 
-      console.log('Payload a enviar:', payload);
-      console.log('Token de acesso:', 'armazenado em HttpOnly cookie');
-      
       const response = await authApi.post('/api/colaboradores', payload);
-      
-      console.log('Resposta do servidor:', response.data);
+
       mostrarFeedback('Cadastro realizado e e-mail enviado com sucesso.', 'success', 'Cadastro concluído');
       setConvite({ nome: '', email: '', cft: '', limiteAcesso: '' });
       setTipoEquipe('TECNICO');
