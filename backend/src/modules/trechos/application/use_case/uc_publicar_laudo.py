@@ -26,6 +26,14 @@ class PublicarLaudoUseCase:
     def _classificacao_por_pci(pci: float) -> str:
         return f"{pci:.1f}"
 
+    @staticmethod
+    def _agrupar_defeitos(deteccoes: list[DeteccaoDTO]) -> dict[str, int]:
+        defeitos: dict[str, int] = {}
+        for deteccao in deteccoes:
+            chave = str(deteccao.defeito)
+            defeitos[chave] = defeitos.get(chave, 0) + 1
+        return defeitos
+
     def execute(self, laudo_id: int, dto: LaudoPublicacaoCreateDTO) -> LaudoPublicadoDTO:
         resumo_publicacao = dto.resumo.model_dump()
         publicado = self.laudo_repository.publicar(laudo_id, resumo_publicacao)
@@ -33,6 +41,8 @@ class PublicarLaudoUseCase:
             raise LookupError(f"Laudo {laudo_id} não encontrado.")
 
         deteccoes = self.deteccao_repository.list_by_inspecao(laudo_id)
+        deteccoes_dto = [DeteccaoDTO.model_validate(d) for d in deteccoes]
+        defeitos_ia = self._agrupar_defeitos(deteccoes_dto)
 
         trecho_ids = {
             foto.trecho_id
@@ -46,6 +56,7 @@ class PublicarLaudoUseCase:
                 trecho_id,
                 {
                     "classificacao_qualidade": classificacao_qualidade,
+                    "defeitos": defeitos_ia,
                 },
             )
 
@@ -54,5 +65,5 @@ class PublicarLaudoUseCase:
             inspecao_id=laudo_id,
             publicado_em=publicado["publicado_em"],
             resumo=publicado["resumo"],
-            deteccoes=[DeteccaoDTO.model_validate(d) for d in deteccoes],
+            deteccoes=deteccoes_dto,
         )

@@ -51,6 +51,7 @@ interface TrechoListItemDTO {
   uf?: string;
   nome_trecho?: string;
   pci?: number;
+  classificacao_qualidade?: string | null;
   responsavel_nome?: string;
 }
 
@@ -105,6 +106,21 @@ export default function HistoricoInspecoesPage() {
   // Data de hoje formatada (YYYY-MM-DD) para limitar campos de data
   const dataHojeStr = useMemo(() => new Date().toISOString().split("T")[0], []);
 
+  const parsePci = (item: TrechoListItemDTO) => {
+    if (typeof item.pci === "number" && Number.isFinite(item.pci)) {
+      return item.pci;
+    }
+
+    if (typeof item.classificacao_qualidade === "string") {
+      const parsed = Number.parseFloat(item.classificacao_qualidade);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+
+    return 100;
+  };
+
   useEffect(() => {
     async function checarSessaoReal() {
       try {
@@ -153,7 +169,7 @@ export default function HistoricoInspecoesPage() {
             codigo_trecho: item.id_trecho,
             nome_trecho: item.nome_trecho || `Trecho ${item.id_trecho}`,
             data: item.criado_em ? item.criado_em.split("T")[0] : new Date().toISOString().split("T")[0],
-            pci: item.pci ?? 0,
+            pci: parsePci(item),
             responsavel: item.responsavel_nome || "Não designado"
           };
 
