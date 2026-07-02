@@ -19,8 +19,10 @@ class TrechoListItemDTO(BaseModel):
     foto_ids: list[int]
     fotos: list[TrechoFotoDTO]
     cidade: str | None = None
+    municipio: str | None = None
     uf: str | None = None
     responsavel_tecnico: str | None = None
+    responsavel_nome: str | None = None
     classificacao_qualidade: str | None = None
     pci: float | None = None
     defeitos: dict[str, int] | None = None
