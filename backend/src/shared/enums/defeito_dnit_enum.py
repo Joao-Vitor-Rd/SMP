@@ -24,7 +24,6 @@ _LEGACY_DEFEITO_ALIASES: dict[str, DefeitoDNIT] = {
 
 
 def parse_defeito_dnit(value: object) -> DefeitoDNIT:
-    """Converte string/enum para DefeitoDNIT; rejeita valores fora da taxonomia oficial."""
     if isinstance(value, DefeitoDNIT):
         return value
 

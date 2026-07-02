@@ -4,8 +4,6 @@ from src.modules.analise.domain.repositories.i_deteccao_repository import IDetec
 
 
 class SalvarLaudoRevisadoUseCase:
-    """Persiste o laudo revisado pelo usuário (PUT /laudo)."""
-
     def __init__(self, deteccao_repository: IDeteccaoRepository):
         self.deteccao_repository = deteccao_repository
 

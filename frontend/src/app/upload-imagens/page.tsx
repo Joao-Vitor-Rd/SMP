@@ -368,8 +368,7 @@ async function deriveMetadataFromFile(file: File | UploadFileLike): Promise<{ ha
     }
 
     return { hasLocation, isoDate };
-  } catch (error) {
-    console.error("[EXIF] Erro ao extrair metadados:", error);
+  } catch {
     return { hasLocation: false, isoDate: null };
   }
 }
