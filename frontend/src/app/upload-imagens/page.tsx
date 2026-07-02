@@ -368,8 +368,7 @@ async function deriveMetadataFromFile(file: File | UploadFileLike): Promise<{ ha
     }
 
     return { hasLocation, isoDate };
-  } catch (error) {
-    console.error("[EXIF] Erro ao extrair metadados:", error);
+  } catch {
     return { hasLocation: false, isoDate: null };
   }
 }
@@ -929,9 +928,7 @@ function UploadImagensConteudo() {
           const laudoIdParaAtualizar = resolveInspecaoIdForUpload(laudoIdFromUrl, inspecaoIdRef);
           if (isoDate && laudoIdParaAtualizar && !dataPatchDisparado) {
             dataPatchDisparado = true;
-            void authApi.patch(`/api/laudos/${laudoIdParaAtualizar}/`, { data: isoDate })
-              .then((res) => console.log("[EXIF] PATCH sucesso:", res.data))
-              .catch((err) => console.warn("[EXIF] Não foi possível atualizar a data do laudo:", err?.response?.data ?? err.message));
+            void authApi.patch(`/api/laudos/${laudoIdParaAtualizar}/`, { data: isoDate }).catch(() => {});
           }
         });
       });
