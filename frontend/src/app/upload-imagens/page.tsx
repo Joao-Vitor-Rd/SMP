@@ -6,13 +6,21 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type MutableRefObject } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
+  Activity,
   AlertCircle,
+  AlertTriangle,
+  Bell,
   CheckCircle2,
   ChevronRight,
+  FileText,
+  Folder,
+  History,
   Info,
   Loader2,
   LogOut,
+  Map as MapIcon,
   MapPin,
+  Maximize,
   Settings,
   Trash2,
   Upload,
@@ -22,7 +30,6 @@ import { authApi, clearAuthSession } from "../../lib/authApi";
 import { INSPECTION_ID_KEY } from "../../lib/laudoApi";
 import { type MapReviewLocationSource } from "../../lib/map-review";
 import { buildReviewPayloadFromUpload, clearConfirmationSummary, persistReviewItems, readPersistedReviewItems } from "../../lib/map-review";
-import AppSidebar from "../../../components/AppSidebar";
 
 type QueueStatus = "pending" | "uploading" | "completed" | "rejected";
 
@@ -66,17 +73,33 @@ const originalFileCache = new globalThis.Map<string, File>();
 
 function getInitialUserState(): UserState {
   if (typeof window === "undefined") {
-    return { nome: "Engenheiro(a)", cargo: "Engenheiro" };
+    return {
+      nome: "Engenheiro(a)",
+      cargo: "Engenheiro",
+    };
   }
+
   const usuarioJson = window.localStorage.getItem("usuario");
+
   if (!usuarioJson) {
-    return { nome: "Engenheiro(a)", cargo: "Engenheiro" };
+    return {
+      nome: "Engenheiro(a)",
+      cargo: "Engenheiro",
+    };
   }
+
   try {
     const usuario = JSON.parse(usuarioJson) as { nome?: string };
-    return { nome: usuario.nome?.trim() || "Engenheiro(a)", cargo: "Engenheiro" };
+
+    return {
+      nome: usuario.nome?.trim() || "Engenheiro(a)",
+      cargo: "Engenheiro",
+    };
   } catch {
-    return { nome: "Engenheiro(a)", cargo: "Engenheiro" };
+    return {
+      nome: "Engenheiro(a)",
+      cargo: "Engenheiro",
+    };
   }
 }
 
@@ -90,14 +113,26 @@ function formatBytes(bytes: number) {
 function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => reject(reader.error ?? new Error("Falha ao preparar a imagem para o mapa."));
+
+    reader.onload = () => {
+      resolve(typeof reader.result === "string" ? reader.result : "");
+    };
+
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Falha ao preparar a imagem para o mapa."));
+    };
+
     reader.readAsDataURL(file);
   });
 }
 
 function toUploadFileLike(file: File): UploadFileLike {
-  return { name: file.name, size: file.size, type: file.type, lastModified: file.lastModified };
+  return {
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    lastModified: file.lastModified,
+  };
 }
 
 function createId(file: UploadFileLike) {
@@ -122,8 +157,12 @@ function isBlobUrl(url: string) {
 }
 
 function isUploadFileLike(value: unknown): value is UploadFileLike {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
   const candidate = value as Partial<UploadFileLike>;
+
   return (
     typeof candidate.name === "string" &&
     candidate.name.trim().length > 0 &&
@@ -136,8 +175,12 @@ function isUploadFileLike(value: unknown): value is UploadFileLike {
 }
 
 function isUploadItemSnapshot(value: unknown): value is UploadItemSnapshot {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
   const candidate = value as Partial<UploadItemSnapshot> & { file?: unknown };
+
   return (
     typeof candidate.id === "string" &&
     (candidate.serverFotoId === undefined || candidate.serverFotoId === null || typeof candidate.serverFotoId === "number") &&
@@ -176,6 +219,7 @@ function serializeUploadItem(item: UploadItem): UploadItemSnapshot {
 
 function restoreUploadItem(snapshot: UploadItemSnapshot): UploadItem {
   const manualReady = isCompleteManualCoordinatePair(snapshot.manualLat, snapshot.manualLng);
+
   return {
     ...snapshot,
     serverFotoId: typeof snapshot.serverFotoId === "number" ? snapshot.serverFotoId : null,
@@ -185,15 +229,25 @@ function restoreUploadItem(snapshot: UploadItemSnapshot): UploadItem {
     locationSource: snapshot.locationSource ?? (manualReady ? "manual" : snapshot.hasLocation ? "gps" : null),
     status: manualReady ? "completed" : snapshot.status,
     progress: manualReady ? 100 : snapshot.progress,
-    message: manualReady ? "Localização informada e pronta para revisão." : snapshot.message,
+    message:
+      manualReady
+        ? "Localização informada e pronta para revisão."
+        : snapshot.message,
     previewUrl: createPreviewForRestoredItem(snapshot),
   };
 }
 
 function hydrateUploadItemFromReview(item: UploadItem, review: ReturnType<typeof readPersistedReviewItems>[number] | undefined): UploadItem {
-  if (!review) return item;
+  if (!review) {
+    return item;
+  }
+
   const reviewHasLocation = typeof review.latitude === "number" && typeof review.longitude === "number";
-  if (!reviewHasLocation) return item;
+
+  if (!reviewHasLocation) {
+    return item;
+  }
+
   return {
     ...item,
     serverFotoId: review.fotoId ?? item.serverFotoId,
@@ -201,19 +255,33 @@ function hydrateUploadItemFromReview(item: UploadItem, review: ReturnType<typeof
     locationSource: review.locationSource === "manual" ? "manual" : "gps",
     status: review.status === "confirmed" || review.status === "ready" ? "completed" : item.status,
     progress: 100,
-    message: review.locationSource === "manual" ? "Localização informada e pronta para revisão." : "Localização identificada via GPS.",
+    message: review.locationSource === "manual"
+      ? "Localização informada e pronta para revisão."
+      : "Localização identificada via GPS.",
   };
 }
 
 function readStoredUploadQueue(): UploadItem[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") {
+    return [];
+  }
+
   const raw = window.sessionStorage.getItem(UPLOAD_QUEUE_STORAGE_KEY);
-  if (!raw) return [];
+
+  if (!raw) {
+    return [];
+  }
+
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
     const storedItems = parsed.filter(isUploadItemSnapshot).map(restoreUploadItem);
     const reviewById = new globalThis.Map(readPersistedReviewItems().map((item) => [item.id, item]));
+
     return storedItems.map((item) => hydrateUploadItemFromReview(item, reviewById.get(item.id)));
   } catch {
     return [];
@@ -221,7 +289,10 @@ function readStoredUploadQueue(): UploadItem[] {
 }
 
 function persistUploadQueue(items: UploadItem[]) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    return;
+  }
+
   const serializableItems = items.map(serializeUploadItem);
   window.sessionStorage.setItem(UPLOAD_QUEUE_STORAGE_KEY, JSON.stringify(serializableItems));
 }
@@ -233,40 +304,87 @@ function resolveOriginalFile(item: UploadItem) {
 function isCompleteManualCoordinatePair(latitudeText: string, longitudeText: string) {
   const latitude = Number(latitudeText.trim());
   const longitude = Number(longitudeText.trim());
+
   return (
-    Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
-    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+    Number.isFinite(latitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180
   );
 }
 
 function validateFile(file: UploadFileLike) {
-  if (!isUploadFileLike(file)) return "Arquivo inválido. Selecione a imagem novamente.";
+  if (!isUploadFileLike(file)) {
+    return "Arquivo inválido. Selecione a imagem novamente.";
+  }
+
+  console.log("Validando arquivo:", file.name, file.type);
   const extension = getFileExtension(file);
   const mime = file.type.toLowerCase();
   const allowedByExtension = ACCEPTED_EXTENSIONS.includes(extension);
   const allowedByMime = mime !== "" && ACCEPTED_MIME_TYPES.includes(mime);
-  if (!allowedByExtension && !allowedByMime) return "Formato inválido. O sistema aceita apenas JPG, PNG, TIFF e WebP.";
-  if (file.size > MAX_FILE_SIZE_BYTES) return "Arquivo maior que 50 MB. Selecione uma versão menor antes de enviar.";
+
+  if (!allowedByExtension && !allowedByMime) {
+    return "Formato inválido. O sistema aceita apenas JPG, PNG, TIFF e WebP.";
+  }
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return "Arquivo maior que 50 MB. Selecione uma versão menor antes de enviar.";
+  }
+
   return null;
 }
 
 function extractUploadErrorMessage(error: unknown) {
-  if (!axios.isAxiosError(error)) return "Falha ao enviar imagem.";
-  const data = error.response?.data as { detail?: unknown; message?: unknown; error?: unknown } | string | undefined;
-  if (typeof data === "string") return data;
-  const detail = data?.detail ?? data?.message ?? data?.error;
-  if (Array.isArray(detail)) {
-    const mensagem = detail.map((item) => {
-      if (typeof item === "string") return item;
-      if (item && typeof item === "object") {
-        const candidate = item as { msg?: unknown; message?: unknown; detail?: unknown };
-        return typeof candidate.msg === "string" ? candidate.msg : typeof candidate.message === "string" ? candidate.message : typeof candidate.detail === "string" ? candidate.detail : "";
-      }
-      return "";
-    }).filter(Boolean).join(" ");
-    if (mensagem.trim()) return mensagem;
+  if (!axios.isAxiosError(error)) {
+    return "Falha ao enviar imagem.";
   }
-  if (typeof detail === "string" && detail.trim()) return detail;
+
+  const data = error.response?.data as
+    | { detail?: unknown; message?: unknown; error?: unknown }
+    | string
+    | undefined;
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  const detail = data?.detail ?? data?.message ?? data?.error;
+
+  if (Array.isArray(detail)) {
+    const mensagem = detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+
+        if (item && typeof item === "object") {
+          const candidate = item as { msg?: unknown; message?: unknown; detail?: unknown };
+          return typeof candidate.msg === "string"
+            ? candidate.msg
+            : typeof candidate.message === "string"
+              ? candidate.message
+              : typeof candidate.detail === "string"
+                ? candidate.detail
+                : "";
+        }
+
+        return "";
+      })
+      .filter(Boolean)
+      .join(" ");
+
+    if (mensagem.trim()) {
+      return mensagem;
+    }
+  }
+
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+
   return "Falha ao enviar imagem.";
 }
 
@@ -664,6 +782,10 @@ function UploadImagensConteudo() {
     persistUploadQueue(items);
   }, [items]);
 
+  useEffect(() => {
+    return undefined;
+  }, []);
+
   function cleanupItem(item: UploadItem) {
     if (isBlobUrl(item.previewUrl)) {
       URL.revokeObjectURL(item.previewUrl);
@@ -686,11 +808,6 @@ function UploadImagensConteudo() {
     setItems((current) => current.map((item) => (item.id === itemId ? updater(item) : item)));
   }, []);
 
-  const handleRemoveItem = useCallback((itemToRemove: UploadItem) => {
-    setItems((current) => current.filter((item) => item.id !== itemToRemove.id));
-    cleanupItem(itemToRemove);
-  }, []);
-
   const prepareReviewItems = useCallback(async () => {
     const persistedById = new globalThis.Map(readPersistedReviewItems().map((item) => [item.id, item]));
 
@@ -710,7 +827,7 @@ function UploadImagensConteudo() {
           manualLat: item.manualLat,
           manualLng: item.manualLng,
           locationException: persistedReview?.locationException ?? item.locationException,
-          status: item.status === "completed" ? ("ready" as const) : item.status,
+          status: item.status === "completed" ? "ready" : item.status,
           message: persistedReview?.note ?? item.message,
         };
       })
@@ -742,7 +859,9 @@ function UploadImagensConteudo() {
         }));
       });
 
-    if (!selectedForUpload.length) return;
+    if (!selectedForUpload.length) {
+      return;
+    }
 
     selectedForUpload.forEach(({ item }) => {
       updateQueueItem(item.id, (current) => ({
@@ -771,7 +890,10 @@ function UploadImagensConteudo() {
       const response = await authApi.post(uploadUrl, formData, {
         headers: inspecaoId ? { "X-Inspecao-Id": inspecaoId } : undefined,
         onUploadProgress: (progressEvent) => {
-          if (!progressEvent.total) return;
+          if (!progressEvent.total) {
+            return;
+          }
+
           const progress = Math.min(100, Math.round((progressEvent.loaded * 100) / progressEvent.total));
           selectedForUpload.forEach(({ item }) => {
             updateQueueItem(item.id, (current) => ({
@@ -787,39 +909,26 @@ function UploadImagensConteudo() {
       const resultadoUpload = response.data as {
         success?: Array<{ id?: number; filename?: string; caminho_arquivo?: string; latitude?: number; longitude?: number; trecho_id?: string }>;
         failed?: Array<{ id?: number; filename?: string; reason?: string; image_url?: string }>;
+        trecho?: { id_trecho?: string; foto_ids?: number[] };
       };
 
-      interface UploadSuccessResponseItem {
-        id: number;
-        filename: string;
-        caminho_arquivo: string;
-        latitude: number | null;
-        longitude: number | null;
-        [key: string]: unknown; 
-      }
-
-      interface UploadFailedResponseItem {
-        id?: number | null;
-        filename: string;
-        error: string;
-        image_url?: string | null;
-        reason?: string | null;
-        [key: string]: unknown;
-      }
-
-      const successByFilename = new globalThis.Map<string, UploadSuccessResponseItem[]>();
+      const successByFilename = new globalThis.Map<string, Array<{ id?: number; filename?: string; caminho_arquivo?: string; latitude?: number; longitude?: number; trecho_id?: string }>>();
       (resultadoUpload.success ?? []).forEach((item) => {
-        if (!item.filename) return;
+        if (typeof item.filename !== "string" || item.filename.trim() === "") {
+          return;
+        }
         const bucket = successByFilename.get(item.filename) ?? [];
-        bucket.push(item as UploadSuccessResponseItem);
+        bucket.push(item);
         successByFilename.set(item.filename, bucket);
       });
 
-      const failedByFilename = new globalThis.Map<string, UploadFailedResponseItem[]>();
+      const failedByFilename = new globalThis.Map<string, Array<{ id?: number; filename?: string; reason?: string; image_url?: string }>>();
       (resultadoUpload.failed ?? []).forEach((item) => {
-        if (!item.filename) return;
+        if (typeof item.filename !== "string" || item.filename.trim() === "") {
+          return;
+        }
         const bucket = failedByFilename.get(item.filename) ?? [];
-        bucket.push(item as UploadFailedResponseItem);
+        bucket.push(item);
         failedByFilename.set(item.filename, bucket);
       });
 
@@ -856,16 +965,27 @@ function UploadImagensConteudo() {
     } catch (error) {
       const mensagemErro = extractUploadErrorMessage(error);
       selectedForUpload.forEach(({ item }) => {
-        updateQueueItem(item.id, (current) => ({ ...current, status: "rejected", progress: 0, message: mensagemErro }));
+        updateQueueItem(item.id, (current) => ({
+          ...current,
+          status: "rejected",
+          progress: 0,
+          message: mensagemErro,
+        }));
       });
     }
   }, [updateQueueItem, laudoIdFromUrl]);
 
   useEffect(() => {
-    const pendingItems = items.filter((item) => item.status === "pending" && !uploadsEmAndamentoRef.current.has(item.id));
-    if (!pendingItems.length) return;
+    const pendingItems = items.filter(
+      (item) => item.status === "pending" && !uploadsEmAndamentoRef.current.has(item.id)
+    );
+
+    if (!pendingItems.length) {
+      return;
+    }
 
     pendingItems.forEach((item) => uploadsEmAndamentoRef.current.add(item.id));
+
     void uploadPendingBatch(pendingItems).finally(() => {
       pendingItems.forEach((item) => uploadsEmAndamentoRef.current.delete(item.id));
     });
@@ -873,7 +993,10 @@ function UploadImagensConteudo() {
 
   function addFiles(fileList: FileList | File[]) {
     const incoming = Array.from(fileList);
-    if (!incoming.length) return;
+
+    if (!incoming.length) {
+      return;
+    }
 
     const nextItems: UploadItem[] = [];
 
@@ -884,33 +1007,74 @@ function UploadImagensConteudo() {
 
       if (validationError) {
         nextItems.push({
-          id, serverFotoId: null, file: toUploadFileLike(file), originalFile: file, previewUrl: URL.createObjectURL(file),
-          serverImageUrl: null, serverLatitude: null, serverLongitude: null, status: "rejected", progress: 0, message: validationError,
-          hasLocation: null, locationSource: null, manualLat: "", manualLng: "", locationException: null
+          id,
+          serverFotoId: null,
+          file: toUploadFileLike(file),
+          originalFile: file,
+          previewUrl: URL.createObjectURL(file),
+          serverImageUrl: null,
+          serverLatitude: null,
+          serverLongitude: null,
+          status: "rejected",
+          progress: 0,
+          message: validationError,
+          hasLocation: null,
+          locationSource: null,
+          manualLat: "",
+          manualLng: "",
+          locationException: null,
         });
         return;
       }
 
       if (duplicate) {
         nextItems.push({
-          id, serverFotoId: null, file: toUploadFileLike(file), originalFile: file, previewUrl: URL.createObjectURL(file),
-          serverImageUrl: null, serverLatitude: null, serverLongitude: null, status: "rejected", progress: 0, message: DUPLICATE_QUEUE_MESSAGE,
-          hasLocation: null, locationSource: null, manualLat: "", manualLng: "", locationException: null
+          id,
+          serverFotoId: null,
+          file: toUploadFileLike(file),
+          originalFile: file,
+          previewUrl: URL.createObjectURL(file),
+          serverImageUrl: null,
+          serverLatitude: null,
+          serverLongitude: null,
+          status: "rejected",
+          progress: 0,
+          message: DUPLICATE_QUEUE_MESSAGE,
+          hasLocation: null,
+          locationSource: null,
+          manualLat: "",
+          manualLng: "",
+          locationException: null,
         });
         return;
       }
 
       nextItems.push({
-        id, serverFotoId: null, file: toUploadFileLike(file), originalFile: file, previewUrl: URL.createObjectURL(file),
-        serverImageUrl: null, serverLatitude: null, serverLongitude: null, status: "pending", progress: 0, message: "Aguardando envio",
-        hasLocation: null, locationSource: null, manualLat: "", manualLng: "", locationException: null
+        id,
+        serverFotoId: null,
+        file: toUploadFileLike(file),
+        originalFile: file,
+        previewUrl: URL.createObjectURL(file),
+        serverImageUrl: null,
+        serverLatitude: null,
+        serverLongitude: null,
+        status: "pending",
+        progress: 0,
+        message: "Aguardando envio",
+        hasLocation: null,
+        locationSource: null,
+        manualLat: "",
+        manualLng: "",
+        locationException: null,
       });
     });
 
     setItems((current) => [...current, ...nextItems]);
 
     nextItems.forEach((item) => {
-      if (item.originalFile) originalFileCache.set(item.id, item.originalFile);
+      if (item.originalFile) {
+        originalFileCache.set(item.id, item.originalFile);
+      }
     });
 
     let dataPatchDisparado = false;
@@ -942,7 +1106,48 @@ function UploadImagensConteudo() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900">
-      <AppSidebar activePath={pathname} />
+      <aside className="w-20 bg-[#1e2235] flex flex-col items-center py-6 shrink-0 min-h-screen border-r border-gray-800">
+        <div className="p-3 bg-[#0a5483] rounded-xl text-white mb-10">
+          <Activity size={26} strokeWidth={2.5} />
+        </div>
+        <div className="flex flex-col gap-9 items-center w-full mb-auto">
+          {[
+            { Icon: Folder, label: "Arquivos", href: "/arquivos" },
+            { Icon: Upload, label: "Enviar", href: "/upload-imagens" },
+            { Icon: Maximize, label: "Expandir", href: "/expandir" },
+            { Icon: FileText, label: "Documentos", href: "/documentos" },
+            { Icon: MapIcon, label: "Mapa", href: "/mapa" },
+            { Icon: History, label: "Histórico", href: "/historico" },
+          ].map(({ Icon, label, href }) => {
+            const isActive = pathname === href;
+
+            return (
+              <button
+                key={label}
+                type="button"
+                title={label}
+                aria-label={label}
+                onClick={() => router.push(href)}
+                className={`transition-all duration-200 p-2 rounded-xl ${
+                  isActive
+                    ? "bg-[#0a5483] text-white shadow-[0_8px_24px_rgba(10,84,131,0.35)]"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                }`}
+              >
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 1.5} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="relative group cursor-pointer pb-4">
+          <button type="button" title="Notificações" className="text-gray-400 group-hover:text-white transition-colors">
+            <Bell size={26} strokeWidth={1.5} />
+          </button>
+          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#1e2235] shadow-sm">
+            3
+          </span>
+        </div>
+      </aside>
 
       <main className="flex-1 p-8 overflow-y-auto">
         <header className="flex justify-between items-start mb-10">
@@ -1005,6 +1210,23 @@ function UploadImagensConteudo() {
                 <p className="text-xs text-gray-500 font-medium italic mt-0.5">Inspeção e georreferenciamento de vias</p>
               </div>
             </div>
+
+            {/* AVISO DE PENDÊNCIA (US-11 / CT-072) */}
+            {arquivosSemCoordenadas > 0 && (
+              <div className="mb-8 flex w-full flex-col items-center justify-center rounded-xl bg-[#FFF3F3] px-6 py-5 border border-red-100 shadow-sm transition-all animate-in fade-in duration-200">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#E50000] text-[14px] font-extrabold text-white">
+                    !
+                  </div>
+                  <h3 className="text-xl font-bold text-[#E50000]">
+                    Pendência em imagens na fila
+                  </h3>
+                </div>
+                <p className="text-[15px] font-medium text-[#E50000]">
+                  Insira as coordenadas manualmente ou selecione um motivo (”Sem GPS” ou ”EXIF Corrompido”) para prosseguir.
+                </p>
+              </div>
+            )}
 
             <div
               className={`border-2 border-dashed rounded-2xl p-10 text-center transition-colors ${isDragging ? 'border-[#0a5483] bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
@@ -1089,14 +1311,226 @@ function UploadImagensConteudo() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {items.map((item) => (
-                      <UploadItemRow 
-                        key={item.id} 
-                        item={item} 
-                        updateQueueItem={updateQueueItem} 
-                        onRemove={handleRemoveItem} 
-                      />
-                    ))}
+                    {items.map((item) => {
+                      const isUploading = item.status === 'uploading';
+                      const isCompleted = item.status === 'completed';
+                      const isRejected = item.status === 'rejected';
+                      const locationSource = item.locationSource ?? (item.hasLocation ? "gps" : null);
+
+                      const latInvalid =
+                        itemNeedsManualLocation(item) &&
+                        !item.locationException &&
+                        item.manualLat.trim() !== "" &&
+                        parseLatitude(item.manualLat) === null;
+                      const lngInvalid =
+                        itemNeedsManualLocation(item) &&
+                        !item.locationException &&
+                        item.manualLng.trim() !== "" &&
+                        parseLongitude(item.manualLng) === null;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex flex-col gap-3 rounded-2xl border p-3 ${isRejected ? 'border-red-200 bg-red-50' : isCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-white'}`}
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-start gap-3 sm:flex-1">
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border ${isRejected ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-100'}`}>
+                              {item.previewUrl ? (
+                                <Image src={item.previewUrl} alt={item.file.name} width={48} height={48} unoptimized className="h-full w-full object-cover" />
+                              ) : (
+                                <Upload size={18} className="text-gray-400" />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate text-sm font-bold text-gray-900">{item.file.name}</p>
+                                <span className={`rounded-full border px-2.5 py-1 text-[0.68rem] font-bold uppercase tracking-[0.2em] ${isRejected ? 'border-red-200 bg-white text-red-600' : isCompleted ? 'border-emerald-200 bg-white text-emerald-700' : isUploading ? 'border-blue-200 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                                  {isRejected ? 'Pendente' : isCompleted ? 'Concluído' : isUploading ? 'Enviando' : "Na fila"}
+                                </span>
+                              </div>
+
+                              <p className={`mt-1 text-xs ${isRejected ? 'text-red-600' : 'text-gray-500'}`}>
+                                {isRejected ? item.message : `${getFileKindLabel(item.file)} • ${formatBytes(item.file.size)}`}
+                              </p>
+
+                              {shouldShowGpsUi(item) ? (
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                  {item.hasLocation === null ? (
+                                    <>
+                                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-gray-400" aria-hidden />
+                                      <span className="text-gray-500">Verificando metadados de localização...</span>
+                                    </>
+                                  ) : null}
+                                  {item.status === 'completed' && locationSource === "manual" ? (
+                                    <>
+                                      <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
+                                      <span className="font-semibold text-emerald-700">Localização informada</span>
+                                    </>
+                                  ) : null}
+                                  {item.status === 'completed' && locationSource === "gps" ? (
+                                    <>
+                                      <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
+                                      <span className="font-semibold text-emerald-700">Localização identificada via GPS</span>
+                                    </>
+                                  ) : null}
+                                  {item.hasLocation === false ? (
+                                    <>
+                                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+                                      <span className="font-semibold text-amber-700">Requer intervenção</span>
+                                    </>
+                                  ) : null}
+                                </div>
+                              ) : null}
+
+                              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                                <div
+                                  className={`h-full rounded-full transition-all ${isRejected ? 'bg-red-400 w-full' : isCompleted ? 'bg-emerald-500 w-full' : `bg-[#0a5483] ${getProgressWidthClass(item.progress)}`}`}
+                                />
+                              </div>
+
+                              <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                                {isUploading ? <Upload size={13} className="text-blue-600" /> : isCompleted ? <CheckCircle2 size={13} className="text-emerald-600" /> : isRejected ? <CheckCircle2 size={13} className="text-red-600" /> : <CheckCircle2 size={13} className="text-gray-400" />}
+                                <span>{item.message}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 sm:w-auto sm:shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (item.status === 'uploading') {
+                                  return;
+                                }
+
+                                setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+                                cleanupItem(item);
+                              }}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                              aria-label={`Remover ${item.file.name}`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                          </div>
+
+                          {itemNeedsManualLocation(item) ? (
+                            <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3 space-y-3">
+                              <p className="text-[0.65rem] font-bold uppercase tracking-wider text-amber-900/80">
+                                Pendentes de localização — coordenadas manuais
+                              </p>
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                  <label htmlFor={`lat-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                                    Latitude
+                                  </label>
+                                  <input
+                                    id={`lat-${item.id}`}
+                                    type="text"
+                                    inputMode="decimal"
+                                    autoComplete="off"
+                                    disabled={!!item.locationException}
+                                    value={item.manualLat}
+                                    onChange={(e) => {
+                                      const v = filterCoordInput(e.target.value);
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        manualLat: v,
+                                        locationException: null,
+                                        hasLocation: isCompleteManualCoordinatePair(v, c.manualLng) ? true : false,
+                                        locationSource: isCompleteManualCoordinatePair(v, c.manualLng) ? "manual" : c.locationSource,
+                                        status:
+                                          c.status === "rejected"
+                                            ? c.status
+                                            : "pending",
+                                        progress:
+                                          c.status === "rejected"
+                                            ? c.progress
+                                            : 0,
+                                        message: c.status === "rejected"
+                                          ? c.message
+                                          : isCompleteManualCoordinatePair(v, c.manualLng)
+                                            ? "Coordenadas manuais preenchidas."
+                                            : "Aguardando coordenadas manuais.",
+                                      }));
+                                    }}
+                                    placeholder="-23,5505"
+                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${latInvalid ? "border-red-400" : "border-gray-200"}`}
+                                  />
+                                </div>
+                                <div>
+                                  <label htmlFor={`lng-${item.id}`} className="mb-1 block text-xs font-semibold text-gray-700">
+                                    Longitude
+                                  </label>
+                                  <input
+                                    id={`lng-${item.id}`}
+                                    type="text"
+                                    inputMode="decimal"
+                                    autoComplete="off"
+                                    disabled={!!item.locationException}
+                                    value={item.manualLng}
+                                    onChange={(e) => {
+                                      const v = filterCoordInput(e.target.value);
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        manualLng: v,
+                                        locationException: null,
+                                        hasLocation: isCompleteManualCoordinatePair(c.manualLat, v) ? true : false,
+                                        locationSource: isCompleteManualCoordinatePair(c.manualLat, v) ? "manual" : c.locationSource,
+                                        status:
+                                          c.status === "rejected"
+                                            ? c.status
+                                            : "pending",
+                                        progress:
+                                          c.status === "rejected"
+                                            ? c.progress
+                                            : 0,
+                                        message: c.status === "rejected"
+                                          ? c.message
+                                          : isCompleteManualCoordinatePair(c.manualLat, v)
+                                            ? "Coordenadas manuais preenchidas."
+                                            : "Aguardando coordenadas manuais.",
+                                      }));
+                                    }}
+                                    placeholder="-46,6333"
+                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0a5483]/30 disabled:cursor-not-allowed disabled:bg-gray-100 ${lngInvalid ? "border-red-400" : "border-gray-200"}`}
+                                  />
+                                </div>
+                              </div>
+                              {(latInvalid || lngInvalid) ? (
+                                <p className="text-xs font-medium text-red-600">Use apenas números decimais. Latitude −90 a 90; longitude −180 a 180.</p>
+                              ) : null}
+                              <div>
+                                <p className="mb-2 text-xs font-semibold text-gray-600">Sem dados de posição?</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateQueueItem(item.id, (c) => ({
+                                        ...c,
+                                        locationException: c.locationException === "sem_gps" ? null : "sem_gps",
+                                        manualLat: "",
+                                        manualLng: "",
+                                        locationSource: null,
+                                      }))
+                                    }
+                                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                                      item.locationException === "sem_gps"
+                                        ? "border-[#0a5483] bg-[#0a5483] text-white"
+                                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                                    }`}
+                                  >
+                                    Sem GPS
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1105,20 +1539,29 @@ function UploadImagensConteudo() {
             <div className="mt-8">
               <button
                 type="button"
-                disabled={!podeMapearCoordenadas}
+                disabled={!podeMapearCoordenadas || arquivosSemCoordenadas > 0}
                 onClick={() => {
                   void prepareReviewItems().finally(() => {
                     router.push("/mapa");                 
                   });
                 }}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl px-5 py-4 text-sm font-bold uppercase tracking-wide transition ${
-                  podeMapearCoordenadas
-                    ? "bg-[#0a5483] text-white shadow-sm hover:bg-[#083d61]"
+                  podeMapearCoordenadas && arquivosSemCoordenadas === 0
+                    ? "bg-[#0a5483] text-white shadow-sm hover:bg-[#083d61] cursor-pointer"
                     : "cursor-not-allowed bg-gray-200 text-gray-500"
                 }`}
               >
-                Mapear coordenadas
-                <ChevronRight size={18} strokeWidth={2.5} />
+                {arquivosSemCoordenadas > 0 ? (
+                  <>
+                    <AlertTriangle size={16} className="text-gray-400" />
+                    Resolva as pendências para prosseguir
+                  </>
+                ) : (
+                  <>
+                    Mapear coordenadas
+                    <ChevronRight size={18} strokeWidth={2.5} />
+                  </>
+                )}
               </button>
             </div>
           </section>
