@@ -28,9 +28,12 @@ class UcBuscarTrechoPorIdUseCase:
             foto_ids=trecho.foto_ids,
             fotos=fotos,
             cidade=trecho.cidade,
+            municipio=trecho.cidade,
             uf=trecho.uf,
             responsavel_tecnico=trecho.responsavel_tecnico,
+            responsavel_nome=trecho.responsavel_tecnico,
             classificacao_qualidade=trecho.classificacao_qualidade,
+            pci=trecho.pci,
             defeitos=trecho.defeitos,
             responsavel_id=trecho.responsavel_id,
         )

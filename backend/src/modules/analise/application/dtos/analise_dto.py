@@ -3,6 +3,7 @@ from typing import List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.modules.analise.domain.entities.deteccao import DefeitoDNIT
+from src.shared.enums.defeito_dnit_enum import parse_defeito_dnit
 
 
 class DeteccaoDTO(BaseModel):
@@ -15,6 +16,11 @@ class DeteccaoDTO(BaseModel):
     observacao: Optional[str] = None
     imagem_id: Optional[int] = None
     revisado_manualmente: bool = False
+
+    @field_validator("defeito", mode="before")
+    @classmethod
+    def _normalize_defeito(cls, value):
+        return parse_defeito_dnit(value)
 
     @field_validator("confidence_score", mode="before")
     @classmethod
@@ -32,9 +38,7 @@ class DeteccaoDTO(BaseModel):
 
 
 class LaudoAnaliseDTO(BaseModel):
-    """Laudo de análise trocado com o frontend (trigger result / PUT laudo)."""
-
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     inspecao_id: Optional[Union[int, str]] = None
     deteccoes: List[DeteccaoDTO] = Field(default_factory=list)

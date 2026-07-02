@@ -63,6 +63,7 @@ def trecho_com_fotos():
         uf="SP",
         responsavel_tecnico="Responsavel Teste",
         classificacao_qualidade="Regular",
+        pci=70.0,
         defeitos={},
         responsavel_id=1,
     )

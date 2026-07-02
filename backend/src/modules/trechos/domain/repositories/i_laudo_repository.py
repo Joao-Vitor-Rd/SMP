@@ -38,14 +38,13 @@ class ILaudoRepository(ABC):
         pass
 
     @abstractmethod
+    def list_by_usuario(self, usuario_id: int) -> list[Laudo]:
+        pass
+
+    @abstractmethod
     def find_by_id(self, laudo_id: int) -> Optional[Laudo]:
         pass
 
     @abstractmethod
     def publicar(self, laudo_id: int, resumo: dict) -> Optional[dict]:
-        """Marca o laudo como publicado (US-14).
-
-        Retorna dict com `id`, `publicado_em` e `resumo` (publicação) ou None se o
-        laudo não existir.
-        """
         pass

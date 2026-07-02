@@ -110,6 +110,7 @@ services:
       - ./backend/src/modules/analise/infrastructure/models/weights:/app/src/modules/analise/infrastructure/models/weights:ro
     networks:
       - smp_network
+    restart: unless-stopped
     entrypoint: []
     command: arq src.modules.analise.infrastructure.tasks.worker.WorkerSettings
 

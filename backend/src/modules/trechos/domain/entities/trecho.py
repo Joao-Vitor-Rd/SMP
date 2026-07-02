@@ -39,6 +39,16 @@ class TrechoORM(Base):
     def foto_ids(self) -> list[int]:
         return [foto.id for foto in self.fotos if foto.id is not None]
 
+    @property
+    def pci(self) -> float | None:
+        if self.classificacao_qualidade is None:
+            return None
+
+        try:
+            return float(self.classificacao_qualidade)
+        except (TypeError, ValueError):
+            return None
+
 
 class TrechoFotoInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -60,6 +70,7 @@ class Trecho(BaseModel):
     uf: str | None = None
     responsavel_tecnico: str | None = None
     classificacao_qualidade: str | None = None
+    pci: float | None = None
     defeitos: dict[str, int] | None = None
     responsavel_id: int | None = None
 

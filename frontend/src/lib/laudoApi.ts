@@ -1,6 +1,8 @@
 import axios from "axios";
 
 import { SessionExpiredError, authApi } from "./authApi";
+import type { DeteccaoLaudo } from "./inspectionAnalysisApi";
+import type { FinalizarInspecaoResumo } from "./laudoPublicationApi";
 
 export type LaudoResponse = {
   id: number;
@@ -9,6 +11,9 @@ export type LaudoResponse = {
   responsavel_id?: number;
   credencial_responsavel: string;
   resumo: Record<string, number>;
+  publicado_em?: string | null;
+  publicacao_resumo?: FinalizarInspecaoResumo | null;
+  deteccoes?: DeteccaoLaudo[];
   usuarios: Array<{ id?: number; nome: string; cargo: string }>;
 };
 
@@ -106,10 +111,6 @@ export async function listLaudos(): Promise<LaudoResponse[]> {
   }
 }
 
-/**
- * Garante um ID de inspeção (laudo) ativo antes de acionar a análise por IA.
- * Reutiliza o valor em sessionStorage quando existir; caso contrário, cria um laudo mínimo.
- */
 export async function ensureInspecaoId(): Promise<number> {
   if (canUseStorage()) {
     const stored = window.sessionStorage.getItem(INSPECTION_ID_KEY);

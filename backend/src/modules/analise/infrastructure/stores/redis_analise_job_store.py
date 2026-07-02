@@ -7,10 +7,7 @@ from src.shared.infrastructure.redis_config import RedisClient
 
 
 class RedisAnaliseJobStore(IAnaliseJobStore):
-    """Store de jobs em Redis com TTL.
-
-    O TTL é o que habilita o 404 por expiração esperado pelo poller do frontend.
-    """
+    """Persistência de jobs de análise em Redis (TTL 1h)."""
 
     PREFIX = "analise:job:"
     TTL_SECONDS = 3600

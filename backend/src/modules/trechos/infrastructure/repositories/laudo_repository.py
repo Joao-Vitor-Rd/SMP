@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from src.modules.trechos.domain.repositories.i_laudo_repository import ILaudoRepository
 from src.modules.trechos.domain.entities.laudo import Laudo, LaudoORM, UsuarioLaudo
+from src.modules.analise.domain.entities.deteccao import Deteccao, DeteccaoORM
 from src.shared.domain.entities.user import UserORM
 from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
 
@@ -183,7 +184,6 @@ class LaudoRepository(ILaudoRepository):
         }
 
     def _to_domain(self, laudo_orm: LaudoORM) -> Laudo:
-        # CORREÇÃO: Toda a lógica interna da função foi recuada em 4 espaços
         usuarios = []
         for user in laudo_orm.usuarios:
             colaborador = (
@@ -199,6 +199,13 @@ class LaudoRepository(ILaudoRepository):
                 )
             )
 
+        deteccoes_orm = (
+            self.session.query(DeteccaoORM)
+            .filter(DeteccaoORM.inspecao_id == laudo_orm.id)
+            .order_by(DeteccaoORM.id.asc())
+            .all()
+        )
+
         return Laudo(
             id=laudo_orm.id,
             data=laudo_orm.data,
@@ -207,4 +214,7 @@ class LaudoRepository(ILaudoRepository):
             credencial_responsavel=laudo_orm.credencial_responsavel,
             usuarios=usuarios,
             resumo=laudo_orm.resumo or {},
+            publicado_em=getattr(laudo_orm, "publicado_em", None),
+            publicacao_resumo=getattr(laudo_orm, "publicacao_resumo", None),
+            deteccoes=[Deteccao.model_validate(orm) for orm in deteccoes_orm],
         )

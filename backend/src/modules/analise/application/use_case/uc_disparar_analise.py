@@ -6,8 +6,6 @@ from src.modules.trechos.domain.repositories.i_laudo_repository import ILaudoRep
 
 
 class DispararAnaliseUseCase:
-    """Dispara a análise quando o laudo existe e há fotos vinculadas."""
-
     def __init__(
         self,
         laudo_repository: ILaudoRepository,

@@ -51,6 +51,7 @@ interface TrechoListItemDTO {
   uf?: string;
   nome_trecho?: string;
   pci?: number;
+  classificacao_qualidade?: string | null;
   responsavel_nome?: string;
 }
 
@@ -105,6 +106,21 @@ export default function HistoricoInspecoesPage() {
   // Data de hoje formatada (YYYY-MM-DD) para limitar campos de data
   const dataHojeStr = useMemo(() => new Date().toISOString().split("T")[0], []);
 
+  const parsePci = (item: TrechoListItemDTO) => {
+    if (typeof item.pci === "number" && Number.isFinite(item.pci)) {
+      return item.pci;
+    }
+
+    if (typeof item.classificacao_qualidade === "string") {
+      const parsed = Number.parseFloat(item.classificacao_qualidade);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+
+    return 0;
+  };
+
   useEffect(() => {
     async function checarSessaoReal() {
       try {
@@ -153,7 +169,7 @@ export default function HistoricoInspecoesPage() {
             codigo_trecho: item.id_trecho,
             nome_trecho: item.nome_trecho || `Trecho ${item.id_trecho}`,
             data: item.criado_em ? item.criado_em.split("T")[0] : new Date().toISOString().split("T")[0],
-            pci: item.pci !== undefined ? item.pci : 100,
+            pci: parsePci(item),
             responsavel: item.responsavel_nome || "Não designado"
           };
 
@@ -510,7 +526,7 @@ export default function HistoricoInspecoesPage() {
                     <div className="flex items-center gap-4">
                       <div className={`w-14 h-14 rounded-xl border flex flex-col items-center justify-center font-bold ${configMedia.bg}`}>
                         <span className="text-xl leading-none">{grupo.pci_media}</span>
-                        <span className="text-[9px] uppercase tracking-wider font-extrabold mt-0.5">Média</span>
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold mt-0.5">PCI</span>
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-gray-900">{grupo.via}</h3>

@@ -10,5 +10,4 @@ class IDetectorDefeitos(ABC):
 
     @abstractmethod
     def detect(self, fotos: List[Foto]) -> List[Deteccao]:
-        """Analisa as fotos e retorna detecções com `confidence_score` em 0..1."""
         ...
