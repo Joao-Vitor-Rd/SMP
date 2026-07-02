@@ -16,18 +16,30 @@ export const LAUDO_SUBTITULO = "Sistema de Monitoramento de Pavimentos — SMP";
 export const DEFEITOS_DNIT_LAUDO: readonly DefeitoDNITLaudo[] = [
   {
     codigo: "DNIT-01",
-    descricao: "Panelas",
+    descricao: "Panelas (buracos)",
     severidade: "Moderada",
     extensao: "12,5 m²",
   },
   {
     codigo: "DNIT-02",
+    descricao: "Trincas isoladas",
+    severidade: "Leve",
+    extensao: "6,0 m",
+  },
+  {
+    codigo: "DNIT-03",
     descricao: "Trincas interligadas",
     severidade: "Grave",
     extensao: "8,0 m",
   },
   {
-    codigo: "DNIT-03",
+    codigo: "DNIT-04",
+    descricao: "Remendos",
+    severidade: "Moderada",
+    extensao: "4,2 m²",
+  },
+  {
+    codigo: "DNIT-05",
     descricao: "Desgaste superficial",
     severidade: "Leve",
     extensao: "45,0 m²",
