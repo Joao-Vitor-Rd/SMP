@@ -16,6 +16,6 @@ class ConsultarStatusAnaliseUseCase:
         if state is None:
             return None
 
-        result = LaudoAnaliseDTO(**state.result) if state.result else None
+        result = LaudoAnaliseDTO.model_validate(state.result) if state.result else None
         status_value = state.status.value if hasattr(state.status, "value") else str(state.status)
         return AnalysisStatusResponseDTO(status=status_value, result=result)

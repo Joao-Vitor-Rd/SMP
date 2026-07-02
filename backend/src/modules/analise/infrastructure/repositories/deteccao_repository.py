@@ -46,11 +46,6 @@ class DeteccaoRepository(IDeteccaoRepository):
                 self.session.refresh(orm)
 
             salvas = [Deteccao.model_validate(orm) for orm in orms]
-            logger.info(
-                "Detecções salvas para inspecao_id=%s: %d registro(s)",
-                inspecao_id,
-                len(salvas),
-            )
             return salvas
 
         except IntegrityError as exc:

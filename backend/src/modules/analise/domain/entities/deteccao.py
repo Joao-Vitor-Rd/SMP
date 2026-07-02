@@ -1,21 +1,13 @@
 from datetime import datetime, timezone
-from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 
+from src.shared.enums.defeito_dnit_enum import DefeitoDNIT, parse_defeito_dnit
 from src.shared.infrastructure.db import Base
 
-
-class DefeitoDNIT(str, Enum):
-    """Taxonomia de defeitos DNIT 005/2003-TER suportada pela análise."""
-
-    PANELAS = "Panelas"
-    TRINCAS_ISOLADAS = "Trincas isoladas"
-    TRINCAS_INTERLIGADAS = "Trincas interligadas"
-    REMENDOS = "Remendos"
-    DESGASTE_SUPERFICIAL = "Desgaste superficial"
+__all__ = ["DefeitoDNIT", "DeteccaoORM", "Deteccao"]
 
 
 class DeteccaoORM(Base):
@@ -55,3 +47,8 @@ class Deteccao(BaseModel):
     observacao: Optional[str] = None
     imagem_id: Optional[int] = None
     revisado_manualmente: bool = False
+
+    @field_validator("defeito", mode="before")
+    @classmethod
+    def _normalize_defeito(cls, value):
+        return parse_defeito_dnit(value)

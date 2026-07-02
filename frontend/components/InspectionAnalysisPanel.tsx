@@ -66,7 +66,6 @@ export default function InspectionAnalysisPanel({
     }
   };
 
-  // Estado terminal de sucesso: revisão do laudo e, após salvar, finalização.
   if (status === "completed" && job?.laudo && resolvedInspecaoId != null) {
     return (
       <div className="space-y-6">
@@ -85,7 +84,6 @@ export default function InspectionAnalysisPanel({
     );
   }
 
-  // Processando ou falha.
   if (status === "pending" || status === "failed") {
     return (
       <div className="space-y-4">
@@ -110,7 +108,6 @@ export default function InspectionAnalysisPanel({
     );
   }
 
-  // Estado inicial.
   return (
     <div className="space-y-3">
       <button

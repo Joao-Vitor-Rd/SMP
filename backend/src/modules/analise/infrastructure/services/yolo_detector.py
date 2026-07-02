@@ -58,35 +58,14 @@ class YoloDetector(IDetectorDefeitos):
                 env_model_id,
                 DEFAULT_ROBOFLOW_MODEL_ID,
             )
-        elif not env_model_id:
-            logger.info(
-                "ROBOFLOW_MODEL_ID não definido no .env — usando padrão %s",
-                DEFAULT_ROBOFLOW_MODEL_ID,
-            )
 
         self._client = InferenceHTTPClient(api_url=api_url, api_key=api_key)
         self._client.configure(
             InferenceConfiguration(confidence_threshold=self.conf),
         )
-        logger.info(
-            "YoloDetector (Roboflow) inicializado | model_id=%s | api_url=%s | conf=%s",
-            self.model_id,
-            api_url,
-            self.conf,
-        )
 
     def detect(self, fotos: List[Foto]) -> List[Deteccao]:
-        logger.info(
-            "YoloDetector.detect iniciado para %d foto(s) | conf>=%s",
-            len(fotos),
-            MIN_DETECCAO_CONFIDENCE,
-        )
         deteccoes, _ = self._run_batch(fotos)
-        logger.info(
-            "YoloDetector.detect concluído: %d detecção(ões) DNIT válidas em %d foto(s)",
-            len(deteccoes),
-            len(fotos),
-        )
         return deteccoes
 
     def _run_batch(self, fotos: List[Foto]) -> Tuple[List[Deteccao], int]:
@@ -112,17 +91,6 @@ class YoloDetector(IDetectorDefeitos):
                 return [], 0
 
             cols, rows = tile_grid_for_size(width, height)
-            tile_count = cols * rows
-            if tile_count > 1:
-                logger.info(
-                    "Tiling foto_id=%s: %dx%d em grade %dx%d (%d tiles)",
-                    foto.id,
-                    width,
-                    height,
-                    cols,
-                    rows,
-                    tile_count,
-                )
 
             raw_candidates: List[TileDetection] = []
             raw_boxes_total = 0
@@ -138,14 +106,6 @@ class YoloDetector(IDetectorDefeitos):
                 raw_boxes_total += tile_box_count
 
         merged = merge_tile_detections(raw_candidates, self.iou)
-        if len(raw_candidates) > len(merged):
-            logger.info(
-                "NMS foto | foto_id=%s | iou=%s | antes=%d depois=%d",
-                foto.id,
-                self.iou,
-                len(raw_candidates),
-                len(merged),
-            )
         deteccoes = self._candidates_to_deteccoes(merged, foto.id)
         return deteccoes, raw_boxes_total
 
@@ -284,18 +244,7 @@ class YoloDetector(IDetectorDefeitos):
                 )
             )
 
-        before_nms = len(candidates)
         candidates = suppress_overlapping_detections(candidates, iou_threshold)
-        if before_nms > len(candidates):
-            logger.info(
-                "NMS tile | foto_id=%s | offset=(%s,%s) | iou=%s | antes=%d depois=%d",
-                foto_id,
-                offset_x,
-                offset_y,
-                iou_threshold,
-                before_nms,
-                len(candidates),
-            )
 
         if predictions and not candidates:
             logger.warning(

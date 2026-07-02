@@ -2,15 +2,16 @@ import axios from "axios";
 
 import { SessionExpiredError, authApi } from "./authApi";
 
+/** Taxonomia oficial DNIT 005/2003-TER — exatamente 5 classificações. */
 export type DefeitoDNIT =
-  | "Panelas"
+  | "Panelas (buracos)"
   | "Trincas isoladas"
   | "Trincas interligadas"
   | "Remendos"
   | "Desgaste superficial";
 
 export const DEFEITOS_DNIT: DefeitoDNIT[] = [
-  "Panelas",
+  "Panelas (buracos)",
   "Trincas isoladas",
   "Trincas interligadas",
   "Remendos",
@@ -33,11 +34,6 @@ export type Laudo = {
   inspecao_id?: string | number;
   deteccoes: DeteccaoLaudo[];
   observacoes_gerais?: string;
-  /**
-   * Número de detecções retornadas pela IA que não puderam ser interpretadas
-   * (defeito fora da taxonomia DNIT ou score ausente/ inválido). Sinalizado em
-   * vez de descartado silenciosamente, para que a UI possa alertar o revisor.
-   */
   deteccoes_invalidas?: number;
 };
 
@@ -59,19 +55,35 @@ export type PollAnalysisStatusResponse = {
 
 const INSPECOES_API_BASE = "/api/v1/inspecoes";
 
+const LEGACY_DEFEITO_ALIASES: Record<string, DefeitoDNIT> = {
+  Panelas: "Panelas (buracos)",
+};
+
+function normalizeDefeitoLabel(value: unknown): DefeitoDNIT | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (DEFEITOS_DNIT.includes(trimmed as DefeitoDNIT)) {
+    return trimmed as DefeitoDNIT;
+  }
+
+  return LEGACY_DEFEITO_ALIASES[trimmed] ?? null;
+}
+
 function isDefeitoDNIT(value: unknown): value is DefeitoDNIT {
-  return typeof value === "string" && DEFEITOS_DNIT.includes(value as DefeitoDNIT);
+  return normalizeDefeitoLabel(value) !== null;
 }
 
 function isAnalysisJobStatus(value: unknown): value is AnalysisJobStatus {
   return value === "pending" || value === "completed" || value === "failed";
 }
 
-/**
- * Normaliza o score de confiança para a escala canônica 0..1. O contrato exige
- * 0..1, mas, defensivamente, valores no intervalo (1, 100] são tratados como
- * percentuais (ex.: 85 -> 0.85). Retorna null para valores não interpretáveis.
- */
 function normalizeConfidence(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     return null;
@@ -91,10 +103,10 @@ function normalizeDeteccao(raw: unknown): DeteccaoLaudo | null {
   }
 
   const record = raw as Record<string, unknown>;
-  const defeito = record.defeito;
+  const defeito = normalizeDefeitoLabel(record.defeito);
   const confidenceScore = normalizeConfidence(record.confidence_score);
 
-  if (!isDefeitoDNIT(defeito) || confidenceScore === null) {
+  if (!defeito || confidenceScore === null) {
     return null;
   }
 
@@ -217,10 +229,29 @@ export async function saveReview(inspecaoId: string | number, data: Laudo): Prom
     }
 
     if (axios.isAxiosError(error)) {
-      const message =
-        typeof error.response?.data?.detail === "string"
-          ? error.response.data.detail
-          : "Não foi possível salvar o laudo revisado.";
+      const detail = error.response?.data?.detail;
+      let message = "Não foi possível salvar o laudo revisado.";
+
+      if (typeof detail === "string" && detail.trim()) {
+        message = detail;
+      } else if (Array.isArray(detail)) {
+        const parts = detail
+          .map((item) => {
+            if (typeof item === "object" && item !== null && "msg" in item) {
+              const loc = Array.isArray((item as { loc?: unknown }).loc)
+                ? (item as { loc: unknown[] }).loc.join(".")
+                : "";
+              const msg = String((item as { msg?: unknown }).msg ?? "");
+              return loc ? `${loc}: ${msg}` : msg;
+            }
+            return null;
+          })
+          .filter((part): part is string => Boolean(part));
+        if (parts.length > 0) {
+          message = parts.join(" ");
+        }
+      }
+
       throw new Error(message);
     }
 
