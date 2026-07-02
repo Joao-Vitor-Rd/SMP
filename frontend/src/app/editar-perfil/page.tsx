@@ -420,7 +420,6 @@ export default function EditarPerfilPage() {
   }, []);
 
   async function handleFinalizarCadastro() {
-<<<<<<< HEAD
     console.log('=== INICIANDO CADASTRO DE COLABORADOR ===');
     console.log('Perfil atual:', perfil);
     console.log('ID do perfil:', perfil.id);
@@ -431,9 +430,6 @@ export default function EditarPerfilPage() {
     const emailInformado = sanitizarEmail(convite.email);
 
     if (!nomeConvite || !emailInformado) {
-=======
-    if (!convite.nome.trim() || !convite.email.trim()) {
->>>>>>> origin/main
       mostrarFeedback('Preencha os campos obrigatórios do acesso.', 'error', 'Campos obrigatórios');
       return;
     }
