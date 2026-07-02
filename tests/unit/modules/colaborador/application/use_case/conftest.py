@@ -28,7 +28,7 @@ def colaborador_repository():
     mock.save.side_effect = lambda colaborador: colaborador.model_copy(update={"id": 10})
     mock.update_colaborador.side_effect = lambda colaborador: colaborador
     mock.update_acesso.side_effect = lambda colaborador_id: None
-    mock.update_limite_acesso.side_effect = lambda colaborador_id, limite_acesso: None
+    mock.update_limite_acesso.side_effect = lambda colaborador_id, limite_acesso, acesso_liberado=True: None
     return mock
 
 
