@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
 	AlertTriangle,
-	Building,
 	Calendar,
 	CheckCircle2,
 	GraduationCap,
@@ -28,7 +27,6 @@ type Colaborador = {
 	id: string;
 	nome: string;
 	email: string;
-	instituicao: string;
 	status: "Ativo" | "Expirado";
 	dataExpiracao: string; // Formato YYYY-MM-DD
 };
@@ -64,8 +62,7 @@ function mapearBackendParaFrontend(dto: ColaboradorDTO): Colaborador {
 		id: String(dto.id),
 		nome: dto.nome,
 		email: dto.email,
-		instituicao: dto.instituicao_ensino || "Não informada",
-		status: dto.acesso_liberado ? "Ativo" : "Expirado",
+		status: dto.ativo ? "Ativo" : "Expirado",
 		dataExpiracao: dto.limite_acesso ? dto.limite_acesso.split('T')[0] : ""
 	};
 }
@@ -306,8 +303,6 @@ export default function CentralAcessosPage() {
 															</div>
 															<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1 text-sm text-gray-500">
 																<span className="flex items-center gap-1.5"><Mail size={14} /> {colab.email}</span>
-																<span className="hidden sm:inline text-gray-300">•</span>
-																<span className="flex items-center gap-1.5"><Building size={14} /> {colab.instituicao}</span>
 															</div>
 															
 															{/* Informação de Expiração e Alerta de 30 dias */}

@@ -45,11 +45,15 @@ class AtualizarColaboradorUseCase:
             else:
                 cidade_formatada = None
 
-        uf = colaborador_atual.uf.upper()
+        uf = colaborador_atual.uf.upper() if colaborador_atual.uf else None
         if update_data.uf is not None:
-            if not UFEnum.is_valid(update_data.uf):
+            uf_informada = update_data.uf.strip().upper()
+            if not uf_informada:
+                uf = None
+            elif not UFEnum.is_valid(uf_informada):
                 raise ValueError("UF inválida")
-            uf = update_data.uf
+            else:
+                uf = uf_informada
 
         empresa_ou_orgao = colaborador_atual.empresa_ou_orgao
         if update_data.empresa_ou_orgao is not None:

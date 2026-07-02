@@ -143,7 +143,7 @@ class ColaboradorRepository(IColaboradorRepository):
         self.session.commit()
         self.session.refresh(col_orm)
     
-    def update_limite_acesso(self, colaborador_id: int, limite_acesso: datetime):
+    def update_limite_acesso(self, colaborador_id: int, limite_acesso: datetime, acesso_liberado: bool = True):
         col_orm = self.session.query(ColaboradorORM).filter(
             ColaboradorORM.id == colaborador_id
         ).first()
@@ -152,6 +152,7 @@ class ColaboradorRepository(IColaboradorRepository):
             raise ValueError(f"Colaborador com ID {colaborador_id} não encontrado")
         
         col_orm.limite_acesso = limite_acesso
+        col_orm.acesso_liberado = acesso_liberado
         self.session.commit()
         self.session.refresh(col_orm)
 
@@ -211,5 +212,4 @@ class ColaboradorRepository(IColaboradorRepository):
             self.session.delete(user)
 
         self.session.commit()
-
 

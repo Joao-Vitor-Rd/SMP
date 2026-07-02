@@ -24,7 +24,10 @@ class TestAtualizarLimiteAcessoUseCase:
     ):
         limite_naive = datetime.now() + timedelta(days=1)
         colaborador_atualizado = colaborador_para_acesso.model_copy(
-            update={"limite_acesso": limite_naive.replace(tzinfo=timezone.utc)}
+            update={
+                "limite_acesso": limite_naive.replace(tzinfo=timezone.utc),
+                "acesso_liberado": True,
+            }
         )
         colaborador_repository.find_by_id.side_effect = [
             colaborador_para_acesso,
@@ -37,11 +40,14 @@ class TestAtualizarLimiteAcessoUseCase:
         )
 
         limite_chamado = colaborador_repository.update_limite_acesso.call_args.args[1]
+        acesso_liberado_chamado = colaborador_repository.update_limite_acesso.call_args.args[2]
         assert limite_chamado.tzinfo == timezone.utc
         assert limite_chamado.replace(tzinfo=None) == limite_naive
+        assert acesso_liberado_chamado is True
         assert response.id == 11
         assert response.limite_acesso == limite_naive.replace(tzinfo=timezone.utc)
-        assert response.status == "Inativo"
+        assert response.acesso_liberado is True
+        assert response.status == "Ativo"
 
     def test_deve_rejeitar_tecnico_com_limite_de_acesso(
         self,
