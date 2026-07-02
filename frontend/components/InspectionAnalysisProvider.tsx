@@ -112,7 +112,6 @@ function createAnalysisEngine({ setJobs, setNotifications, setToasts }: EngineDe
     pollers.delete(key);
   };
 
-  // Sessão expirada: pausa o polling sem apagar o job persistido.
   const pausePoller = (key: string) => {
     const runtime = pollers.get(key);
     if (runtime?.timeoutId) {

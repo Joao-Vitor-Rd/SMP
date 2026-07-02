@@ -60,6 +60,7 @@ interface TrechoListItemDTO {
   uf?: string;
   nome_trecho?: string;
   pci?: number;
+  classificacao_qualidade?: string | null;
   responsavel_nome?: string;
   cidade?: string;             
   responsavel_tecnico?: string; 

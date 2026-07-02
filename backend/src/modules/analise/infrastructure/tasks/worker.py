@@ -21,6 +21,10 @@ MODOS_DETECTOR_VALIDOS = frozenset({"yolo", "stub"})
 _yolo_detector_instance: IDetectorDefeitos | None = None
 
 
+def _has_roboflow_key() -> bool:
+    return bool((os.getenv("ROBOFLOW_API_KEY") or "").strip())
+
+
 def _resolver_modo_detector() -> str:
     raw = os.getenv("DETECTOR_DEFEITOS", "").strip().lower()
 
@@ -53,12 +57,6 @@ def _get_yolo_detector() -> IDetectorDefeitos:
 
         from src.modules.analise.infrastructure.services.yolo_detector import YoloDetector
 
-        logger.info(
-            "Inicializando YoloDetector (Roboflow) | model_id=%s | conf=%s | iou=%s",
-            os.getenv("ROBOFLOW_MODEL_ID", "rdd2022-22jrg/1"),
-            os.getenv("YOLO_CONF_THRESHOLD", str(MIN_DETECCAO_CONFIDENCE)),
-            os.getenv("YOLO_IOU_THRESHOLD", "0.45"),
-        )
         _yolo_detector_instance = YoloDetector(
             storage=build_foto_storage(),
             conf=float(os.getenv("YOLO_CONF_THRESHOLD", str(MIN_DETECCAO_CONFIDENCE))),
@@ -70,6 +68,12 @@ def _get_yolo_detector() -> IDetectorDefeitos:
 def build_detector() -> IDetectorDefeitos:
     modo = _resolver_modo_detector()
     if modo == "yolo":
+        if not _has_roboflow_key():
+            logger.warning(
+                "DETECTOR_DEFEITOS='yolo' mas ROBOFLOW_API_KEY não está definida; "
+                "usando DetectorDefeitosStub para manter o worker ativo."
+            )
+            return DetectorDefeitosStub()
         return _get_yolo_detector()
     return DetectorDefeitosStub()
 
@@ -80,12 +84,17 @@ async def warmup_detector(ctx) -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     modo = _resolver_modo_detector()
-    logger.info("Worker startup | DETECTOR_DEFEITOS=%r | modo=%r", os.getenv("DETECTOR_DEFEITOS"), modo)
+    logger.info("Worker iniciado com detector=%s", modo)
 
     if modo == "yolo":
+        if not _has_roboflow_key():
+            logger.warning(
+                "Warmup ignorado: ROBOFLOW_API_KEY não definida. "
+                "Defina a chave no .env para habilitar o detector yolo."
+            )
+            return
         logger.info("Inicializando detector Roboflow...")
         _get_yolo_detector()
-        logger.info("Detector Roboflow pronto")
 
 
 async def cleanup_detector(ctx) -> None:
@@ -97,12 +106,6 @@ async def executar_analise_task(ctx, job_id: str, inspecao_id: int) -> None:
     session = SessionLocal()
     try:
         detector = build_detector()
-        logger.info(
-            "Executando análise job_id=%s inspecao_id=%s com detector=%s",
-            job_id,
-            inspecao_id,
-            type(detector).__name__,
-        )
         use_case = ExecutarAnaliseUseCase(
             foto_repository=FotoRepository(session),
             deteccao_repository=DeteccaoRepository(session),

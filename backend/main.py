@@ -14,6 +14,7 @@ from src.modules.fotos.api.http.fotos_routes import router as fotos_router
 from src.modules.trechos.api.http.trechos_routes import router as trechos_router
 from src.modules.trechos.api.http.laudos_routes import router as laudos_router
 from src.modules.analise.api.http.analise_routes import router as analise_router
+import src.shared.infrastructure.orm_registry  # noqa: F401 — registra LaudoORM e demais tabelas para FKs
 from src.modules.analise.domain.entities.deteccao import DeteccaoORM
 from src.modules.analise.infrastructure.tasks.arq_pool import close_arq_pool
 from src.modules.fotos.infrastructure.services.minio_client import ensure_bucket_exists
@@ -24,7 +25,7 @@ app = FastAPI(
     version="1.0"
 )
 
-# Configure CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -39,19 +40,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create database tables
+# Tabelas do banco
 create_tables()
 
 # Sincronizar schema com as entidades
 sync_schema()
 
-# Lifecycle events para Redis
+# Ciclo de vida — Redis
 @app.on_event("startup")
 async def startup_event():
     """Inicializa a conexão com Redis ao iniciar a aplicação"""
     try:
         redis_client = await RedisClient.get_client()
-        # Testar conexão
         await redis_client.ping()
         print("✓ Conexão com Redis estabelecida com sucesso")
 

@@ -22,7 +22,7 @@ class IColaboradorRepository(ABC):
         pass
 
     @abstractmethod
-    def update_limite_acesso(self, colaborador_id: int, limite_acesso: datetime):
+    def update_limite_acesso(self, colaborador_id: int, limite_acesso: datetime, acesso_liberado: bool = True):
         pass
 
     @abstractmethod
@@ -52,4 +52,3 @@ class IColaboradorRepository(ABC):
     @abstractmethod
     def delete(self, colaborador_id: int) -> None:
         pass
-

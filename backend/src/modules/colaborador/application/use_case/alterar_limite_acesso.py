@@ -33,8 +33,8 @@ class AtualizarLimiteAcessoUseCase:
         if limite < agora:
             raise ValueError("A data de acesso deve ser igual ou posterior ao momento atual.")
 
-        # Atualizar o limite de acesso usando o método específico
-        self.repository.update_limite_acesso(colaborador_id, limite)
+        # Renovar o prazo também reativa o acesso revogado.
+        self.repository.update_limite_acesso(colaborador_id, limite, True)
         
         # Recuperar o colaborador atualizado
         colaborador_atualizado = self.repository.find_by_id(colaborador_id)

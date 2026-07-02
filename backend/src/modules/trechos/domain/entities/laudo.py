@@ -8,6 +8,7 @@ from src.shared.infrastructure.db import Base
 from typing import Optional, List
 from src.shared.domain.entities.user import User
 from src.shared.enums.cargo_enum import CargoEnum
+from src.modules.analise.domain.entities.deteccao import Deteccao
 
 laudo_user_associacao = Table(
     'laudo_user',

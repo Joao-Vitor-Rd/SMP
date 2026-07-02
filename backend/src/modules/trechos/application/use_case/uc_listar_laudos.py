@@ -1,7 +1,6 @@
 from typing import Optional
 from src.modules.trechos.domain.repositories.i_laudo_repository import ILaudoRepository
 from src.modules.trechos.domain.entities.laudo import Laudo
-from typing import Optional
 
 class ListarLaudosUseCase:
     def __init__(self, laudo_repository: ILaudoRepository):

@@ -87,7 +87,6 @@ export default function InspectionAnalysisPanel({
     );
   }
 
-  // Processando ou falha.
   if (status === "pending" || status === "failed") {
     return (
       <div className="space-y-4">
@@ -112,7 +111,6 @@ export default function InspectionAnalysisPanel({
     );
   }
 
-  // Estado inicial.
   return (
     <div className="space-y-3">
       <button

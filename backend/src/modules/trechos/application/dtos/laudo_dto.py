@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Union
 from datetime import datetime
+from src.modules.analise.application.dtos.analise_dto import DeteccaoDTO
 from src.shared.enums.cargo_enum import CargoEnum
 
 class UsuarioLaudoDTO(BaseModel):
@@ -43,11 +44,24 @@ class LaudoResponseDTO(BaseModel):
 
 class ResumoPublicacaoDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    via: str
-    km: str
+    via: str = Field(..., min_length=1)
+    km: str = Field(..., min_length=1)
     pci: float
     igg: float
     observacoes: Optional[str] = None
+
+    @field_validator("pci", "igg", mode="before")
+    @classmethod
+    def _coerce_indices(cls, value):
+        if value is None or value == "":
+            raise ValueError("PCI e IGG são obrigatórios.")
+        try:
+            number = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("PCI e IGG devem ser numéricos.") from exc
+        if not number == number:  # NaN
+            raise ValueError("PCI e IGG devem ser numéricos.")
+        return number
 
 
 class LaudoPublicacaoCreateDTO(BaseModel):
@@ -62,3 +76,4 @@ class LaudoPublicadoDTO(BaseModel):
     inspecao_id: int
     publicado_em: datetime
     resumo: ResumoPublicacaoDTO
+    deteccoes: List[DeteccaoDTO] = Field(default_factory=list)

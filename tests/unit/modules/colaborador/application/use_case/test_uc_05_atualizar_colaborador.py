@@ -122,6 +122,27 @@ class TestAtualizarColaboradorUseCase:
 
         colaborador_repository.update_colaborador.assert_not_called()
 
+    def test_deve_atualizar_colaborador_com_uf_atual_nula(
+        self,
+        atualizar_colaborador_use_case,
+        colaborador_repository,
+        colaborador_existente,
+        make_update_colaborador_dto,
+    ):
+        colaborador_sem_uf = colaborador_existente.model_copy(update={"uf": None})
+        colaborador_repository.find_by_user_id.return_value = colaborador_sem_uf
+
+        response = atualizar_colaborador_use_case.execute(
+            10,
+            make_update_colaborador_dto(uf=None),
+        )
+
+        colaborador_atualizado = colaborador_repository.update_colaborador.call_args.args[
+            0
+        ]
+        assert colaborador_atualizado.uf is None
+        assert response.uf is None
+
     def test_deve_rejeitar_telefone_invalido(
         self,
         atualizar_colaborador_use_case,

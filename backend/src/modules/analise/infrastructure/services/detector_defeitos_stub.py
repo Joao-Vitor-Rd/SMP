@@ -9,12 +9,7 @@ _SEVERIDADES = ["Baixa", "Média", "Alta"]
 
 
 class DetectorDefeitosStub(IDetectorDefeitos):
-    """Detector determinístico para desenvolvimento/testes.
-
-    Gera uma detecção por foto, variando defeito, severidade e confiança de forma
-    estável a partir do id da foto. A faixa de confiança (0.70..0.99) inclui casos
-    abaixo de 0.85 para exercitar o alerta de "revisão manual" do frontend.
-    """
+    """Detector simulado para desenvolvimento e testes."""
 
     def detect(self, fotos: List[Foto]) -> List[Deteccao]:
         deteccoes: List[Deteccao] = []

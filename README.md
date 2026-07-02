@@ -26,7 +26,7 @@ O sistema segue uma arquitetura em camadas com frontend desacoplado do backend:
 ## Pré-requisitos
 
 - Docker e Docker Compose
-- Chave de API Roboflow (para inferência em produção/desenvolvimento com `DETECTOR_DEFEITOS=yolo`)
+- Chave de API Roboflow (com `DETECTOR_DEFEITOS=yolo`; use `stub` para desenvolvimento local sem inferência real)
 
 ## Configuração
 
@@ -40,7 +40,9 @@ cp .env.example backend/.env
 
 - `POSTGRES_PASSWORD` e `DATABASE_URL` (banco `smv`)
 - `SECRET_KEY_JWT`
-- `ROBOFLOW_API_KEY` (obrigatória com detector YOLO ativo)
+- `ROBOFLOW_API_KEY` (obrigatória com `DETECTOR_DEFEITOS=yolo`)
+
+Para testar o fluxo sem Roboflow, defina `DETECTOR_DEFEITOS=stub` no `backend/.env`.
 
 Consulte `.env.example` na raiz do repositório para a lista completa de variáveis.
 
@@ -72,6 +74,12 @@ Para conferir a revisão atual:
 
 ```bash
 docker compose exec backend alembic current
+```
+
+Para acompanhar o processamento de análises por IA:
+
+```bash
+docker compose logs -f worker
 ```
 
 ## Desenvolvimento local (sem Docker no frontend)
@@ -114,7 +122,7 @@ Content-Type: application/json
 
 {
   "email": "usuario@exemplo.com",
-  "password": "senha"
+  "senha": "senha"
 }
 ```
 

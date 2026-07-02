@@ -9,7 +9,14 @@ _pool = None
 def get_redis_settings():
     from arq.connections import RedisSettings
 
-    return RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://localhost:6379"))
+    settings = RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://localhost:6379"))
+
+    # Tunables to survive transient DNS/network hiccups in containers.
+    settings.conn_timeout = float(os.getenv("ARQ_REDIS_CONN_TIMEOUT", "5"))
+    settings.conn_retries = int(os.getenv("ARQ_REDIS_CONN_RETRIES", "20"))
+    settings.conn_retry_delay = float(os.getenv("ARQ_REDIS_CONN_RETRY_DELAY", "1"))
+
+    return settings
 
 
 async def get_arq_pool():

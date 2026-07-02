@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from src.modules.trechos.domain.repositories.i_laudo_repository import ILaudoRepository
 from src.modules.trechos.domain.entities.laudo import Laudo, LaudoORM, UsuarioLaudo
+from src.modules.analise.domain.entities.deteccao import Deteccao, DeteccaoORM
 from src.shared.domain.entities.user import UserORM
 from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
 

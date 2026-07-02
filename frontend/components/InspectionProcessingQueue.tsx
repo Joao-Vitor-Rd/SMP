@@ -10,12 +10,6 @@ interface InspectionProcessingQueueProps {
   errorMessage?: string | null;
 }
 
-/**
- * Componente puramente apresentacional do estado de processamento da análise.
- * O polling e o ciclo de vida do job são responsabilidade do poller global
- * (InspectionAnalysisProvider); aqui apenas refletimos o status recebido, de
- * modo que o feedback sobreviva à navegação entre páginas.
- */
 export default function InspectionProcessingQueue({
   status,
   jobId,

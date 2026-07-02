@@ -67,8 +67,14 @@ def get_uc_buscar_laudo_por_id(
 
 def get_uc_publicar_laudo(
     laudo_repository: LaudoRepository = Depends(get_laudo_repository),
+    session: Session = Depends(get_session),
 ) -> PublicarLaudoUseCase:
-    return PublicarLaudoUseCase(laudo_repository=laudo_repository)
+    return PublicarLaudoUseCase(
+        laudo_repository=laudo_repository,
+        deteccao_repository=DeteccaoRepository(session),
+        foto_repository=FotoRepository(session),
+        trecho_repository=TrechoRepository(session),
+    )
 
 
 def get_uc_buscar_trecho_por_laudo(

@@ -8,6 +8,12 @@ import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import axios from "axios";
 import { authApi } from "../../lib/authApi";
 import Link from "next/link";
+import {
+  EMAIL_FORMAT_REGEX,
+  FORM_FIELD_LIMITS,
+  limitarSenha,
+  sanitizarEmail,
+} from "../../lib/formFieldValidation";
 
 const MENSAGEM_CREDENCIAIS_INVALIDAS =
   "Credenciais inválidas. Verifique seu e-mail e senha.";
@@ -80,12 +86,28 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro("");
+
+    const emailTratado = sanitizarEmail(email);
+    const senhaTratada = limitarSenha(senha);
+
+    if (!emailTratado || !EMAIL_FORMAT_REGEX.test(emailTratado)) {
+      setErro("Dados inválidos. Verifique se o e-mail está correto.");
+      return;
+    }
+
+    if (!senhaTratada) {
+      setErro("Informe sua senha.");
+      return;
+    }
+
+    setEmail(emailTratado);
+    setSenha(senhaTratada);
     setCarregando(true);
 
     try {
       const response = await authApi.post("/auth/login", {
-        email,
-        senha,
+        email: emailTratado,
+        senha: senhaTratada,
         lembrar_me: lembrarMe,
       });
 
@@ -191,7 +213,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-7">
+        <form onSubmit={handleSubmit} className="space-y-7" noValidate>
 
           {/* E-mail */}
           <div>
@@ -203,8 +225,10 @@ export default function LoginPage() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(sanitizarEmail(e.target.value))}
                 placeholder="seu@email.com"
+                maxLength={FORM_FIELD_LIMITS.email}
+                autoComplete="email"
                 required
                 className="w-full pl-11 pr-4 py-3 border border-[#D6E0E9] rounded-lg text-base text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-[#165D7A] focus:border-transparent shadow-sm transition-all duration-150 focus:shadow-lg"
               />
@@ -219,8 +243,10 @@ export default function LoginPage() {
               <input
                 type={mostrarSenha ? "text" : "password"}
                 value={senha}
-                onChange={(e) => setSenha(e.target.value)}
+                onChange={(e) => setSenha(limitarSenha(e.target.value))}
                 placeholder="••••••••"
+                maxLength={FORM_FIELD_LIMITS.password}
+                autoComplete="current-password"
                 required
                 className="w-full pl-11 pr-10 py-3 border border-[#D6E0E9] rounded-lg text-base text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-[#165D7A] focus:border-transparent shadow-sm transition-all duration-150 focus:shadow-lg"
               />
