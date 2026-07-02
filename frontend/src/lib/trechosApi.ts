@@ -22,6 +22,7 @@ export type TrechoListItem = {
   foto_ids: number[];
   fotos: TrechoFoto[];
   pci?: number;
+  classificacao_qualidade?: string | null;
 };
 
 export type TrechoListResponse = {
@@ -70,12 +71,21 @@ function normalizeTrechoItem(raw: Record<string, unknown>): TrechoListItem | nul
     ? raw.foto_ids.filter((fotoId): fotoId is number => typeof fotoId === "number" && Number.isFinite(fotoId))
     : [];
 
+  const pci =
+    typeof raw.pci === "number" && Number.isFinite(raw.pci)
+      ? raw.pci
+      : typeof raw.classificacao_qualidade === "string"
+        ? Number.parseFloat(raw.classificacao_qualidade)
+        : undefined;
+
   return {
     id_trecho: idTrecho,
     criado_em: typeof raw.criado_em === "string" ? raw.criado_em : null,
     foto_ids: fotoIds,
     fotos,
-    pci: typeof raw.pci === "number" && Number.isFinite(raw.pci) ? raw.pci : undefined,
+    pci: typeof pci === "number" && Number.isFinite(pci) ? pci : undefined,
+    classificacao_qualidade:
+      typeof raw.classificacao_qualidade === "string" ? raw.classificacao_qualidade : undefined,
   };
 }
 
