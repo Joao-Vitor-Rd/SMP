@@ -2,6 +2,14 @@ import axios from "axios";
 
 import { SessionExpiredError, authApi } from "./authApi";
 
+export type ResumoPublicacao = {
+  via: string;
+  km: string;
+  pci: number;
+  igg: number;
+  observacoes?: string | null;
+};
+
 export type LaudoResponse = {
   id: number;
   data: string;
@@ -10,6 +18,11 @@ export type LaudoResponse = {
   credencial_responsavel: string;
   resumo: Record<string, number>;
   usuarios: Array<{ id?: number; nome: string; cargo: string }>;
+  status?: "em_andamento" | "concluido";
+  // Preenchidos só após a publicação (POST /api/laudos/{id}/publicar).
+  // Antes disso vêm undefined/null — sempre trate como opcional.
+  publicado_em?: string | null;
+  publicacao_resumo?: ResumoPublicacao | null;
 };
 
 export type CreateLaudoPayload = {

@@ -2,7 +2,7 @@ import axios from "axios";
 
 import { SessionExpiredError, authApi } from "./authApi";
 
-export type MapReviewLocationSource = "gps" | "manual" | "fallback" | "mock";
+export type MapReviewLocationSource = "gps" | "manual" | "fallback";
 
 export type MapReviewInspection = {
   id: string;
@@ -94,74 +94,6 @@ function clampLongitude(longitude: number | null): number | null {
   return longitude;
 }
 
-function createMockPreview(title: string, accent: string, background: string) {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="${background}" />
-          <stop offset="100%" stop-color="#ffffff" />
-        </linearGradient>
-      </defs>
-      <rect width="960" height="640" fill="url(#bg)" />
-      <circle cx="820" cy="140" r="140" fill="${accent}" opacity="0.12" />
-      <circle cx="170" cy="500" r="180" fill="${accent}" opacity="0.08" />
-      <rect x="108" y="108" width="744" height="424" rx="40" fill="#ffffff" opacity="0.82" />
-      <text x="160" y="254" font-family="Inter, Arial, sans-serif" font-size="56" font-weight="800" fill="#0f172a">${title}</text>
-      <text x="160" y="322" font-family="Inter, Arial, sans-serif" font-size="28" fill="#334155">Visualização de inspeção no mapa</text>
-      <path d="M220 400c42-64 86-96 132-96 42 0 76 18 112 54 34 36 68 54 102 54 38 0 82-26 132-78" fill="none" stroke="${accent}" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  `;
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg.trim())}`;
-}
-
-function buildMockData(): MapReviewInspection[] {
-  const now = new Date().toISOString();
-
-  return [
-    {
-      id: "mock-1",
-      fotoId: null,
-      fileName: "inspecao-br101-001.jpg",
-      imageUrl: createMockPreview("BR-101", "#0f766e", "#cdeef2"),
-      latitude: -23.5644,
-      longitude: -46.6523,
-      locationSource: "gps",
-      locationException: null,
-      status: "ready",
-      note: "Coordenadas vindas do GPS original.",
-      updatedAt: now,
-    },
-    {
-      id: "mock-2",
-      fotoId: null,
-      fileName: "inspecao-br101-002.jpg",
-      imageUrl: createMockPreview("Manual", "#7c3aed", "#ece2ff"),
-      latitude: -23.5688,
-      longitude: -46.6388,
-      locationSource: "manual",
-      locationException: "sem_gps",
-      status: "ready",
-      note: "Marcador ajustado manualmente após validação.",
-      updatedAt: now,
-    },
-    {
-      id: "mock-3",
-      fotoId: null,
-      fileName: "inspecao-br101-003.jpg",
-      imageUrl: createMockPreview("IA", "#1d4ed8", "#dbeafe"),
-      latitude: -23.5597,
-      longitude: -46.6429,
-      locationSource: "fallback",
-      locationException: "exif_corrompido",
-      status: "pending",
-      note: "Imagem resolvida no fluxo, aguardando confirmação final.",
-      updatedAt: now,
-    },
-  ];
-}
-
 export function normalizeReviewItems(input: unknown): MapReviewInspection[] {
   const candidates = Array.isArray(input)
     ? input
@@ -214,9 +146,7 @@ export function normalizeReviewItems(input: unknown): MapReviewInspection[] {
         ? "manual"
         : raw.locationSource === "fallback"
           ? "fallback"
-          : raw.locationSource === "mock"
-            ? "mock"
-            : "gps";
+          : "gps";
 
       if (!imageUrl) {
         return null;
@@ -252,9 +182,7 @@ export function buildReviewPayloadFromUpload(items: MapReviewUploadSnapshot[]): 
           ? "gps"
           : item.locationSource === "fallback"
             ? "fallback"
-            : item.locationSource === "mock"
-              ? "mock"
-              : null;
+            : null;
 
       if (!imageUrl) {
         return null;
@@ -365,9 +293,7 @@ export async function loadReviewItems(): Promise<MapReviewInspection[]> {
     }
   }
 
-  const fallback = buildMockData();
-  persistReviewItems(fallback);
-  return fallback;
+  return [];
 }
 
 export async function saveInspectionPosition(itemId: string, latitude: number, longitude: number, fotoId?: number | null) {

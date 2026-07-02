@@ -34,7 +34,11 @@ class LaudoResponseDTO(BaseModel):
     credencial_responsavel: str
     usuarios: List[UsuarioLaudoDTO] = Field(default_factory=dict)
     resumo: dict[str, int] = Field(default_factory=dict)
-    credencial_responsavel: str
+    # Sem isso, o FastAPI descarta esses campos na resposta (response_model
+    # filtra atributos não declarados), mesmo que o domínio Laudo já os tenha.
+    status: str = "rascunho"
+    publicado_em: Optional[datetime] = None
+    publicacao_resumo: Optional[dict] = None
 
 
 class ResumoPublicacaoDTO(BaseModel):

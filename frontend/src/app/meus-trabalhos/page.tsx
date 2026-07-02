@@ -33,16 +33,6 @@ type UsuarioStorage = {
     cargo?: CargoUsuario | string;
 };
 
-type LaudoResponse = {
-    id: number;
-    data: string;
-    responsavel: string;
-    credencial_responsavel: string;
-    resumo: Record<string, number>;
-    usuarios: Array<{ nome: string; cargo: string }>;
-    status?: "em_andamento" | "concluido"; 
-};
-
 type ColaboradorResponse = {
     id: number;
     nome: string;
@@ -249,6 +239,10 @@ export default function MeusTrabalhosPage() {
         }
         setShowNovaInspecao(true);
     };
+
+    useEffect(() => {
+        let isMounted = true;
+
         async function carregarDadosDoServidor() {
             try {
                 const [laudosData, resColabs] = await Promise.all([
@@ -256,8 +250,7 @@ export default function MeusTrabalhosPage() {
                     authApi.get<ColaboradorResponse[]>("/api/supervisores/me/colaboradores").catch(() => ({ data: [] }))
                 ]);
 
-useEffect(() => {
-    let isMounted = true;
+                if (!isMounted) return;
 
                 if (Array.isArray(laudosData)) {
                     // Filtro defensivo no cliente: técnicos/colaboradores só visualizam
@@ -265,9 +258,9 @@ useEffect(() => {
                     // O filtro primário deve existir no backend; este é uma segunda camada.
                     const laudosFiltrados = isTecnico && usuarioId
                         ? laudosData.filter((laudo) => {
-                            const eResponsavel = laudo.responsavel_id === usuarioId;
+                            const eResponsavel = (laudo as LaudoResponse & { responsavel_id?: number }).responsavel_id === usuarioId;
                             const eColaborador = Array.isArray(laudo.usuarios)
-                                && laudo.usuarios.some((u) => u.id === usuarioId);
+                                && laudo.usuarios.some((u) => (u as { id?: number }).id === usuarioId);
                             return eResponsavel || eColaborador;
                         })
                         : laudosData;
@@ -276,37 +269,34 @@ useEffect(() => {
                     setLaudos(ordenados);
                 }
 
-            if (!isMounted) return;
-
-            if (Array.isArray(resLaudos.data)) {
-                const ordenados = resLaudos.data.sort((a, b) => b.id - a.id);
-                setLaudos(ordenados);
+                if (Array.isArray(resColabs.data)) {
+                    setColaboradores(resColabs.data);
+                }
+            } catch (error) {
+                console.error("Erro ao carregar dados da API:", error);
+                if (isMounted) setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar suas inspeções." });
+            } finally {
+                if (isMounted) setLoading(false);
             }
-
-            if (Array.isArray(resColabs.data)) {
-                setColaboradores(resColabs.data);
-            }
-        } catch (error) {
-            console.error("Erro ao carregar dados da API:", error);
-            setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar suas inspeções." });
-        } finally {
-            if (isMounted) setLoading(false);
         }
-    }
 
-    carregarDadosDoServidor();
+        void carregarDadosDoServidor();
 
-    const handleFocus = () => { void carregarDadosDoServidor(); };
-    window.addEventListener("focus", handleFocus);
+        const handleFocus = () => { void carregarDadosDoServidor(); };
+        window.addEventListener("focus", handleFocus);
 
-    return () => {
-        isMounted = false;
-        window.removeEventListener("focus", handleFocus);
-    };
-}, []);
+        return () => {
+            isMounted = false;
+            window.removeEventListener("focus", handleFocus);
+        };
+    }, [isTecnico, usuarioId]);
 
-    const inspecoesEmAndamento = laudos.filter(l => l.status === "em_andamento" || !l.resumo || Object.keys(l.resumo).length === 0);
-    const inspecoesConcluidas = laudos.filter(l => l.status === "concluido" || (l.resumo && Object.keys(l.resumo).length > 0));
+    const inspecoesEmAndamento = laudos.filter(l =>
+        l.status === "em_andamento" || (!l.status && (!l.resumo || Object.keys(l.resumo).length === 0))
+    );
+    const inspecoesConcluidas = laudos.filter(l =>
+        l.status === "concluido" || (!l.status && l.resumo && Object.keys(l.resumo).length > 0)
+    );
 
     const proximoIdEstimado = laudos.length > 0 ? Math.max(...laudos.map(l => l.id)) + 1 : 1;
 
@@ -380,19 +370,13 @@ useEffect(() => {
             const colabsIdsNumericos = selectedCollaboratorIds.map(Number);
 
             const payloadBackend = {
-                data: inspectionDate, 
+                data: inspectionDate,
                 responsavel: nomeLimpo,
                 credencial_responsavel: identificadorLimpo,
-                colaboradores_ids: colabsIdsNumericos, 
-                resumo: {} 
+                colaboradores_ids: colabsIdsNumericos,
+                resumo: {}
             };
 
-            const response = await authApi.post<LaudoResponse>("/api/laudos/", payloadBackend);
-            const novoLaudoId = response.data.id;
-
-            if (canUseStorage()) {
-                window.sessionStorage.removeItem(INSPECTION_DRAFT_KEY);
-                window.sessionStorage.removeItem(INSPECTION_METADATA_KEY);
             const response = await createLaudo(payloadBackend);
             const novoLaudoId = response.id;
 
@@ -405,6 +389,8 @@ useEffect(() => {
                     savedAt: new Date().toISOString(),
                 };
 
+                window.sessionStorage.removeItem(INSPECTION_DRAFT_KEY);
+                window.sessionStorage.removeItem(INSPECTION_METADATA_KEY);
                 window.sessionStorage.setItem(INSPECTION_DRAFT_KEY, JSON.stringify(payloadStorage));
                 window.sessionStorage.setItem(
                     INSPECTION_METADATA_KEY,
@@ -415,7 +401,7 @@ useEffect(() => {
 
             setShowNovaInspecao(false);
             setFeedback({ type: "success", message: "Inspeção iniciada com sucesso! Redirecionando para a captação de imagens..." });
-            
+
             router.push(`/upload-imagens?laudoId=${novoLaudoId}`);
         } catch (error: unknown) {
             console.error("Erro ao submeter laudo:", error);

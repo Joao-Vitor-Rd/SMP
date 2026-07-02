@@ -183,7 +183,6 @@ class LaudoRepository(ILaudoRepository):
         }
 
     def _to_domain(self, laudo_orm: LaudoORM) -> Laudo:
-        # CORREÇÃO: Toda a lógica interna da função foi recuada em 4 espaços
         usuarios = []
         for user in laudo_orm.usuarios:
             colaborador = (
@@ -199,6 +198,12 @@ class LaudoRepository(ILaudoRepository):
                 )
             )
 
+        # Status e resumo de publicação: um laudo só é "concluido" quando
+        # publicado_em está preenchido (fluxo de publicação). Antes disso,
+        # ele é um "rascunho". O relatório usa esse status pra decidir o que
+        # mostrar — sem isso, laudos publicados ficavam invisíveis pra API.
+        status = "concluido" if laudo_orm.publicado_em is not None else "rascunho"
+
         return Laudo(
             id=laudo_orm.id,
             data=laudo_orm.data,
@@ -207,4 +212,7 @@ class LaudoRepository(ILaudoRepository):
             credencial_responsavel=laudo_orm.credencial_responsavel,
             usuarios=usuarios,
             resumo=laudo_orm.resumo or {},
+            status=status,
+            publicado_em=laudo_orm.publicado_em,
+            publicacao_resumo=laudo_orm.publicacao_resumo,
         )

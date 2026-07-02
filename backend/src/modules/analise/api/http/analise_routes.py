@@ -11,6 +11,9 @@ from src.modules.analise.application.dtos.analise_dto import (
 from src.modules.analise.application.use_case.uc_consultar_status_analise import (
     ConsultarStatusAnaliseUseCase,
 )
+from src.modules.analise.application.use_case.uc_buscar_laudo_analise import (
+    BuscarLaudoAnaliseUseCase,
+)
 from src.modules.analise.application.use_case.uc_disparar_analise import DispararAnaliseUseCase
 from src.modules.analise.application.use_case.uc_salvar_laudo_revisado import (
     SalvarLaudoRevisadoUseCase,
@@ -78,6 +81,31 @@ async def consultar_status_analise(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Análise não encontrada ou expirada.",
+        )
+    return result
+
+
+@router.get(
+    "/{inspecao_id}/laudo",
+    response_model=LaudoAnaliseDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Buscar laudo de análise já salvo",
+    description=(
+        "Retorna as detecções já salvas (via análise de IA e/ou revisão manual) "
+        "para a inspeção. Retorna 404 se ainda não houver análise para essa inspeção."
+    ),
+)
+async def buscar_laudo_analise(
+    inspecao_id: int,
+    _: Annotated[dict, Depends(verify_any_user)],
+    session: Session = Depends(get_session),
+) -> LaudoAnaliseDTO:
+    use_case = BuscarLaudoAnaliseUseCase(deteccao_repository=DeteccaoRepository(session))
+    result = use_case.execute(inspecao_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nenhuma análise encontrada para a inspeção {inspecao_id}.",
         )
     return result
 

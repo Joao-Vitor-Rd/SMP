@@ -43,6 +43,14 @@ def _resolver_modo_detector() -> str:
 def _get_yolo_detector() -> IDetectorDefeitos:
     global _yolo_detector_instance
     if _yolo_detector_instance is None:
+        api_key = (os.getenv("ROBOFLOW_API_KEY") or "").strip()
+        if not api_key:
+            logger.warning(
+                "ROBOFLOW_API_KEY não definida; usando DetectorDefeitosStub para não interromper o worker."
+            )
+            _yolo_detector_instance = DetectorDefeitosStub()
+            return _yolo_detector_instance
+
         from src.modules.analise.infrastructure.services.yolo_detector import YoloDetector
 
         logger.info(

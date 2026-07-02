@@ -11,4 +11,4 @@ class ListarLaudosUseCase:
         if cargo == "supervisor" or not user_id:
             return self.laudo_repository.list_all()
             
-        return self.laudo_repository.list_by_user_permissions(user_id=user_id)
+        return self.laudo_repository.list_by_usuario(usuario_id=user_id)
