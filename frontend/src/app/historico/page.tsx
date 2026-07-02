@@ -153,7 +153,7 @@ export default function HistoricoInspecoesPage() {
             codigo_trecho: item.id_trecho,
             nome_trecho: item.nome_trecho || `Trecho ${item.id_trecho}`,
             data: item.criado_em ? item.criado_em.split("T")[0] : new Date().toISOString().split("T")[0],
-            pci: item.pci !== undefined ? item.pci : 100,
+            pci: item.pci ?? 0,
             responsavel: item.responsavel_nome || "Não designado"
           };
 
@@ -510,7 +510,7 @@ export default function HistoricoInspecoesPage() {
                     <div className="flex items-center gap-4">
                       <div className={`w-14 h-14 rounded-xl border flex flex-col items-center justify-center font-bold ${configMedia.bg}`}>
                         <span className="text-xl leading-none">{grupo.pci_media}</span>
-                        <span className="text-[9px] uppercase tracking-wider font-extrabold mt-0.5">Média</span>
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold mt-0.5">PCI</span>
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-gray-900">{grupo.via}</h3>

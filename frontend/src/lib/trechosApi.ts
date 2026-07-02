@@ -21,6 +21,7 @@ export type TrechoListItem = {
   criado_em: string | null;
   foto_ids: number[];
   fotos: TrechoFoto[];
+  pci?: number;
 };
 
 export type TrechoListResponse = {
@@ -74,6 +75,7 @@ function normalizeTrechoItem(raw: Record<string, unknown>): TrechoListItem | nul
     criado_em: typeof raw.criado_em === "string" ? raw.criado_em : null,
     foto_ids: fotoIds,
     fotos,
+    pci: typeof raw.pci === "number" && Number.isFinite(raw.pci) ? raw.pci : undefined,
   };
 }
 

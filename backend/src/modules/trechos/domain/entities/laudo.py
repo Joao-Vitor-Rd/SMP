@@ -8,6 +8,7 @@ from src.shared.infrastructure.db import Base
 from typing import Optional, List
 from src.shared.domain.entities.user import User
 from src.shared.enums.cargo_enum import CargoEnum
+from src.modules.analise.domain.entities.deteccao import Deteccao
 
 laudo_user_associacao = Table(
     'laudo_user',
@@ -54,3 +55,6 @@ class Laudo(BaseModel):
     credencial_responsavel: str
     usuarios: list[UsuarioLaudo] = Field(default_factory=list)
     resumo: dict[str, int] = Field(default_factory=dict)
+    publicado_em: Optional[datetime] = None
+    publicacao_resumo: Optional[dict] = None
+    deteccoes: list[Deteccao] = Field(default_factory=list)

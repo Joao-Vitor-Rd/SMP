@@ -38,6 +38,10 @@ class ILaudoRepository(ABC):
         pass
 
     @abstractmethod
+    def list_by_usuario(self, usuario_id: int) -> list[Laudo]:
+        pass
+
+    @abstractmethod
     def find_by_id(self, laudo_id: int) -> Optional[Laudo]:
         pass
 
