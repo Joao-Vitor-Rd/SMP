@@ -5,35 +5,59 @@ import { usePathname, useRouter } from 'next/navigation';
 import axios from 'axios';
 import { authApi, clearAuthSession, SessionExpiredError } from '../../lib/authApi';
 import {
-  Activity,
   ArrowLeft,
-  Bell,
   Building2,
-  FileText,
-  Folder,
   Globe,
-  History,
   LogOut,
   Mail,
-  Map,
   MapPin,
-  Maximize,
   Phone,
   Save,
   SendHorizonal,
   Settings,
   ShieldCheck,
-  Upload,
   User,
   UserPlus,
 } from 'lucide-react';
 import AppSidebar from '../../../components/AppSidebar';
+import {
+  EMAIL_FORMAT_REGEX,
+  FORM_FIELD_LIMITS,
+  LETTERS_SPACES_HYPHEN_REGEX,
+  ORGANIZATION_TEXT_REGEX,
+  normalizarEspacos,
+  sanitizarEmail,
+  sanitizarTextoOrganizacao,
+  sanitizarTextoSomenteLetras,
+} from '../../lib/formFieldValidation';
 
 const UF_OPTIONS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
   'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
 ];
+
+const PROFILE_FIELD_LIMITS = {
+  fullName: 50,
+  city: 50,
+  organization: 80,
+} as const;
+
+function textoSeguro(valor: unknown, fallback = '') {
+  return typeof valor === 'string' ? valor : fallback;
+}
+
+function sanitizarNomeCompleto(valor: unknown, fallback = '', limite: number = PROFILE_FIELD_LIMITS.fullName) {
+  return sanitizarTextoSomenteLetras(textoSeguro(valor, fallback), limite);
+}
+
+function sanitizarCidade(valor: unknown, fallback = '') {
+  return sanitizarTextoSomenteLetras(textoSeguro(valor, fallback), PROFILE_FIELD_LIMITS.city);
+}
+
+function sanitizarEmpresaOuOrgao(valor: unknown, fallback = '') {
+  return sanitizarTextoOrganizacao(textoSeguro(valor, fallback)).slice(0, PROFILE_FIELD_LIMITS.organization);
+}
 
 type CargoUsuario = 'supervisor' | 'tecnico' | 'colaborador' | '';
 
@@ -57,11 +81,11 @@ function formatarCargo(cargo: CargoUsuario) {
   return 'Engenheiro';
 }
 
-function normalizarCpfCft(valor: string) {
-  return valor.replace(/\D/g, '').slice(0, 11);
+function normalizarCpfCft(valor: unknown) {
+  return textoSeguro(valor).replace(/\D/g, '').slice(0, 11);
 }
 
-function formatarCpfCft(valor: string) {
+function formatarCpfCft(valor: unknown) {
   const digitos = normalizarCpfCft(valor);
 
   if (digitos.length <= 3) {
@@ -79,21 +103,22 @@ function formatarCpfCft(valor: string) {
   return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-${digitos.slice(9)}`;
 }
 
-function normalizarTelefone(valor: string) {
-  return valor.replace(/\D/g, '').slice(0, 11);
+function normalizarTelefone(valor: unknown) {
+  return textoSeguro(valor).replace(/\D/g, '').slice(0, 11);
 }
 
-function formatarTelefonePadrao(valor: string) {
+function formatarTelefonePadrao(valor: unknown) {
   const digitos = normalizarTelefone(valor);
+  const texto = textoSeguro(valor);
 
   if (digitos.length === 11) {
     return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
   }
 
-  return valor.trim();
+  return texto.trim();
 }
 
-function formatarTelefoneParaExibicao(valor: string) {
+function formatarTelefoneParaExibicao(valor: unknown) {
   const digitos = normalizarTelefone(valor);
 
   if (!digitos) {
@@ -111,13 +136,13 @@ function formatarTelefoneParaExibicao(valor: string) {
   return `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
 }
 
-function telefoneEhValido(valor: string) {
+function telefoneEhValido(valor: unknown) {
   const digitos = normalizarTelefone(valor);
   return digitos.length === 11;
 }
 
 function emailEhValido(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return EMAIL_FORMAT_REGEX.test(email) && email.length <= FORM_FIELD_LIMITS.email;
 }
 
 function empresaOuOrgaoEhValido(valor: string) {
@@ -127,7 +152,7 @@ function empresaOuOrgaoEhValido(valor: string) {
     return true;
   }
 
-  return /^[A-Za-zÀ-ÿ\s,&/.\-]+$/.test(texto);
+  return texto.length <= PROFILE_FIELD_LIMITS.organization && ORGANIZATION_TEXT_REGEX.test(texto);
 }
 
 function extrairMensagemErroApi(error: unknown) {
@@ -259,6 +284,15 @@ export default function EditarPerfilPage() {
     setFeedbackPopup(null);
   }
 
+  function obterDataAtualLocalIso() {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+
+    return `${ano}-${mes}-${dia}`;
+  }
+
   function dataEhValidaParaColaborador(dataIso: string) {
     if (!dataIso) {
       return false;
@@ -306,17 +340,17 @@ export default function EditarPerfilPage() {
         setPerfil((current) => ({
           ...current,
           id: usuario.id ?? 0,
-          nomeCompleto: usuario.nome ?? current.nomeCompleto,
-          email: usuario.email ?? current.email,
+          nomeCompleto: sanitizarNomeCompleto(usuario.nome, current.nomeCompleto),
+          email: sanitizarEmail(textoSeguro(usuario.email, current.email)),
           crea: cargo === 'supervisor' ? (usuario.crea ?? usuario.identificador_profissional ?? current.crea) : '',
-          cft: usuario.cft ?? usuario.cpf ?? current.cft,
-          empresa: usuario.empresa ?? current.empresa,
+          cft: normalizarCpfCft(usuario.cft ?? usuario.cpf ?? current.cft),
+          empresa: sanitizarEmpresaOuOrgao(usuario.empresa ?? usuario.empresa_ou_orgao, current.empresa),
           telefone: usuario.telefone ? formatarTelefonePadrao(usuario.telefone) : current.telefone,
           uf: usuario.uf ?? current.uf,
-          cidade: usuario.cidade ?? current.cidade,
+          cidade: sanitizarCidade(usuario.cidade, current.cidade),
           cargo,
         }));
-        setNomeEmEdicao(usuario.nome ?? '');
+        setNomeEmEdicao(sanitizarNomeCompleto(usuario.nome));
 
         const resposta = await authApi.get('/auth/me');
         const usuario_api = resposta.data;
@@ -326,51 +360,51 @@ export default function EditarPerfilPage() {
           setPerfil((current) => ({
             ...current,
             id: supervisor.id ?? current.id,
-            nomeCompleto: supervisor.nome ?? current.nomeCompleto,
+            nomeCompleto: sanitizarNomeCompleto(supervisor.nome, current.nomeCompleto),
             crea: supervisor.identificador_profissional ?? current.crea,
-            email: supervisor.email ?? current.email,
-            empresa: supervisor.empresa ?? current.empresa,
+            email: sanitizarEmail(textoSeguro(supervisor.email, current.email)),
+            empresa: sanitizarEmpresaOuOrgao(supervisor.empresa ?? supervisor.empresa_ou_orgao, current.empresa),
             telefone: supervisor.telefone ? formatarTelefonePadrao(supervisor.telefone) : current.telefone,
             uf: supervisor.uf ?? current.uf,
-            cidade: supervisor.cidade ?? current.cidade,
+            cidade: sanitizarCidade(supervisor.cidade, current.cidade),
             cargo: cargo || 'supervisor',
           }));
-          setNomeEmEdicao(supervisor.nome ?? usuario.nome ?? '');
+          setNomeEmEdicao(sanitizarNomeCompleto(supervisor.nome ?? usuario.nome));
         } else if (cargo === 'colaborador' || cargo === 'tecnico') {
           const colaborador = usuario_api;
           setPerfil((current) => ({
             ...current,
             id: colaborador.id ?? current.id,
-            nomeCompleto: colaborador.nome ?? current.nomeCompleto,
-            email: colaborador.email ?? current.email,
-            cft: colaborador.cft ?? current.cft,
-            empresa: colaborador.empresa_ou_orgao ?? current.empresa,
+            nomeCompleto: sanitizarNomeCompleto(colaborador.nome, current.nomeCompleto),
+            email: sanitizarEmail(textoSeguro(colaborador.email, current.email)),
+            cft: normalizarCpfCft(colaborador.cft ?? current.cft),
+            empresa: sanitizarEmpresaOuOrgao(colaborador.empresa_ou_orgao, current.empresa),
             telefone: colaborador.telefone ? formatarTelefonePadrao(colaborador.telefone) : current.telefone,
             uf: colaborador.uf ?? current.uf,
-            cidade: colaborador.cidade ?? current.cidade,
+            cidade: sanitizarCidade(colaborador.cidade, current.cidade),
             cargo: cargo || 'colaborador',
           }));
-          setNomeEmEdicao(colaborador.nome ?? usuario.nome ?? '');
+          setNomeEmEdicao(sanitizarNomeCompleto(colaborador.nome ?? usuario.nome));
         }
 
         const userDataToSave: Record<string, unknown> = {
           ...usuario,
           id: usuario_api.id ?? usuario.id,
-          nome: usuario_api.nome ?? usuario.nome,
-          email: usuario_api.email ?? usuario.email,
+          nome: sanitizarNomeCompleto(usuario_api.nome ?? usuario.nome),
+          email: sanitizarEmail(textoSeguro(usuario_api.email ?? usuario.email)),
           telefone: usuario_api.telefone ? formatarTelefonePadrao(usuario_api.telefone) : usuario.telefone,
           uf: usuario_api.uf ?? usuario.uf,
-          cidade: usuario_api.cidade ?? usuario.cidade,
+          cidade: sanitizarCidade(usuario_api.cidade ?? usuario.cidade),
           cargo: cargo || usuario.cargo,
         };
 
         if (cargo === 'supervisor') {
           userDataToSave.crea = usuario_api.identificador_profissional ?? usuario.crea;
           userDataToSave.identificador_profissional = usuario_api.identificador_profissional ?? usuario.identificador_profissional;
-          userDataToSave.empresa = usuario_api.empresa ?? usuario.empresa;
+          userDataToSave.empresa = sanitizarEmpresaOuOrgao(usuario_api.empresa ?? usuario.empresa);
         } else if (cargo === 'colaborador' || cargo === 'tecnico') {
-          userDataToSave.cft = usuario_api.cft ?? usuario.cft;
-          userDataToSave.empresa_ou_orgao = usuario_api.empresa_ou_orgao ?? usuario.empresa;
+          userDataToSave.cft = normalizarCpfCft(usuario_api.cft ?? usuario.cft ?? '');
+          userDataToSave.empresa_ou_orgao = sanitizarEmpresaOuOrgao(usuario_api.empresa_ou_orgao ?? usuario.empresa);
         }
 
         localStorage.setItem('usuario', JSON.stringify(userDataToSave));
@@ -393,12 +427,28 @@ export default function EditarPerfilPage() {
     console.log('Tipo de equipe:', tipoEquipe);
     console.log('Convite:', convite);
     
-    if (!convite.nome.trim() || !convite.email.trim()) {
+    const nomeConvite = normalizarEspacos(sanitizarNomeCompleto(convite.nome));
+    const emailInformado = sanitizarEmail(convite.email);
+
+    if (!nomeConvite || !emailInformado) {
       mostrarFeedback('Preencha os campos obrigatórios do acesso.', 'error', 'Campos obrigatórios');
       return;
     }
 
-    const emailInformado = convite.email.trim();
+    if (nomeConvite.length < 3) {
+      mostrarFeedback('Nome completo deve ter pelo menos 3 caracteres.', 'error', 'Nome inválido');
+      return;
+    }
+
+    if (nomeConvite.length > PROFILE_FIELD_LIMITS.fullName) {
+      mostrarFeedback(`Nome completo deve ter no máximo ${PROFILE_FIELD_LIMITS.fullName} caracteres.`, 'error', 'Nome inválido');
+      return;
+    }
+
+    if (!LETTERS_SPACES_HYPHEN_REGEX.test(nomeConvite)) {
+      mostrarFeedback('Nome deve incluir apenas letras.', 'error', 'Nome inválido');
+      return;
+    }
 
     if (!emailEhValido(emailInformado)) {
       mostrarFeedback('E-mail inválido. Informe um e-mail válido.', 'error', 'E-mail inválido');
@@ -437,7 +487,7 @@ export default function EditarPerfilPage() {
       setEnviandoConvite(true);
 
       const payload = {
-        nome: convite.nome.trim(),
+        nome: nomeConvite,
         id_profissional_responsavel: parseInt(String(perfil.id), 10),
         is_tecnico: tipoEquipe === 'TECNICO',
         email: emailInformado,
@@ -479,12 +529,32 @@ export default function EditarPerfilPage() {
     try {
       setSalvandoPerfil(true);
 
-      if (!nomeEmEdicao.trim()) {
+      const nomeTratado = normalizarEspacos(sanitizarNomeCompleto(nomeEmEdicao));
+      const emailTratado = sanitizarEmail(perfil.email);
+      const empresaTratada = normalizarEspacos(sanitizarEmpresaOuOrgao(perfil.empresa));
+      const cidadeTratada = normalizarEspacos(sanitizarCidade(perfil.cidade));
+
+      if (!nomeTratado) {
         mostrarFeedback('O nome completo é obrigatório.', 'error', 'Campo obrigatório');
         return;
       }
 
-      if (!emailEhValido(perfil.email.trim())) {
+      if (nomeTratado.length < 3) {
+        mostrarFeedback('Nome completo deve ter pelo menos 3 caracteres.', 'error', 'Nome inválido');
+        return;
+      }
+
+      if (nomeTratado.length > PROFILE_FIELD_LIMITS.fullName) {
+        mostrarFeedback(`Nome completo deve ter no máximo ${PROFILE_FIELD_LIMITS.fullName} caracteres.`, 'error', 'Nome inválido');
+        return;
+      }
+
+      if (!LETTERS_SPACES_HYPHEN_REGEX.test(nomeTratado)) {
+        mostrarFeedback('Nome deve incluir apenas letras.', 'error', 'Nome inválido');
+        return;
+      }
+
+      if (!emailEhValido(emailTratado)) {
         mostrarFeedback('E-mail inválido. Informe um e-mail válido.', 'error', 'E-mail inválido');
         return;
       }
@@ -494,17 +564,37 @@ export default function EditarPerfilPage() {
         return;
       }
 
-      if (perfil.empresa.trim() && !empresaOuOrgaoEhValido(perfil.empresa)) {
+      if (cidadeTratada && !LETTERS_SPACES_HYPHEN_REGEX.test(cidadeTratada)) {
+        mostrarFeedback('Cidade deve incluir apenas letras.', 'error', 'Cidade inválida');
+        return;
+      }
+
+      if (cidadeTratada.length > PROFILE_FIELD_LIMITS.city) {
+        mostrarFeedback(`Cidade deve ter no máximo ${PROFILE_FIELD_LIMITS.city} caracteres.`, 'error', 'Cidade inválida');
+        return;
+      }
+
+      if (perfil.uf && !UF_OPTIONS.includes(perfil.uf)) {
+        mostrarFeedback('Selecione uma UF válida.', 'error', 'UF inválida');
+        return;
+      }
+
+      if (empresaTratada.length > PROFILE_FIELD_LIMITS.organization) {
+        mostrarFeedback(`Empresa ou órgão deve ter no máximo ${PROFILE_FIELD_LIMITS.organization} caracteres.`, 'error', 'Campo inválido');
+        return;
+      }
+
+      if (empresaTratada && !empresaOuOrgaoEhValido(empresaTratada)) {
         mostrarFeedback('Órgão, empresa ou instituição não pode conter números.', 'error', 'Campo inválido');
         return;
       }
 
       const payload = {
-        nome: nomeEmEdicao.trim(),
+        nome: nomeTratado,
         telefone: normalizarTelefone(perfil.telefone),
-        empresa_ou_orgao: perfil.empresa.trim(),
+        empresa_ou_orgao: empresaTratada,
         uf: perfil.uf,
-        cidade: perfil.cidade.trim(),
+        cidade: cidadeTratada,
       };
 
       const endpoint = perfil.cargo === 'supervisor' ? '/api/supervisores/me' : '/api/colaboradores/me';
@@ -512,16 +602,22 @@ export default function EditarPerfilPage() {
 
       mostrarFeedback('Perfil atualizado com sucesso.', 'success', 'Alterações salvas');
 
-      setPerfil({...perfil, nomeCompleto: nomeEmEdicao});
+      setPerfil((current) => ({
+        ...current,
+        nomeCompleto: nomeTratado,
+        email: emailTratado,
+        empresa: empresaTratada,
+        cidade: cidadeTratada,
+      }));
       localStorage.setItem(
         'usuario',
         JSON.stringify({
           ...JSON.parse(localStorage.getItem('usuario') || '{}'),
-          nome: nomeEmEdicao,
+          nome: nomeTratado,
           telefone: perfil.telefone,
-          empresa: perfil.empresa,
+          empresa: empresaTratada,
           uf: perfil.uf,
-          cidade: perfil.cidade,
+          cidade: cidadeTratada,
         })
       );
     } catch (error) {
@@ -583,8 +679,8 @@ export default function EditarPerfilPage() {
               onClick={() => setShowPopUp(!showPopUp)}
               className="flex items-center gap-3 hover:bg-white p-2 rounded-xl transition-all border border-transparent hover:border-gray-200"
             >
-              <div className="text-right">
-                <p className="font-bold text-sm text-gray-900">{perfil.nomeCompleto || 'Engenheiro(a)'}</p>
+              <div className="text-right min-w-0">
+                <p className="max-w-[220px] truncate font-bold text-sm text-gray-900">{perfil.nomeCompleto || 'Engenheiro(a)'}</p>
                 <p className="text-xs text-gray-500 font-medium">{formatarCargo(perfil.cargo)}</p>
               </div>
               <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm">
@@ -595,8 +691,8 @@ export default function EditarPerfilPage() {
             {showPopUp && (
               <div className="absolute top-16 right-28 w-60 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
                 <div className="p-4 bg-gray-50 border-b border-gray-100">
-                    <p className="font-bold text-sm text-gray-900">{perfil.nomeCompleto || 'Engenheiro(a)'}</p>
-                  <p className="text-[11px] text-gray-500 italic font-medium">{perfil.email}</p>
+                    <p className="truncate font-bold text-sm text-gray-900">{perfil.nomeCompleto || 'Engenheiro(a)'}</p>
+                  <p className="truncate text-[11px] text-gray-500 italic font-medium">{perfil.email}</p>
                 </div>
                 <button 
                   onClick={() => {
@@ -631,8 +727,8 @@ export default function EditarPerfilPage() {
               <div className="h-16 w-16 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center text-[#2d6a8e] shadow-sm shrink-0">
                 <User size={30} />
               </div>
-              <div>
-                <h3 className="text-[22px] font-bold text-gray-900 leading-tight">
+              <div className="min-w-0">
+                <h3 className="break-words text-[22px] font-bold text-gray-900 leading-tight">
                   {perfil.nomeCompleto || 'Engenheiro(a)'}
                 </h3>
                 <p className="text-sm text-gray-600 font-medium">{formatarCargo(perfil.cargo)}</p>
@@ -673,7 +769,8 @@ export default function EditarPerfilPage() {
                   type="text"
                   placeholder="Nome Completo"
                   value={nomeEmEdicao}
-                  onChange={(e) => setNomeEmEdicao(e.target.value)}
+                  onChange={(e) => setNomeEmEdicao(sanitizarNomeCompleto(e.target.value))}
+                  maxLength={PROFILE_FIELD_LIMITS.fullName}
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                 />
               </div>
@@ -688,6 +785,7 @@ export default function EditarPerfilPage() {
                     title="CPF/CFT"
                     aria-label="CPF/CFT"
                     value={formatarCpfCft(perfil.cft)}
+                    maxLength={FORM_FIELD_LIMITS.cpfCftFormatted}
                     readOnly
                     className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3.5 text-sm text-gray-600 font-medium cursor-not-allowed italic shadow-inner"
                   />
@@ -697,6 +795,7 @@ export default function EditarPerfilPage() {
                     title="CREA"
                     aria-label="CREA"
                     value={perfil.crea}
+                    maxLength={FORM_FIELD_LIMITS.crea}
                     readOnly
                     className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3.5 text-sm text-gray-600 font-medium cursor-not-allowed italic shadow-inner"
                   />
@@ -712,6 +811,7 @@ export default function EditarPerfilPage() {
                   title="E-mail"
                   aria-label="E-mail"
                   value={perfil.email}
+                  maxLength={FORM_FIELD_LIMITS.email}
                   readOnly
                   className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3.5 text-sm text-gray-600 font-medium cursor-not-allowed italic shadow-inner"
                 />
@@ -726,8 +826,9 @@ export default function EditarPerfilPage() {
                   title="Empresa/Órgão"
                   aria-label="Empresa/Órgão"
                   value={perfil.empresa}
-                  onChange={(e) => setPerfil({...perfil, empresa: e.target.value})}
-                  placeholder="Ex: DNIT, SOP/CE, Prefeitura..."
+                  onChange={(e) => setPerfil((current) => ({ ...current, empresa: sanitizarEmpresaOuOrgao(e.target.value) }))}
+                  placeholder="Ex: DNIT / SOP-CE / Prefeitura"
+                  maxLength={PROFILE_FIELD_LIMITS.organization}
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                 />
               </div>
@@ -779,8 +880,9 @@ export default function EditarPerfilPage() {
                   title="Cidade"
                   aria-label="Cidade"
                   value={perfil.cidade}
-                  onChange={(e) => setPerfil({...perfil, cidade: e.target.value})}
+                  onChange={(e) => setPerfil((current) => ({ ...current, cidade: sanitizarCidade(e.target.value) }))}
                   placeholder="Ex: Fortaleza"
+                  maxLength={PROFILE_FIELD_LIMITS.city}
                   className="w-full rounded-xl border border-gray-300 bg-gray-50/50 p-3.5 text-sm text-gray-900 font-medium placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                 />
               </div>
@@ -840,7 +942,8 @@ export default function EditarPerfilPage() {
                   type="text"
                   placeholder="Ex: Maria Souza"
                   value={convite.nome}
-                  onChange={(event) => setConvite((current) => ({ ...current, nome: event.target.value }))}
+                  onChange={(event) => setConvite((current) => ({ ...current, nome: sanitizarNomeCompleto(event.target.value) }))}
+                  maxLength={PROFILE_FIELD_LIMITS.fullName}
                   className="w-full p-3.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white font-medium placeholder:text-blue-200/50 outline-none focus:border-white/40 transition-all"
                 />
               </div>
@@ -850,12 +953,13 @@ export default function EditarPerfilPage() {
                   <Mail size={14} className="text-blue-300" /> E-mail de Acesso
                 </label>
                 <input
-                  type="text"
+                  type="email"
                   inputMode="email"
                   autoComplete="email"
                   placeholder="email@exemplo.com"
                   value={convite.email}
-                  onChange={(event) => setConvite((current) => ({ ...current, email: event.target.value }))}
+                  onChange={(event) => setConvite((current) => ({ ...current, email: sanitizarEmail(event.target.value) }))}
+                  maxLength={FORM_FIELD_LIMITS.email}
                   className="w-full p-3.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white font-medium placeholder:text-blue-200/50 outline-none focus:border-white/40 transition-all"
                 />
               </div>
@@ -873,6 +977,7 @@ export default function EditarPerfilPage() {
                     placeholder="000.000.000-00"
                     value={formatarCpfCft(convite.cft)}
                     onChange={(event) => setConvite((current) => ({ ...current, cft: normalizarCpfCft(event.target.value) }))}
+                    maxLength={FORM_FIELD_LIMITS.cpfCftFormatted}
                     className="w-full p-3.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white font-medium placeholder:text-blue-200/50 outline-none focus:border-white/40 transition-all"
                   />
                 </div>
@@ -888,7 +993,14 @@ export default function EditarPerfilPage() {
                     title="Data de expiração do acesso"
                     aria-label="Data de expiração do acesso"
                     value={convite.limiteAcesso}
-                    onChange={(event) => setConvite((current) => ({ ...current, limiteAcesso: event.target.value }))}
+                    min={obterDataAtualLocalIso()}
+                    onChange={(event) => {
+                      const novaData = event.target.value;
+                      setConvite((current) => ({
+                        ...current,
+                        limiteAcesso: !novaData || dataEhValidaParaColaborador(novaData) ? novaData : '',
+                      }));
+                    }}
                     className="w-full p-3.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white font-medium outline-none focus:border-white/40 transition-all scheme-dark"
                   />
                 </div>

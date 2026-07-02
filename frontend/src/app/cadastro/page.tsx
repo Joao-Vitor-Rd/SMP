@@ -4,6 +4,18 @@ import { useState, FormEvent, ChangeEvent } from "react";
 import { User, Shield, MapPin, Mail, Lock, Route } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  CREA_FORMAT_REGEX,
+  EMAIL_FORMAT_REGEX,
+  FORM_FIELD_LIMITS,
+  LETTERS_SPACES_HYPHEN_REGEX,
+  STRONG_PASSWORD_REGEX,
+  formatarCrea,
+  limitarSenha,
+  normalizarEspacos,
+  sanitizarEmail,
+  sanitizarTextoSomenteLetras,
+} from "../../lib/formFieldValidation";
 
 const UF_OPTIONS = [
   "AC",
@@ -35,6 +47,30 @@ const UF_OPTIONS = [
   "TO",
 ];
 
+function formatarCampoCadastro(id: string, value: string) {
+  if (id === "nome") {
+    return sanitizarTextoSomenteLetras(value, FORM_FIELD_LIMITS.fullName);
+  }
+
+  if (id === "crea") {
+    return formatarCrea(value);
+  }
+
+  if (id === "cidade") {
+    return sanitizarTextoSomenteLetras(value, FORM_FIELD_LIMITS.city);
+  }
+
+  if (id === "email") {
+    return sanitizarEmail(value);
+  }
+
+  if (id === "senha" || id === "confirmarSenha") {
+    return limitarSenha(value);
+  }
+
+  return value;
+}
+
 export default function CadastroPage() {
   const router = useRouter(); 
   const [formData, setFormData] = useState({
@@ -56,9 +92,11 @@ export default function CadastroPage() {
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { id, value } = e.target;
+    const valorFormatado = formatarCampoCadastro(id, value);
+
     setFormData((prev) => ({
       ...prev,
-      [id]: value,
+      [id]: valorFormatado,
     }));
     
     // Limpa a mensagem de erro inline do campo quando o usuário voltar a digitar
@@ -76,22 +114,60 @@ export default function CadastroPage() {
     // Validação inline local fail-fast para múltiplos campos
     const newFieldErrors: Record<string, string> = {};
     
-    if (!formData.nome.trim()) newFieldErrors.nome = "Insira seu nome completo.";
-    if (!formData.crea.trim()) newFieldErrors.crea = "Insira um registro CREA válido.";
-    if (!formData.cidade.trim()) newFieldErrors.cidade = "Insira a cidade.";
+    const nome = normalizarEspacos(formData.nome);
+    const crea = formData.crea.trim().toUpperCase();
+    const cidade = normalizarEspacos(formData.cidade);
+    const email = sanitizarEmail(formData.email);
+    const senha = formData.senha;
+    const confirmarSenha = formData.confirmarSenha;
+
+    if (!nome) {
+      newFieldErrors.nome = "Insira seu nome completo.";
+    } else if (nome.length < 3) {
+      newFieldErrors.nome = "Nome completo deve ter pelo menos 3 caracteres.";
+    } else if (!LETTERS_SPACES_HYPHEN_REGEX.test(nome)) {
+      newFieldErrors.nome = "Nome deve incluir apenas letras.";
+    }
+
+    if (!crea) {
+      newFieldErrors.crea = "Insira um registro CREA válido.";
+    } else if (!CREA_FORMAT_REGEX.test(crea)) {
+      newFieldErrors.crea = "CREA deve estar no formato UF-000000.";
+    }
+
+    if (!cidade) {
+      newFieldErrors.cidade = "Insira a cidade.";
+    } else if (cidade.length < 2) {
+      newFieldErrors.cidade = "Cidade deve ter pelo menos 2 caracteres.";
+    } else if (!LETTERS_SPACES_HYPHEN_REGEX.test(cidade)) {
+      newFieldErrors.cidade = "Cidade deve incluir apenas letras.";
+    }
+
     if (!formData.uf.trim()) newFieldErrors.uf = "Selecione uma UF.";
-    if (!formData.email.trim()) newFieldErrors.email = "Insira um e-mail válido.";
-    if (!formData.senha.trim()) newFieldErrors.senha = "Insira uma senha.";
-    if (!formData.confirmarSenha.trim()) newFieldErrors.confirmarSenha = "Confirme sua senha.";
+
+    if (!email) {
+      newFieldErrors.email = "Insira um e-mail válido.";
+    } else if (!EMAIL_FORMAT_REGEX.test(email)) {
+      newFieldErrors.email = "Insira um e-mail válido.";
+    }
+
+    if (!senha) {
+      newFieldErrors.senha = "Insira uma senha.";
+    } else if (senha.length < 8) {
+      newFieldErrors.senha = "Senha deve conter 8 caracteres.";
+    } else if (!STRONG_PASSWORD_REGEX.test(senha)) {
+      newFieldErrors.senha = "Senha deve conter pelo menos uma letra minúscula, uma maiúscula e um número.";
+    }
+
+    if (!confirmarSenha) {
+      newFieldErrors.confirmarSenha = "Confirme sua senha.";
+    } else if (senha !== confirmarSenha) {
+      newFieldErrors.confirmarSenha = "As senhas digitadas não são iguais.";
+    }
 
     if (Object.keys(newFieldErrors).length > 0) {
       setFieldErrors(newFieldErrors);
       return; 
-    }
-
-    if (formData.senha !== formData.confirmarSenha) {
-      setError("As senhas digitadas não são iguais.");
-      return;
     }
 
     setLoading(true);
@@ -100,12 +176,12 @@ export default function CadastroPage() {
       const API_URL = `${window.location.hostname === "localhost" ? "http://localhost:8000" : window.location.origin}/api/supervisores`;
 
       const supervisorData = {
-        nome: formData.nome,
-        identificador_profissional: formData.crea,
-        cidade: formData.cidade,
+        nome,
+        identificador_profissional: crea,
+        cidade,
         uf: formData.uf,
-        email: formData.email,
-        senha: formData.senha,
+        email,
+        senha,
       };
 
       const response = await fetch(API_URL, {
@@ -172,6 +248,7 @@ export default function CadastroPage() {
                 value={formData.nome}
                 onChange={handleChange}
                 placeholder="Nome Completo"
+                maxLength={FORM_FIELD_LIMITS.fullName}
                 required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
@@ -189,6 +266,7 @@ export default function CadastroPage() {
                 value={formData.crea}
                 onChange={handleChange}
                 placeholder="Registro CREA (Ex: SP-123456)"
+                maxLength={FORM_FIELD_LIMITS.crea}
                 required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
@@ -207,6 +285,7 @@ export default function CadastroPage() {
                   value={formData.cidade}
                   onChange={handleChange}
                   placeholder="Cidade"
+                  maxLength={FORM_FIELD_LIMITS.city}
                   required
                   disabled={loading}
                   className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
@@ -244,6 +323,8 @@ export default function CadastroPage() {
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="E-mail"
+                maxLength={FORM_FIELD_LIMITS.email}
+                autoComplete="email"
                 required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
@@ -261,6 +342,8 @@ export default function CadastroPage() {
                 value={formData.senha}
                 onChange={handleChange}
                 placeholder="Senha"
+                maxLength={FORM_FIELD_LIMITS.password}
+                minLength={8}
                 required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
@@ -278,6 +361,8 @@ export default function CadastroPage() {
                 value={formData.confirmarSenha}
                 onChange={handleChange}
                 placeholder="Confirmar Senha"
+                maxLength={FORM_FIELD_LIMITS.password}
+                minLength={8}
                 required
                 disabled={loading}
                 className="w-full border-none outline-none bg-transparent ml-3 text-sm text-gray-700 placeholder-gray-400 disabled:bg-gray-100"
