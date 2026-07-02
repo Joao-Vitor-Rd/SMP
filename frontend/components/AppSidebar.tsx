@@ -85,6 +85,8 @@ export default function AppSidebar({ activePath }: AppSidebarProps) {
           title="Notificações"
           aria-label="Notificações"
           onClick={toggleNotifications}
+          
+          onClick={() => router.push('/gerenciar-colaboradores')} // Navegação adicionada aqui!
           className="relative text-gray-400 hover:text-white transition-colors"
         
         >
