@@ -48,11 +48,8 @@ class CriarColaboradorUseCase:
 
     def execute(self, create_data: CreateColaboradorDTO) -> ColaboradorResponseDTO:
 
-        if create_data.is_tecnico and create_data.limite_acesso is not None:
-            raise HTTPException(
-                status_code=400,
-                detail="Técnico não pode possuir limite_acesso."
-            )
+        if create_data.is_tecnico:
+            create_data.limite_acesso = None
 
         if not create_data.is_tecnico and create_data.cft is not None:
             raise HTTPException(
@@ -135,14 +132,11 @@ class CriarColaboradorUseCase:
 
         if create_data.is_tecnico:
             if not create_data.cft or not create_data.cft.strip():
-                raise HTTPException(
-                    status_code=400,
-                    detail="CFT/CPF é obrigatório para técnico."
-                )
+                raise ValueError("CFT/CPF é obrigatório para técnico.")
 
             cft_formatado = re.sub(r"\D", "", create_data.cft)
             if len(cft_formatado) != 11:
-                raise HTTPException("CFT/CPF deve conter 11 dígitos numéricos")
+                raise ValueError("CFT/CPF deve conter 11 dígitos numéricos")
 
             if self.repository.find_by_cft(cft_formatado):
                 raise ValueError("CFT/CPF já cadastrado no sistema")
