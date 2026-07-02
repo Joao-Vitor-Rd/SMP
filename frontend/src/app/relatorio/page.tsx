@@ -1,211 +1,240 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { 
-  X, 
-  Calendar, 
-  User, 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
-  Activity, 
-  Download,
-  ArrowRight,
+import {
+  X,
+  Calendar,
+  AlertTriangle,
   History,
   FileText,
-  ChevronRight,
   Settings,
   LogOut,
-  SlidersHorizontal
+  SlidersHorizontal,
+  User,
+  Loader2,
+  AlertCircle,
+  Download,
+  MapPin,
+  Activity,
 } from "lucide-react";
 import AppSidebar from "../../../components/AppSidebar";
+import { authApi, clearAuthSession } from "../../lib/authApi";
+import { type LaudoResponse, type ResumoPublicacao } from "../../lib/laudoApi";
 
-// --- INTERFACES DE TIPOS ---
-interface DefeitoItem {
-  tipo: string;
-  quantidade: number;
-}
+// --- TIPOS ---
 
-interface Inspecao {
-  id: number;
+type GrupoRelatorio = {
+  laudoId: number;
   data: string;
-  responsavelTecnico: string;
-  pci: number;
-  igg: number;
-  classificacao: "Ótimo" | "Bom" | "Regular" | "Ruim" | "Péssimo";
-  defeitos: DefeitoItem[];
+  responsavel: string;
+  credencial: string;
+  usuarios: Array<{ id?: number; nome: string; cargo: string }>;
+  status?: string;
+  resumo: Record<string, number>;
+  publicado: boolean;
+  publicadoEm?: string | null;
+  via: string; // Garantido como string para a localização
+  km?: string;
+  pci?: number;
+  igg?: number;
+  observacoes?: string | null;
+};
+
+function formatarData(iso: string) {
+  if (!iso) return "";
+  const partes = iso.substring(0, 10).split("-");
+  if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  return iso;
 }
 
-interface TrechoLaudoDetalhado {
-  id: string;
-  via: string;
-  kmInicio: number;
-  kmFim: number;
-  inspecoes: Inspecao[];
-}
-
-function obterUsuarioInicial() {
-  if (typeof window === "undefined") return { autenticado: false, id: null, nome: "", cargo: "" };
-  try {
-    const usuarioSalvo = localStorage.getItem("usuario");
-    if (!usuarioSalvo) return { autenticado: false, id: null, nome: "", cargo: "" };
-    const user = JSON.parse(usuarioSalvo);
-    return {
-      autenticado: true,
-      id: user.id || null,
-      nome: user.nome?.trim() || user.username?.trim() || "Usuário Conectado",
-      cargo: user.cargo === "supervisor" ? "Supervisor" : user.cargo === "tecnico" ? "Técnico" : "Colaborador"
-    };
-  } catch {
-    return { autenticado: false, id: null, nome: "", cargo: "" };
-  }
-}
-
-// --- DADOS MOCKADOS DE EXEMPLO ---
-const MOCK_TRECHOS_LAUDOS: TrechoLaudoDetalhado[] = [
-  {
-    id: "TR-501",
-    via: "BR-116",
-    kmInicio: 210,
-    kmFim: 215,
-    inspecoes: [
-      {
-        id: 1001,
-        data: "2026-06-15",
-        responsavelTecnico: "Engª. Maria Barros",
-        pci: 82,
-        igg: 18,
-        classificacao: "Bom",
-        defeitos: [
-          { tipo: "Trincas interligadas", quantidade: 5 },
-          { tipo: "Trincas isoladas", quantidade: 3 },
-          { tipo: "Panelas (buracos)", quantidade: 1 },
-          { tipo: "Desgaste superficial", quantidade: 2 },
-        ],
-      }
-    ]
-  }
-];
-
-function getClassificacaoBadgeClass(classificacao: Inspecao["classificacao"]) {
-  switch (classificacao) {
-    case "Ótimo": return "bg-green-50 border-green-200 text-green-700";
-    case "Bom": return "bg-emerald-50 border-emerald-200 text-emerald-700";
-    case "Regular": return "bg-amber-50 border-amber-200 text-amber-700";
-    case "Ruim": return "bg-orange-50 border-orange-200 text-orange-700";
-    case "Péssimo": return "bg-red-50 border-red-200 text-red-700";
-    default: return "bg-gray-50 border-gray-200 text-gray-700";
-  }
-}
-
-export default function RelatorioPage() {
+export default function RelatoriosPage() {
   const router = useRouter();
   const pathname = usePathname() || "/relatorio";
 
-  // Estados de Sessão idênticos aos das demais telas normatizadas
-  const usuarioInicial = useMemo(() => obterUsuarioInicial(), []);
-  const [isAutenticado, setIsAutenticado] = useState<boolean>(usuarioInicial.autenticado);
-  const [usuarioNome, setUsuarioNome] = useState<string>(usuarioInicial.nome);
-  const [cargoUsuario, setCargoUsuario] = useState<string>(usuarioInicial.cargo);
-  const [carregandoSessao, setCarregandoSessao] = useState<boolean>(true); 
-  const [showPopUp, setShowPopUp] = useState<boolean>(false);
+  // --- ESTADOS INICIAIS (Lazy Initialization) ---
+  const [isAutenticado, setIsAutenticado] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return !!localStorage.getItem("usuario");
+    }
+    return false;
+  });
 
-  // Controle do modal e dados
-  const [modalOpen, setModalOpen] = useState(false);
-  const [trechoAtivo, setTrechoAtivo] = useState<TrechoLaudoDetalhado | null>(null);
-  const [inspecaoAtivaId, setInspecaoAtivaId] = useState<number | null>(null);
-  const [compInspecaoAId, setCompInspecaoAId] = useState<string>("");
-  const [compInspecaoBId, setCompInspecaoBId] = useState<string>("");
-  const [exibirComparativo, setExibirComparativo] = useState(false);
+  const [usuarioNome, setUsuarioNome] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const usuarioSalvo = localStorage.getItem("usuario");
+        if (usuarioSalvo) {
+          const user = JSON.parse(usuarioSalvo);
+          return user.nome?.trim() || user.username?.trim() || "Usuário Conectado";
+        }
+      } catch { /* ignora se corrompido */ }
+    }
+    return "";
+  });
 
+  const [cargoUsuario, setCargoUsuario] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const usuarioSalvo = localStorage.getItem("usuario");
+        if (usuarioSalvo) {
+          const user = JSON.parse(usuarioSalvo);
+          return user.cargo === "supervisor" ? "Supervisor" : user.cargo === "tecnico" ? "Técnico" : "Colaborador";
+        }
+      } catch { /* ignora se corrompido */ }
+    }
+    return "";
+  });
+
+  const [showPopUp, setShowPopUp] = useState(false);
+  const [grupos, setGrupos] = useState<GrupoRelatorio[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [modalAberto, setModalAberto] = useState(false);
+  const [grupoAtivo, setGrupoAtivo] = useState<GrupoRelatorio | null>(null);
+  const [exportandoPdf, setExportandoPdf] = useState(false);
+  const [filtroPesquisa, setFiltroPesquisa] = useState("");
+
+  // --- REVALIDAÇÃO ASSÍNCRONA DA SESSÃO ---
   useEffect(() => {
-    async function checarSessaoReal() {
+    async function checarSessao() {
       try {
         const res = await fetch("/api/auth/me");
         if (res.ok) {
           const data = await res.json();
           if (data.authenticated || data.nome || data.id) {
             setIsAutenticado(true);
-            const nomeExibicao = data.nome?.trim() || data.usuario?.nome?.trim() || "Usuário";
-            setUsuarioNome(nomeExibicao);
+            setUsuarioNome(data.nome?.trim() || "Usuário");
             setCargoUsuario(data.cargo === "supervisor" ? "Supervisor" : data.is_tecnico || data.cargo === "tecnico" ? "Técnico" : "Colaborador");
             localStorage.setItem("usuario", JSON.stringify(data));
-          } else {
-            localStorage.removeItem("usuario");
-            setIsAutenticado(false);
           }
         }
-      } catch {
-        if (!localStorage.getItem("usuario")) setIsAutenticado(false);
-      } finally {
-        setCarregandoSessao(false);
-      }
+      } catch { /* mantém os dados da inicialização */ }
     }
-    checarSessaoReal();
+    void checarSessao();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch (error) {
-      console.error("Erro ao efetuar logout:", error);
+  // --- CARGA DOS LAUDOS VIA API ---
+  useEffect(() => {
+    async function carregarLaudos() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await authApi.get<LaudoResponse[]>("/api/laudos/");
+        const laudosBrutos = response.data || [];
+
+        const listaGrupos: GrupoRelatorio[] = laudosBrutos.map((l) => {
+          const resumoDeteccoes: Record<string, number> = {};
+          if (l.resumo) {
+            Object.entries(l.resumo).forEach(([def, qtd]) => {
+              resumoDeteccoes[def] = Number(qtd);
+            });
+          }
+
+          const pub = !!l.publicacao_resumo;
+          const pr = l.publicacao_resumo as ResumoPublicacao | undefined;
+
+          // CORREÇÃO DA LOCALIZAÇÃO: Se não há via homologada, usa identificação padrão por ID
+          const localizacaoReal = pr?.via || `Inspeção Técnica ID #${l.id}`;
+
+          return {
+            laudoId: l.id,
+            data: l.data ? l.data.substring(0, 10) : new Date().toISOString().substring(0, 10),
+            responsavel: l.responsavel || "Responsável Não Informado",
+            credencial: l.credencial_responsavel || "CREA — Não Informado",
+            usuarios: l.usuarios || [],
+            status: l.status,
+            resumo: resumoDeteccoes,
+            publicado: pub,
+            publicadoEm: l.publicado_em,
+            via: localizacaoReal,
+            km: pr?.km ?? undefined,
+            pci: pr?.pci ?? undefined,
+            igg: pr?.igg ?? undefined,
+            observacoes: pr?.observacoes ?? undefined,
+          };
+        });
+
+        const ordenados = listaGrupos
+          .filter((g) => g.publicado)
+          .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+
+        setGrupos(ordenados);
+      } catch (err) {
+        console.error(err);
+        setError("Não foi possível estabelecer ligação para obter os relatórios técnicos.");
+      } finally {
+        setLoading(false);
+      }
     }
+
+    void carregarLaudos();
+  }, []);
+
+  const abrirModal = useCallback((grupo: GrupoRelatorio) => {
+    setGrupoAtivo(grupo);
+    setModalAberto(true);
+  }, []);
+
+  const handleLogout = () => {
+    clearAuthSession();
     localStorage.removeItem("usuario");
-    setIsAutenticado(false);
-    setUsuarioNome("");
-    setCargoUsuario("");
     router.push("/login");
   };
 
-  const handleAbrirLaudo = (trecho: TrechoLaudoDetalhado) => {
-    setTrechoAtivo(trecho);
-    setInspecaoAtivaId(null);
-    setCompInspecaoAId("");
-    setCompInspecaoBId("");
-    setExibirComparativo(false);
-    setModalOpen(true);
+  const exportarRelatorioPDF = async () => {
+    if (!grupoAtivo) return;
+    try {
+      setExportandoPdf(true);
+      const res = await authApi.get(`/api/laudos/${grupoAtivo.laudoId}/pdf`, {
+        responseType: "blob",
+      });
+
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Relatorio-Tecnico-Laudo-${grupoAtivo.laudoId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao gerar o arquivo PDF do relatório.");
+    } finally {
+      setExportandoPdf(false);
+    }
   };
 
-  const inspecoesOrdenadas = useMemo(() => {
-    if (!trechoAtivo?.inspecoes) return [];
-    return [...trechoAtivo.inspecoes].sort((a, b) => 
-      new Date(b.data).getTime() - new Date(a.data).getTime()
+  const gruposFiltrados = useMemo(() => {
+    if (!filtroPesquisa.trim()) return grupos;
+    const termo = filtroPesquisa.toLowerCase();
+    return grupos.filter(
+      (g) =>
+        String(g.laudoId).includes(termo) ||
+        g.responsavel.toLowerCase().includes(termo) ||
+        g.via.toLowerCase().includes(termo)
     );
-  }, [trechoAtivo]);
+  }, [grupos, filtroPesquisa]);
 
-  const inspecaoAtiva = useMemo(() => {
-    if (!inspecoesOrdenadas.length) return null;
-    if (inspecaoAtivaId === null) return inspecoesOrdenadas[0];
-    return inspecoesOrdenadas.find(i => i.id === inspecaoAtivaId) || inspecoesOrdenadas[0];
-  }, [inspecoesOrdenadas, inspecaoAtivaId]);
-
-  const dadosComparativos = useMemo(() => {
-    if (!exibirComparativo || !compInspecaoAId || !compInspecaoBId || !trechoAtivo) return null;
-    const inspA = trechoAtivo.inspecoes.find(i => i.id === Number(compInspecaoAId));
-    const inspB = trechoAtivo.inspecoes.find(i => i.id === Number(compInspecaoBId));
-    
-    if (!inspA || !inspB) return null;
-
-    const [antiga, recente] = new Date(inspA.data).getTime() < new Date(inspB.data).getTime() 
-      ? [inspA, inspB] 
-      : [inspB, inspA];
-
-    return {
-      antiga,
-      recente,
-      difPCI: recente.pci - antiga.pci,
-      difIGG: recente.igg - antiga.igg
-    };
-  }, [exibirComparativo, compInspecaoAId, compInspecaoBId, trechoAtivo]);
+  // Função auxiliar para badge de classificação visual de qualidade (PCI)
+  const obterBadgeQualidade = (pci?: number) => {
+    if (pci === undefined) return { label: "Sem Índice", classe: "bg-gray-100 text-gray-600 border-gray-200" };
+    if (pci >= 85) return { label: "Excelente", classe: "bg-green-50 text-green-700 border-green-200" };
+    if (pci >= 70) return { label: "Bom", classe: "bg-blue-50 text-blue-700 border-blue-200" };
+    if (pci >= 55) return { label: "Regular", classe: "bg-amber-50 text-amber-700 border-amber-200" };
+    return { label: "Crítico", classe: "bg-red-50 text-red-700 border-red-200" };
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans text-gray-900 w-full">
       {isAutenticado && <AppSidebar activePath={pathname} />}
 
       <main className="flex-1 p-8 overflow-y-auto">
-        
-        {/* HEADER PADRONIZADO E IDÊNTICO A O SEMAIS MÓDULOS */}
+        {/* --- CABEÇALHO --- */}
         <header className="flex justify-between items-start mb-10">
           <div>
             <h1 className="text-xl font-bold text-gray-800">Sistema de Monitoramento de Pavimentação</h1>
@@ -213,9 +242,7 @@ export default function RelatorioPage() {
           </div>
 
           <div className="flex items-center gap-4 relative">
-            {carregandoSessao && !isAutenticado ? (
-              <div className="h-10 w-24 bg-transparent" />
-            ) : isAutenticado ? (
+            {isAutenticado ? (
               <>
                 <button
                   type="button"
@@ -239,10 +266,7 @@ export default function RelatorioPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowPopUp(false);
-                        router.push('/editar-perfil');
-                      }}
+                      onClick={() => { setShowPopUp(false); router.push("/editar-perfil"); }}
                       className="w-full flex items-center gap-3 p-4 hover:bg-blue-50 text-sm text-gray-700 transition-colors group cursor-pointer"
                     >
                       <Settings size={16} className="text-gray-400 group-hover:text-blue-600" />
@@ -263,7 +287,7 @@ export default function RelatorioPage() {
               <button
                 type="button"
                 onClick={() => router.push("/login")}
-                className="flex items-center gap-2 text-white bg-[#0a5483] border border-transparent px-5 py-2.5 rounded-xl text-sm hover:bg-[#083d61] font-bold transition-all shadow-sm cursor-pointer"
+                className="flex items-center gap-2 text-white bg-[#0a5483] px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#083d61] transition-all"
               >
                 Login
               </button>
@@ -271,76 +295,119 @@ export default function RelatorioPage() {
           </div>
         </header>
 
-        {/* SUB-HEADER CONTEXTUAL DA TELA */}
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-extrabold text-gray-900">Relatório Técnico</h2>
-            <p className="text-xs text-gray-500 font-medium italic mt-0.5">Quadro de defeitos estruturais e evolução temporal de trechos</p>
-          </div>
+        {/* --- TÍTULO DA PÁGINA --- */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-extrabold text-gray-900">Relatórios Técnicos Publicados</h2>
+          <p className="text-xs text-gray-500 font-medium italic mt-0.5">Laudos estruturais compilados pós-inspeção visual e IA</p>
         </div>
 
-        {/* LISTAGEM DOS RELATÓRIOS SALVOS */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 text-gray-400 pb-2 border-b border-gray-200">
-            <SlidersHorizontal size={16} />
-            <span className="text-xs font-bold uppercase tracking-wider">Trechos com Diagnóstico Salvo</span>
+        {/* Barra de Filtro */}
+        <section className="bg-white rounded-3xl p-4 border border-gray-200 shadow-sm flex gap-3 mb-6">
+          <div className="relative flex-1 w-full">
+            <SlidersHorizontal className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder="Filtrar por ID do laudo, engenheiro responsável ou localização..."
+              value={filtroPesquisa}
+              onChange={(e) => setFiltroPesquisa(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-medium focus:outline-none focus:bg-white focus:border-gray-300 transition"
+            />
           </div>
+        </section>
 
-          <div className="space-y-3">
-            {MOCK_TRECHOS_LAUDOS.map((trecho) => {
-              const ultima = [...trecho.inspecoes].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())[0];
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-[#0a5483]" />
+            <p className="text-xs font-bold text-gray-500">Buscando e compilando laudos...</p>
+          </div>
+        ) : error ? (
+          <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 text-sm font-medium mb-6 flex items-center gap-2">
+            <AlertCircle size={18} className="shrink-0" /> {error}
+          </div>
+        ) : gruposFiltrados.length === 0 ? (
+          <div className="text-center py-16 bg-white border border-dashed border-gray-200 rounded-2xl">
+            <p className="text-sm font-medium text-gray-400">Nenhum relatório técnico localizado.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {gruposFiltrados.map((g) => {
+              const totalDefeitos = Object.values(g.resumo).reduce((a, b) => a + b, 0);
+              const badgeQualidade = obterBadgeQualidade(g.pci);
+
               return (
-                <div 
-                  key={trecho.id}
-                  onClick={() => handleAbrirLaudo(trecho)}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between border border-gray-200 bg-white p-5 rounded-2xl hover:border-gray-300 shadow-sm transition cursor-pointer gap-4"
+                <div
+                  key={g.laudoId}
+                  className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-400 border border-gray-100">
-                      <FileText size={20} />
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                        LAUDO #{g.laudoId}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badgeQualidade.classe}`}>
+                          PCI: {badgeQualidade.label}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-base font-bold text-gray-900">
-                        Via {trecho.via} • KM {trecho.kmInicio} ao {trecho.kmFim}
+
+                    {/* LOCALIZAÇÃO ATUALIZADA: Ícone de mapa + Local real dinâmico */}
+                    <div className="flex items-start gap-1.5 text-gray-800 my-2">
+                      <MapPin size={15} className="text-[#0a5483] mt-0.5 shrink-0" />
+                      <h3 className="font-extrabold text-sm line-clamp-2">
+                        {g.via}
                       </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400 font-bold font-mono">
-                        <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{trecho.id}</span>
-                        <span>•</span>
-                        <span>{ultima.data.split("-").reverse().join("/")}</span>
-                        <span>•</span>
-                        <span className="font-sans font-medium text-gray-500">Resp: {ultima.responsavelTecnico}</span>
+                    </div>
+                    
+                    <p className="text-xs text-gray-400 mt-1 font-medium">
+                      Responsável: <span className="text-gray-600 font-bold">{g.responsavel}</span>
+                    </p>
+
+                    <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-[11px]">
+                      <div>
+                        <p className="text-gray-400 font-medium">Data da Vistoria</p>
+                        <p className="font-bold text-gray-700 flex items-center gap-1 mt-0.5">
+                          <Calendar size={12} className="text-gray-400" /> {formatarData(g.data)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 font-medium">Anomalias por IA</p>
+                        <p className="font-bold text-gray-700 flex items-center gap-1 mt-0.5">
+                          <AlertTriangle size={12} className="text-amber-500" /> {totalDefeitos} detecção(ões)
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 self-end sm:self-auto text-gray-400">
-                    <span className="text-xs font-bold bg-blue-50 border border-blue-100 px-3 py-1 rounded-lg text-blue-600">
-                      {trecho.inspecoes.length} laudos
-                    </span>
-                    <ChevronRight size={18} strokeWidth={2.5} className="text-gray-400" />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => abrirModal(g)}
+                    className="w-full mt-5 bg-slate-50 border border-gray-200 text-[#0a5483] text-xs font-bold py-2 rounded-xl hover:bg-[#0a5483] hover:text-white transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <FileText size={14} /> Abrir Relatório Técnico
+                  </button>
                 </div>
               );
             })}
           </div>
-        </div>
+        )}
       </main>
 
-      {/* MODAL DETALHADO DO LAUDO */}
-      {modalOpen && trechoAtivo && (
+      {/* --- MODAL DETALHADO --- */}
+      {modalAberto && grupoAtivo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-5xl h-[85vh] rounded-2xl shadow-xl border border-gray-200 flex flex-col overflow-hidden">
+          <div className="bg-white w-full max-w-4xl h-[85vh] rounded-2xl shadow-xl border border-gray-200 flex flex-col overflow-hidden">
             
             <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shrink-0">
               <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Detalhes Técnicos do Segmento</span>
-                <h2 className="text-base font-black text-[#0a5483] flex items-center gap-2 mt-0.5">
-                  Via: {trechoAtivo.via} • KM {trechoAtivo.kmInicio} ao KM {trechoAtivo.kmFim}
+                <span className="text-[11px] font-black uppercase tracking-wider text-gray-400">Visualizador de Relatório Estrutural</span>
+                <h2 className="text-base font-black text-[#0a5483] mt-0.5">
+                  Laudo Técnico #{grupoAtivo.laudoId} — {formatarData(grupoAtivo.data)}
                 </h2>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setModalOpen(false)}
+                onClick={() => setModalAberto(false)}
                 className="p-1.5 rounded-xl border border-gray-200 text-slate-500 hover:bg-slate-50 transition cursor-pointer"
               >
                 <X size={18} />
@@ -349,169 +416,135 @@ export default function RelatorioPage() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
               
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                  <p className="text-[10px] uppercase font-bold text-gray-400">Engenheiro de Registro</p>
+                  <p className="text-sm font-bold text-gray-800 mt-1">{grupoAtivo.responsavel}</p>
+                  <p className="text-[11px] text-gray-400 font-mono mt-0.5">{grupoAtivo.credencial}</p>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-gray-400">Equipe de Campo / Colaboradores</p>
+                    <p className="text-xs text-gray-600 mt-1 truncate">
+                      {grupoAtivo.usuarios.length > 0 
+                        ? grupoAtivo.usuarios.map(u => u.nome).join(", ") 
+                        : "Nenhum colaborador adicional registrado."}
+                    </p>
+                  </div>
+                  {grupoAtivo.publicado && (
+                    <button
+                      type="button"
+                      disabled={exportandoPdf}
+                      onClick={exportarRelatorioPDF}
+                      className="mt-2 text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                    >
+                      {exportandoPdf ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" /> Gerando PDF...
+                        </>
+                      ) : (
+                        <>
+                          <Download size={13} /> Exportar Laudo Oficial (.PDF)
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* CLASSIFICAÇÃO ADAPTADA */}
+              <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                <h3 className="text-xs font-black uppercase text-gray-500 mb-3 border-b border-gray-100 pb-3 flex items-center gap-1.5">
+                  <Activity size={14} className="text-slate-400" /> Parâmetros de Linha e Índices DNIT
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-slate-50 p-3 rounded-xl border border-gray-100">
+                    <p className="text-[10px] uppercase font-bold text-gray-400">Localização Coletada</p>
+                    <p className="text-xs font-bold text-gray-800 mt-1 line-clamp-1">{grupoAtivo.via}</p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-xl border border-gray-100">
+                    <p className="text-[10px] uppercase font-bold text-gray-400">Segmento Extensão</p>
+                    <p className="text-xs font-bold text-gray-800 mt-1 font-mono">
+                      {grupoAtivo.km ? `KM ${grupoAtivo.km}` : "Não Parametrizado"}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-xl border border-gray-100">
+                    <p className="text-[10px] uppercase font-bold text-gray-400">Índice PCI</p>
+                    <p className={`text-xs font-black mt-1 font-mono ${grupoAtivo.pci && grupoAtivo.pci >= 70 ? "text-green-600" : "text-amber-600"}`}>
+                      {grupoAtivo.pci !== undefined ? `${grupoAtivo.pci} / 100` : "N/A"}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-xl border border-gray-100">
+                    <p className="text-[10px] uppercase font-bold text-gray-400">Índice IGG (DNIT)</p>
+                    <p className="text-xs font-black text-gray-800 mt-1 font-mono">
+                      {grupoAtivo.igg !== undefined ? grupoAtivo.igg : "N/A"}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Quantificação de Danos */}
+              <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                <h3 className="text-xs font-black uppercase text-gray-500 mb-4 border-b border-gray-100 pb-3">
+                  Quadro Geral de Patologias Encontradas
+                </h3>
+
+                {Object.keys(grupoAtivo.resumo).length === 0 ? (
+                  <p className="text-xs text-gray-400 italic text-center py-6">Nenhuma patologia identificada pela inteligência artificial.</p>
+                ) : (
+                  <div className="overflow-hidden border border-gray-100 rounded-xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase">
+                          <th className="p-3">Defeito Identificado</th>
+                          <th className="p-3 w-32">Ocorrências</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
+                        {Object.entries(grupoAtivo.resumo).map(([def, qtd]) => (
+                          <tr key={def} className="hover:bg-slate-50/50">
+                            <td className="p-3 font-medium text-gray-900 capitalize">{def}</td>
+                            <td className="p-3 font-bold font-mono text-gray-600">{qtd}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              {/* Observações */}
+              <section className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <h3 className="text-xs font-black uppercase text-gray-500 mb-2">Considerações Finais do Engenheiro</h3>
+                <p className="text-xs text-gray-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-gray-100 italic">
+                  {grupoAtivo.observacoes || "Nenhuma consideração adicional anotada para este documento."}
+                </p>
+              </section>
+
+              {/* Histórico */}
               <section className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
                 <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2.5 flex items-center gap-1.5">
-                  <History size={13} /> Seleção de Histórico Cronológico
+                  <History size={13} /> Mudar para Outro Documento Coletado
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  {inspecoesOrdenadas.map((insp, index) => (
+                  {grupos.map((g) => (
                     <button
-                      key={insp.id}
+                      key={g.laudoId}
                       type="button"
-                      onClick={() => {
-                        setInspecaoAtivaId(insp.id);
-                        setExibirComparativo(false);
-                      }}
+                      onClick={() => void abrirModal(g)}
                       className={`px-4 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                        inspecaoAtiva?.id === insp.id && !exibirComparativo
+                        grupoAtivo.laudoId === g.laudoId
                           ? "bg-[#0a5483] border-[#0a5483] text-white"
                           : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                       }`}
                     >
                       <Calendar size={14} />
-                      {insp.data.split("-").reverse().join("/")}
-                      {index === 0 && (
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase ${
-                          inspecaoAtiva?.id === insp.id && !exibirComparativo ? "bg-white text-[#0a5483]" : "bg-blue-50 text-[#0a5483]"
-                        }`}>
-                          Atual
-                        </span>
-                      )}
+                      #{g.laudoId} — {formatarData(g.data)}
                     </button>
                   ))}
                 </div>
               </section>
 
-              {!exibirComparativo && inspecaoAtiva && (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                      <p className="text-[10px] uppercase font-bold text-gray-400">Responsável Técnico</p>
-                      <p className="text-sm font-bold text-gray-800 mt-1 truncate">{inspecaoAtiva.responsavelTecnico}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                      <p className="text-[10px] uppercase font-bold text-gray-400">Índice PCI</p>
-                      <p className="text-lg font-black text-gray-900 font-mono mt-0.5">{inspecaoAtiva.pci}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                      <p className="text-[10px] uppercase font-bold text-gray-400">Índice IGG</p>
-                      <p className="text-lg font-black text-gray-900 font-mono mt-0.5">{inspecaoAtiva.igg}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center">
-                      <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Classificação DNIT</p>
-                      <span className={`w-fit px-2.5 py-0.5 text-xs font-bold rounded-md border ${getClassificacaoBadgeClass(inspecaoAtiva.classificacao)}`}>
-                        {inspecaoAtiva.classificacao}
-                      </span>
-                    </div>
-                  </div>
-
-                  <section className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-3">
-                      <h3 className="text-xs font-black uppercase text-gray-500 flex items-center gap-1.5">
-                        <AlertTriangle size={15} className="text-amber-500" />
-                        Inconformidades do Pavimento
-                      </h3>
-                    </div>
-                    <div className="overflow-hidden border border-gray-100 rounded-xl">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-gray-100 text-[11px] font-bold text-gray-400 uppercase">
-                            <th className="p-3">Defeito Identificado</th>
-                            <th className="p-3 text-center w-36">Qtd / Extensão</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                          {inspecaoAtiva.defeitos.map((def, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/50">
-                              <td className="p-3 font-medium text-gray-900">{def.tipo}</td>
-                              <td className="p-3 text-center font-bold font-mono text-gray-600">{def.quantidade}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                </>
-              )}
-
-              <section className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-xs font-black uppercase text-gray-500 mb-3 flex items-center gap-1.5">
-                  <Activity size={15} className="text-blue-500" />
-                  Análise Comparativa Inter-inspeções
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-gray-200/60 mb-3">
-                  <select
-                    value={compInspecaoAId}
-                    onChange={(e) => setCompInspecaoAId(e.target.value)}
-                    className="text-xs font-medium rounded-lg border border-gray-200 bg-white p-2.5 text-gray-700 focus:outline-none"
-                  >
-                    <option value="">Selecione a 1ª data...</option>
-                    {trechoAtivo.inspecoes.map(i => (
-                      <option key={i.id} value={i.id}>{i.data.split("-").reverse().join("/")}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={compInspecaoBId}
-                    onChange={(e) => setCompInspecaoBId(e.target.value)}
-                    className="text-xs font-medium rounded-lg border border-gray-200 bg-white p-2.5 text-gray-700 focus:outline-none"
-                  >
-                    <option value="">Selecione a 2ª data...</option>
-                    {trechoAtivo.inspecoes.map(i => (
-                      <option key={i.id} value={i.id}>{i.data.split("-").reverse().join("/")}</option>
-                    ))}
-                  </select>
-
-                  <button
-                    type="button"
-                    disabled={!compInspecaoAId || !compInspecaoBId || compInspecaoAId === compInspecaoBId}
-                    onClick={() => setExibirComparativo(true)}
-                    className={`rounded-lg py-2 text-xs font-bold uppercase transition ${
-                      compInspecaoAId && compInspecaoBId && compInspecaoAId !== compInspecaoBId
-                        ? "bg-[#0a5483] text-white hover:bg-[#083d61] cursor-pointer"
-                        : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    }`}
-                  >
-                    Comparar Períodos
-                  </button>
-                </div>
-
-                {exibirComparativo && dadosComparativos && (
-                  <div className="border border-blue-100 bg-blue-50/10 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
-                      <span>Evolução do Trecho:</span>
-                      <span className="bg-white border px-1.5 py-0.5 rounded font-mono font-bold">{dadosComparativos.antiga.data.split("-").reverse().join("/")}</span>
-                      <ArrowRight size={12} className="text-gray-400" />
-                      <span className="bg-white border px-1.5 py-0.5 rounded font-mono font-bold text-gray-900">{dadosComparativos.recente.data.split("-").reverse().join("/")}</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="bg-white p-3 rounded-lg border border-gray-200 flex items-center justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 uppercase">Delta PCI</p>
-                          <p className="text-xs font-bold text-slate-800 font-mono mt-0.5">{dadosComparativos.antiga.pci} → {dadosComparativos.recente.pci}</p>
-                        </div>
-                        <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${dadosComparativos.difPCI >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {dadosComparativos.difPCI >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                          {dadosComparativos.difPCI >= 0 ? `+${dadosComparativos.difPCI}` : dadosComparativos.difPCI}
-                        </span>
-                      </div>
-
-                      <div className="bg-white p-3 rounded-lg border border-gray-200 flex items-center justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 uppercase">Delta IGG</p>
-                          <p className="text-xs font-bold text-slate-800 font-mono mt-0.5">{dadosComparativos.antiga.igg} → {dadosComparativos.recente.igg}</p>
-                        </div>
-                        <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${dadosComparativos.difIGG <= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {dadosComparativos.difIGG <= 0 ? <TrendingDown size={13} /> : <TrendingUp size={13} />}
-                          {dadosComparativos.difIGG > 0 ? `+${dadosComparativos.difIGG}` : `${dadosComparativos.difIGG}`}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </section>
             </div>
           </div>
         </div>

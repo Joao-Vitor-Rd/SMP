@@ -3,8 +3,8 @@
 import axios from "axios";
 import exifr from "exifr";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type MutableRefObject } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense, MutableRefObject } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
@@ -23,7 +23,8 @@ import AppSidebar from "../../../components/AppSidebar";
 import { authApi, clearAuthSession } from "../../lib/authApi";
 import { INSPECTION_ID_KEY } from "../../lib/laudoApi";
 import { type MapReviewLocationSource } from "../../lib/map-review";
-import { buildReviewPayloadFromUpload, clearConfirmationSummary, persistReviewItems, readPersistedReviewItems } from "../../lib/map-review";
+import { buildReviewPayloadFromUpload, clearConfirmationSummary, persistReviewItems } from "../../lib/map-review";
+import AppSidebar from "../../../components/AppSidebar";
 
 type QueueStatus = "pending" | "uploading" | "completed" | "rejected";
 
@@ -803,35 +804,35 @@ function UploadImagensConteudo() {
   }, []);
 
   const prepareReviewItems = useCallback(async () => {
-    const persistedById = new globalThis.Map(readPersistedReviewItems().map((item) => [item.id, item]));
+    clearConfirmationSummary();
 
     const reviewItems = await Promise.all(
       items.map(async (item) => {
-        const persistedReview = persistedById.get(item.id);
         const durableImageUrl = item.serverImageUrl ?? (item.originalFile ? await fileToDataUrl(item.originalFile) : item.previewUrl);
 
         return {
           id: item.id,
-          fotoId: persistedReview?.fotoId ?? item.serverFotoId,
+          fotoId: item.serverFotoId,
           fileName: item.file.name,
-          imageUrl: persistedReview?.imageUrl ?? durableImageUrl,
-          latitude: persistedReview?.latitude ?? item.serverLatitude,
-          longitude: persistedReview?.longitude ?? item.serverLongitude,
-          locationSource: persistedReview?.locationSource ?? item.locationSource,
+          imageUrl: durableImageUrl,
+          latitude: item.serverLatitude,
+          longitude: item.serverLongitude,
+          locationSource: item.locationSource,
           manualLat: item.manualLat,
           manualLng: item.manualLng,
-          locationException: persistedReview?.locationException ?? item.locationException,
-          status: item.status === "completed" ? "ready" : item.status,
-          message: persistedReview?.note ?? item.message,
+          locationException: item.locationException,
+          status: item.status === "completed" ? ("ready" as const) : item.status,
+          message: item.message,
         };
       })
     );
 
-    const normalizedReviewItems = buildReviewPayloadFromUpload(reviewItems);
+    const normalizedReviewItems = buildReviewPayloadFromUpload(reviewItems).filter((item) => item.imageUrl);
 
-    clearConfirmationSummary();
     if (normalizedReviewItems.length > 0) {
       persistReviewItems(normalizedReviewItems);
+    } else {
+      persistReviewItems([]);
     }
 
     return normalizedReviewItems;
@@ -986,112 +987,72 @@ function UploadImagensConteudo() {
   }, [items, uploadPendingBatch]);
 
   function addFiles(fileList: FileList | File[]) {
-    const incoming = Array.from(fileList);
+  const incoming = Array.from(fileList);
+  if (!incoming.length) return;
 
-    if (!incoming.length) {
+  // Obtém o laudoId da mesma forma que em outras partes do código
+  const laudoId = resolveInspecaoIdForUpload(laudoIdFromUrl, inspecaoIdRef);
+
+  const nextItems: UploadItem[] = [];
+
+  incoming.forEach((file) => {
+    const validationError = validateFile(file);
+    const duplicate = items.some((item) => isSameFile(item.file, file)) || nextItems.some((item) => isSameFile(item.file, file));
+    const id = createId(file);
+
+    if (validationError) {
+      nextItems.push({
+        id, serverFotoId: null, file: toUploadFileLike(file), originalFile: file, previewUrl: URL.createObjectURL(file),
+        serverImageUrl: null, serverLatitude: null, serverLongitude: null, status: "rejected", progress: 0, message: validationError,
+        hasLocation: null, locationSource: null, manualLat: "", manualLng: "", locationException: null
+      });
       return;
     }
 
-    const nextItems: UploadItem[] = [];
-
-    incoming.forEach((file) => {
-      const validationError = validateFile(file);
-      const duplicate = items.some((item) => isSameFile(item.file, file)) || nextItems.some((item) => isSameFile(item.file, file));
-      const id = createId(file);
-
-      if (validationError) {
-        nextItems.push({
-          id,
-          serverFotoId: null,
-          file: toUploadFileLike(file),
-          originalFile: file,
-          previewUrl: URL.createObjectURL(file),
-          serverImageUrl: null,
-          serverLatitude: null,
-          serverLongitude: null,
-          status: "rejected",
-          progress: 0,
-          message: validationError,
-          hasLocation: null,
-          locationSource: null,
-          manualLat: "",
-          manualLng: "",
-          locationException: null,
-        });
-        return;
-      }
-
-      if (duplicate) {
-        nextItems.push({
-          id,
-          serverFotoId: null,
-          file: toUploadFileLike(file),
-          originalFile: file,
-          previewUrl: URL.createObjectURL(file),
-          serverImageUrl: null,
-          serverLatitude: null,
-          serverLongitude: null,
-          status: "rejected",
-          progress: 0,
-          message: DUPLICATE_QUEUE_MESSAGE,
-          hasLocation: null,
-          locationSource: null,
-          manualLat: "",
-          manualLng: "",
-          locationException: null,
-        });
-        return;
-      }
-
+    if (duplicate) {
       nextItems.push({
-        id,
-        serverFotoId: null,
-        file: toUploadFileLike(file),
-        originalFile: file,
-        previewUrl: URL.createObjectURL(file),
-        serverImageUrl: null,
-        serverLatitude: null,
-        serverLongitude: null,
-        status: "pending",
-        progress: 0,
-        message: "Aguardando envio",
-        hasLocation: null,
-        locationSource: null,
-        manualLat: "",
-        manualLng: "",
-        locationException: null,
+        id, serverFotoId: null, file: toUploadFileLike(file), originalFile: file, previewUrl: URL.createObjectURL(file),
+        serverImageUrl: null, serverLatitude: null, serverLongitude: null, status: "rejected", progress: 0, message: DUPLICATE_QUEUE_MESSAGE,
+        hasLocation: null, locationSource: null, manualLat: "", manualLng: "", locationException: null
       });
+      return;
+    }
+
+    nextItems.push({
+      id, serverFotoId: null, file: toUploadFileLike(file), originalFile: file, previewUrl: URL.createObjectURL(file),
+      serverImageUrl: null, serverLatitude: null, serverLongitude: null, status: "pending", progress: 0, message: "Aguardando envio",
+      hasLocation: null, locationSource: null, manualLat: "", manualLng: "", locationException: null
     });
+  });
 
-    setItems((current) => [...current, ...nextItems]);
+  setItems((current) => [...current, ...nextItems]);
 
+  nextItems.forEach((item) => {
+    if (item.originalFile) originalFileCache.set(item.id, item.originalFile);
+  });
+
+  let dataPatchDisparado = false;
+
+  void Promise.resolve().then(() => {
     nextItems.forEach((item) => {
-      if (item.originalFile) {
-        originalFileCache.set(item.id, item.originalFile);
-      }
-    });
+      if (item.status !== "pending" || item.hasLocation !== null) return;
+      void deriveMetadataFromFile(resolveOriginalFile(item) ?? item.file).then(({ hasLocation, isoDate }) => {
+        updateQueueItem(item.id, (current) => ({
+          ...current,
+          hasLocation,
+          locationSource: hasLocation ? "gps" : current.locationSource,
+        }));
 
-    let dataPatchDisparado = false;
-
-    void Promise.resolve().then(() => {
-      nextItems.forEach((item) => {
-        if (item.status !== "pending" || item.hasLocation !== null) return;
-        void deriveMetadataFromFile(resolveOriginalFile(item) ?? item.file).then(({ hasLocation, isoDate }) => {
-          updateQueueItem(item.id, (current) => ({
-            ...current,
-            hasLocation,
-            locationSource: hasLocation ? "gps" : current.locationSource,
-          }));
-
-          const laudoIdParaAtualizar = resolveInspecaoIdForUpload(laudoIdFromUrl, inspecaoIdRef);
-          if (isoDate && laudoIdParaAtualizar && !dataPatchDisparado) {
-            dataPatchDisparado = true;
-            void authApi.patch(`/api/laudos/${laudoIdParaAtualizar}/`, { data: isoDate }).catch(() => {});
-          }
-        });
+        if (isoDate && laudoId && !dataPatchDisparado) {
+          dataPatchDisparado = true;
+          void authApi.patch(`/api/laudos/${laudoId}/`, { data: isoDate })
+            .then((res) => console.log("[EXIF] PATCH sucesso:", res.data))
+            .catch((err) => console.warn("[EXIF] Não foi possível atualizar a data do laudo:", err?.response?.data ?? err.message));
+        }
       });
     });
-  }
+  });
+}
 
   function handleLogout() {
     clearAuthSession();

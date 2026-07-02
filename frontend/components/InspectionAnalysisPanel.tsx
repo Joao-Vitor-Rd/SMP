@@ -36,7 +36,9 @@ export default function InspectionAnalysisPanel({
 
   const job = getJob(resolvedInspecaoId ?? "");
   const status = job?.status;
+  const completedLaudo = job?.laudo ?? null;
   const isProcessing = isTriggering || status === "pending";
+  const canShowReview = status === "completed" && completedLaudo !== null && resolvedInspecaoId != null;
 
   const handleTrigger = async () => {
     setIsTriggering(true);
@@ -66,14 +68,15 @@ export default function InspectionAnalysisPanel({
     }
   };
 
-  if (status === "completed" && job?.laudo && resolvedInspecaoId != null) {
+  // Estado terminal de sucesso: revisão do laudo e, após salvar, finalização.
+  if (canShowReview && completedLaudo) {
     return (
       <div className="space-y-6">
         <ReviewedSummary reviewSaved={reviewSaved} />
 
         {!reviewSaved ? (
           <InspectionReviewForm
-            laudo={job.laudo}
+            laudo={completedLaudo}
             inspecaoId={resolvedInspecaoId}
             onReviewSaved={() => setReviewSaved(true)}
           />

@@ -288,9 +288,9 @@ export default function MeusTrabalhosPage() {
                     // O filtro primário deve existir no backend; este é uma segunda camada.
                     const laudosFiltrados = isTecnico && usuarioId
                         ? laudosData.filter((laudo) => {
-                            const eResponsavel = laudo.responsavel_id === usuarioId;
+                            const eResponsavel = (laudo as LaudoResponse & { responsavel_id?: number }).responsavel_id === usuarioId;
                             const eColaborador = Array.isArray(laudo.usuarios)
-                                && laudo.usuarios.some((u) => u.id === usuarioId);
+                                && laudo.usuarios.some((u) => (u as { id?: number }).id === usuarioId);
                             return eResponsavel || eColaborador;
                         })
                         : laudosData;
@@ -304,7 +304,7 @@ export default function MeusTrabalhosPage() {
                 }
             } catch (error) {
                 console.error("Erro ao carregar dados da API:", error);
-                setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar suas inspeções." });
+                if (isMounted) setFeedback({ type: "error", message: "Não foi possível conectar ao servidor para carregar suas inspeções." });
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -321,11 +321,12 @@ export default function MeusTrabalhosPage() {
         };
     }, [isTecnico, usuarioId]);
 
-    const temDeteccoes = (l: LaudoResponse) => Array.isArray(l.deteccoes) && l.deteccoes.length > 0;
-    const estaConcluida = (l: LaudoResponse) => l.status === "concluido" || temDeteccoes(l) || Boolean(l.publicacao_resumo);
-
-    const inspecoesEmAndamento = laudos.filter(l => !estaConcluida(l));
-    const inspecoesConcluidas = laudos.filter(estaConcluida);
+    const inspecoesEmAndamento = laudos.filter(l =>
+        l.status === "em_andamento" || (!l.status && (!l.resumo || Object.keys(l.resumo).length === 0))
+    );
+    const inspecoesConcluidas = laudos.filter(l =>
+        l.status === "concluido" || (!l.status && l.resumo && Object.keys(l.resumo).length > 0)
+    );
 
     const proximoIdEstimado = laudos.length > 0 ? Math.max(...laudos.map(l => l.id)) + 1 : 1;
 
@@ -399,25 +400,38 @@ export default function MeusTrabalhosPage() {
             const colabsIdsNumericos = selectedCollaboratorIds.map(Number);
 
             const payloadBackend = {
-                data: inspectionDate, 
+                data: inspectionDate,
                 responsavel: nomeLimpo,
                 credencial_responsavel: identificadorLimpo,
-                colaboradores_ids: colabsIdsNumericos, 
-                resumo: {} 
+                colaboradores_ids: colabsIdsNumericos,
+                resumo: {}
             };
 
-            const response = await authApi.post<LaudoResponse>("/api/laudos/", payloadBackend);
-            const novoLaudoId = response.data.id;
+            const response = await createLaudo(payloadBackend);
+            const novoLaudoId = response.id;
 
             if (canUseStorage()) {
+                const payloadStorage: InspectionDraftStorage = {
+                    inspectionDate,
+                    responsibleName,
+                    responsibleIdentifier,
+                    selectedCollaboratorIds,
+                    savedAt: new Date().toISOString(),
+                };
+
                 window.sessionStorage.removeItem(INSPECTION_DRAFT_KEY);
                 window.sessionStorage.removeItem(INSPECTION_METADATA_KEY);
+                window.sessionStorage.setItem(INSPECTION_DRAFT_KEY, JSON.stringify(payloadStorage));
+                window.sessionStorage.setItem(
+                    INSPECTION_METADATA_KEY,
+                    JSON.stringify({ inspectionDate, dataInspecao: inspectionDate, date: inspectionDate })
+                );
                 window.sessionStorage.setItem(INSPECTION_ID_KEY, String(novoLaudoId));
             }
 
             setShowNovaInspecao(false);
             setFeedback({ type: "success", message: "Inspeção iniciada com sucesso! Redirecionando para a captação de imagens..." });
-            
+
             router.push(`/upload-imagens?laudoId=${novoLaudoId}`);
         } catch (error: unknown) {
             console.error("Erro ao submeter laudo:", error);

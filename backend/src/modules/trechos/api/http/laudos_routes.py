@@ -8,9 +8,9 @@ from src.shared.infrastructure.db import get_session
 from src.shared.auth.dependencies import verify_any_user
 
 from src.modules.trechos.infrastructure.repositories.laudo_repository import LaudoRepository
-from src.modules.analise.infrastructure.repositories.deteccao_repository import DeteccaoRepository
-from src.modules.fotos.infrastructure.repositories.foto_repository import FotoRepository
 from src.modules.trechos.infrastructure.repositories.trecho_repository import TrechoRepository
+from src.modules.fotos.infrastructure.repositories.foto_repository import FotoRepository
+from src.modules.colaborador.domain.entities.colaborador import ColaboradorORM
 from src.modules.trechos.application.dtos.laudo_dto import (
     LaudoCreateDTO,
     LaudoResponseDTO,
@@ -23,6 +23,10 @@ from src.modules.trechos.application.use_case.uc_listar_laudos import ListarLaud
 from src.modules.trechos.application.use_case.uc_buscar_laudo_por_id import BuscarLaudoPorIdUseCase
 from src.modules.trechos.application.use_case.uc_atualizar_laudo import AtualizarLaudoUseCase
 from src.modules.trechos.application.use_case.uc_publicar_laudo import PublicarLaudoUseCase
+from src.modules.trechos.application.use_case.uc_buscar_trecho_por_laudo import (
+    BuscarTrechoPorLaudoUseCase,
+    TrechoRelacionadoDTO,
+)
 
 router = APIRouter(tags=["Laudos"])
 
@@ -73,6 +77,16 @@ def get_uc_publicar_laudo(
     )
 
 
+def get_uc_buscar_trecho_por_laudo(
+    session: Session = Depends(get_session),
+) -> BuscarTrechoPorLaudoUseCase:
+    return BuscarTrechoPorLaudoUseCase(
+        foto_repository=FotoRepository(session),
+        trecho_repository=TrechoRepository(session),
+        laudo_repository=LaudoRepository(session),
+    )
+
+
 @router.post(
     "/",
     response_model=LaudoResponseDTO,
@@ -82,16 +96,35 @@ def get_uc_publicar_laudo(
 )
 async def criar_laudo(
     create_data: LaudoCreateDTO,
-    _: Annotated[dict, Depends(verify_any_user)],
+    current_user: Annotated[dict, Depends(verify_any_user)],
+    session: Annotated[Session, Depends(get_session)],
     use_case: CriarLaudoUseCase = Depends(get_uc_criar_laudo),
 ) -> LaudoResponseDTO:
     try:
+        # Garante que o usuário que está criando o laudo sempre tenha acesso a ele,
+        # independente do que o frontend enviar em colaboradores_ids. Sem isso,
+        # técnicos/colaboradores podem criar um laudo e não conseguir vê-lo depois
+        # (list_by_usuario filtra laudos pelo Colaborador vinculado ao usuário).
+        # colaboradores_ids referencia ColaboradorORM.id, não UserORM.id — por isso
+        # é preciso resolver o Colaborador correspondente ao usuário logado.
+        colaboradores_ids = list(create_data.colaboradores_ids or [])
+        current_user_id = current_user.get("id")
+        if current_user_id is not None:
+            colaborador_atual = (
+                session.query(ColaboradorORM)
+                .filter(ColaboradorORM.user_id == current_user_id)
+                .first()
+            )
+            if colaborador_atual is not None and colaborador_atual.id not in colaboradores_ids:
+                colaboradores_ids.append(colaborador_atual.id)
+
         return use_case.execute(
             responsavel=create_data.responsavel,
-            colaboradores_ids=create_data.colaboradores_ids,
+            colaboradores_ids=colaboradores_ids,
             data=create_data.data,
             resumo=create_data.resumo,
-            credencial_responsavel=create_data.credencial_responsavel
+            credencial_responsavel=create_data.credencial_responsavel,
+            trecho_id=create_data.trecho_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -175,9 +208,9 @@ async def listar_laudos(
         cargo = current_user.get("cargo", "")
         is_tecnico = cargo in ("tecnico", "colaborador")
 
-        usuario_id = current_user.get("id") if is_tecnico else None
+        user_id = current_user.get("id") if is_tecnico else None
 
-        return use_case.execute(user_id=usuario_id, cargo=cargo)
+        return use_case.execute(user_id=user_id, cargo=cargo)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -212,6 +245,33 @@ async def buscar_laudo_por_id(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar laudo: {str(e)}"
         )
+
+
+@router.get(
+    "/{laudo_id}/trecho",
+    response_model=TrechoRelacionadoDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Buscar trecho relacionado ao laudo",
+    description=(
+        "Descobre a qual Trecho este laudo pertence (via as fotos vinculadas) e "
+        "retorna a classificação de qualidade, cidade/UF e os IDs de outros "
+        "laudos do mesmo trecho — usado para histórico e comparativo no "
+        "relatório. Retorna 404 se o laudo não tiver fotos associadas a um "
+        "trecho ainda."
+    ),
+)
+async def buscar_trecho_por_laudo(
+    laudo_id: int,
+    _: Annotated[dict, Depends(verify_any_user)],
+    use_case: BuscarTrechoPorLaudoUseCase = Depends(get_uc_buscar_trecho_por_laudo),
+) -> TrechoRelacionadoDTO:
+    result = use_case.execute(laudo_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nenhum trecho encontrado para o laudo {laudo_id} (sem fotos vinculadas a um trecho).",
+        )
+    return result
 
 
 @router.patch(

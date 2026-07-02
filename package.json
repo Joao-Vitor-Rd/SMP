@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "@react-pdf/renderer": "^4.5.1"
+    "@react-pdf/renderer": "^4.5.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8"
   }
 }

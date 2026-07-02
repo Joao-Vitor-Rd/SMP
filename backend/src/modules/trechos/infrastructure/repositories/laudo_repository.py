@@ -199,12 +199,11 @@ class LaudoRepository(ILaudoRepository):
                 )
             )
 
-        deteccoes_orm = (
-            self.session.query(DeteccaoORM)
-            .filter(DeteccaoORM.inspecao_id == laudo_orm.id)
-            .order_by(DeteccaoORM.id.asc())
-            .all()
-        )
+        # Status e resumo de publicação: um laudo só é "concluido" quando
+        # publicado_em está preenchido (fluxo de publicação). Antes disso,
+        # ele é um "rascunho". O relatório usa esse status pra decidir o que
+        # mostrar — sem isso, laudos publicados ficavam invisíveis pra API.
+        status = "concluido" if laudo_orm.publicado_em is not None else "rascunho"
 
         return Laudo(
             id=laudo_orm.id,
@@ -214,7 +213,7 @@ class LaudoRepository(ILaudoRepository):
             credencial_responsavel=laudo_orm.credencial_responsavel,
             usuarios=usuarios,
             resumo=laudo_orm.resumo or {},
-            publicado_em=getattr(laudo_orm, "publicado_em", None),
-            publicacao_resumo=getattr(laudo_orm, "publicacao_resumo", None),
-            deteccoes=[Deteccao.model_validate(orm) for orm in deteccoes_orm],
+            status=status,
+            publicado_em=laudo_orm.publicado_em,
+            publicacao_resumo=laudo_orm.publicacao_resumo,
         )
