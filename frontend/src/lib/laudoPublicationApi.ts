@@ -1,6 +1,7 @@
 import axios from "axios";
 
 import { SessionExpiredError, authApi } from "./authApi";
+import type { DeteccaoLaudo } from "./inspectionAnalysisApi";
 
 export type FinalizarInspecaoResumo = {
   via: string;
@@ -19,6 +20,7 @@ export type LaudoPublicado = {
   inspecao_id: string | number;
   publicado_em: string;
   resumo: FinalizarInspecaoResumo;
+  deteccoes: DeteccaoLaudo[];
 };
 
 const LAUDOS_API_BASE = "/api/laudos";

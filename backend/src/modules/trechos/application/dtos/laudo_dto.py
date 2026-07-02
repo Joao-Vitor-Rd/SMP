@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Union
 from datetime import datetime
+from src.modules.analise.application.dtos.analise_dto import DeteccaoDTO
 from src.shared.enums.cargo_enum import CargoEnum
 
 class UsuarioLaudoDTO(BaseModel):
@@ -35,6 +36,9 @@ class LaudoResponseDTO(BaseModel):
     usuarios: List[UsuarioLaudoDTO] = Field(default_factory=dict)
     resumo: dict[str, int] = Field(default_factory=dict)
     credencial_responsavel: str
+    publicado_em: Optional[datetime] = None
+    publicacao_resumo: Optional["ResumoPublicacaoDTO"] = None
+    deteccoes: List[DeteccaoDTO] = Field(default_factory=list)
 
 
 class ResumoPublicacaoDTO(BaseModel):
@@ -71,3 +75,4 @@ class LaudoPublicadoDTO(BaseModel):
     inspecao_id: int
     publicado_em: datetime
     resumo: ResumoPublicacaoDTO
+    deteccoes: List[DeteccaoDTO] = Field(default_factory=list)
