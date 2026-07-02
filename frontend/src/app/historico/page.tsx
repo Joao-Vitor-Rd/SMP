@@ -118,7 +118,7 @@ export default function HistoricoInspecoesPage() {
       }
     }
 
-    return 100;
+    return 0;
   };
 
   useEffect(() => {
