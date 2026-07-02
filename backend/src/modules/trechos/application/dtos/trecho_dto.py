@@ -22,6 +22,7 @@ class TrechoListItemDTO(BaseModel):
     uf: str | None = None
     responsavel_tecnico: str | None = None
     classificacao_qualidade: str | None = None
+    pci: float | None = None
     defeitos: dict[str, int] | None = None
     responsavel_id: int | None = None
 

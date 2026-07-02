@@ -40,6 +40,23 @@ type LaudoResponse = {
     responsavel_id?: number;
     credencial_responsavel: string;
     resumo: Record<string, number>;
+    publicado_em?: string | null;
+    publicacao_resumo?: {
+        via: string;
+        km: string;
+        pci: number;
+        igg: number;
+        observacoes?: string | null;
+    } | null;
+    deteccoes?: Array<{
+        id?: string | number;
+        defeito: string;
+        confidence_score: number;
+        severidade?: string | null;
+        observacao?: string | null;
+        imagem_id?: number | null;
+        revisado_manualmente?: boolean;
+    }>;
     usuarios: Array<{ id?: number; nome: string; cargo: string }>;
     status?: "em_andamento" | "concluido"; 
 };
@@ -304,8 +321,11 @@ export default function MeusTrabalhosPage() {
         };
     }, [isTecnico, usuarioId]);
 
-    const inspecoesEmAndamento = laudos.filter(l => l.status === "em_andamento" || !l.resumo || Object.keys(l.resumo).length === 0);
-    const inspecoesConcluidas = laudos.filter(l => l.status === "concluido" || (l.resumo && Object.keys(l.resumo).length > 0));
+    const temDeteccoes = (l: LaudoResponse) => Array.isArray(l.deteccoes) && l.deteccoes.length > 0;
+    const estaConcluida = (l: LaudoResponse) => l.status === "concluido" || temDeteccoes(l) || Boolean(l.publicacao_resumo);
+
+    const inspecoesEmAndamento = laudos.filter(l => !estaConcluida(l));
+    const inspecoesConcluidas = laudos.filter(estaConcluida);
 
     const proximoIdEstimado = laudos.length > 0 ? Math.max(...laudos.map(l => l.id)) + 1 : 1;
 
@@ -639,11 +659,11 @@ export default function MeusTrabalhosPage() {
                             <div className="flex items-start justify-between border-b border-gray-100 pb-3">
                                 <div>
                                     <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md mb-1.5 ${
-                                        inspecaoSelecionada.status === "concluido" || (inspecaoSelecionada.resumo && Object.keys(inspecaoSelecionada.resumo).length > 0)
+                                        estaConcluida(inspecaoSelecionada)
                                             ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
                                             : "bg-amber-50 text-amber-700 border border-amber-100"
                                     }`}>
-                                        {inspecaoSelecionada.status === "concluido" || (inspecaoSelecionada.resumo && Object.keys(inspecaoSelecionada.resumo).length > 0) ? "Concluída" : "Em Andamento"}
+                                        {estaConcluida(inspecaoSelecionada) ? "Concluída" : "Em Andamento"}
                                     </span>
                                     <h3 className="text-xl font-black text-slate-950">Dados da Inspeção #{inspecaoSelecionada.id}</h3>
                                 </div>
@@ -681,17 +701,30 @@ export default function MeusTrabalhosPage() {
                                     </div>
                                 )}
 
-                                {inspecaoSelecionada.resumo && Object.keys(inspecaoSelecionada.resumo).length > 0 && (
+                                {(inspecaoSelecionada.publicacao_resumo || inspecaoSelecionada.deteccoes?.length) && (
                                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Métricas/Ocorrências Identificadas</p>
                                         <div className="grid grid-cols-2 gap-2 mt-1.5">
-                                            {Object.entries(inspecaoSelecionada.resumo).map(([key, val]) => (
-                                                <div key={key} className="bg-white p-2 rounded-lg border border-gray-100 text-center">
-                                                    <p className="text-2xs text-gray-400 font-bold capitalize">{key.replace(/_/g, ' ')}</p>
-                                                    <p className="text-sm font-black text-slate-800">{String(val)}</p>
-                                                </div>
-                                            ))}
+                                            {inspecaoSelecionada.publicacao_resumo ? (
+                                                Object.entries(inspecaoSelecionada.publicacao_resumo).map(([key, val]) => (
+                                                    <div key={key} className="bg-white p-2 rounded-lg border border-gray-100 text-center">
+                                                        <p className="text-2xs text-gray-400 font-bold capitalize">{key.replace(/_/g, ' ')}</p>
+                                                        <p className="text-sm font-black text-slate-800">{val === null ? "-" : String(val)}</p>
+                                                    </div>
+                                                ))
+                                            ) : null}
                                         </div>
+
+                                        {inspecaoSelecionada.deteccoes?.length ? (
+                                            <div className="mt-3 space-y-2">
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Detecções</p>
+                                                {inspecaoSelecionada.deteccoes.map((deteccao, index) => (
+                                                    <div key={deteccao.id ?? index} className="rounded-lg border border-gray-100 bg-white p-2 text-xs text-gray-700">
+                                                        {deteccao.defeito} - {String(deteccao.confidence_score)}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : null}
                                     </div>
                                 )}
                             </div>

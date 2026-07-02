@@ -8,6 +8,9 @@ from src.shared.infrastructure.db import get_session
 from src.shared.auth.dependencies import verify_any_user
 
 from src.modules.trechos.infrastructure.repositories.laudo_repository import LaudoRepository
+from src.modules.analise.infrastructure.repositories.deteccao_repository import DeteccaoRepository
+from src.modules.fotos.infrastructure.repositories.foto_repository import FotoRepository
+from src.modules.trechos.infrastructure.repositories.trecho_repository import TrechoRepository
 from src.modules.trechos.application.dtos.laudo_dto import (
     LaudoCreateDTO,
     LaudoResponseDTO,
@@ -60,8 +63,14 @@ def get_uc_buscar_laudo_por_id(
 
 def get_uc_publicar_laudo(
     laudo_repository: LaudoRepository = Depends(get_laudo_repository),
+    session: Session = Depends(get_session),
 ) -> PublicarLaudoUseCase:
-    return PublicarLaudoUseCase(laudo_repository=laudo_repository)
+    return PublicarLaudoUseCase(
+        laudo_repository=laudo_repository,
+        deteccao_repository=DeteccaoRepository(session),
+        foto_repository=FotoRepository(session),
+        trecho_repository=TrechoRepository(session),
+    )
 
 
 @router.post(
@@ -168,7 +177,7 @@ async def listar_laudos(
 
         usuario_id = current_user.get("id") if is_tecnico else None
 
-        return use_case.execute(usuario_id=usuario_id)
+        return use_case.execute(user_id=usuario_id, cargo=cargo)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

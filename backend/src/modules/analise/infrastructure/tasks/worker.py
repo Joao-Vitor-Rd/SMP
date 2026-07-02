@@ -21,6 +21,10 @@ MODOS_DETECTOR_VALIDOS = frozenset({"yolo", "stub"})
 _yolo_detector_instance: IDetectorDefeitos | None = None
 
 
+def _has_roboflow_key() -> bool:
+    return bool((os.getenv("ROBOFLOW_API_KEY") or "").strip())
+
+
 def _resolver_modo_detector() -> str:
     raw = os.getenv("DETECTOR_DEFEITOS", "").strip().lower()
 
@@ -62,6 +66,12 @@ def _get_yolo_detector() -> IDetectorDefeitos:
 def build_detector() -> IDetectorDefeitos:
     modo = _resolver_modo_detector()
     if modo == "yolo":
+        if not _has_roboflow_key():
+            logger.warning(
+                "DETECTOR_DEFEITOS='yolo' mas ROBOFLOW_API_KEY não está definida; "
+                "usando DetectorDefeitosStub para manter o worker ativo."
+            )
+            return DetectorDefeitosStub()
         return _get_yolo_detector()
     return DetectorDefeitosStub()
 
@@ -75,6 +85,12 @@ async def warmup_detector(ctx) -> None:
     logger.info("Worker startup | DETECTOR_DEFEITOS=%r | modo=%r", os.getenv("DETECTOR_DEFEITOS"), modo)
 
     if modo == "yolo":
+        if not _has_roboflow_key():
+            logger.warning(
+                "Warmup ignorado: ROBOFLOW_API_KEY não definida. "
+                "Defina a chave no .env para habilitar o detector yolo."
+            )
+            return
         logger.info("Inicializando detector Roboflow...")
         _get_yolo_detector()
         logger.info("Detector Roboflow pronto")
