@@ -11,11 +11,6 @@ class AnalysisJobStatus(str, Enum):
 
 
 class AnalysisJobState(BaseModel):
-    """Estado de um job de análise mantido no store (Redis).
-
-    `result` carrega o laudo serializado (dict) quando `status == completed`.
-    """
-
     status: AnalysisJobStatus
     inspecao_id: Optional[int] = None
     result: Optional[dict] = None

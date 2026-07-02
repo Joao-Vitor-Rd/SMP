@@ -43,9 +43,4 @@ class ILaudoRepository(ABC):
 
     @abstractmethod
     def publicar(self, laudo_id: int, resumo: dict) -> Optional[dict]:
-        """Marca o laudo como publicado (US-14).
-
-        Retorna dict com `id`, `publicado_em` e `resumo` (publicação) ou None se o
-        laudo não existir.
-        """
         pass

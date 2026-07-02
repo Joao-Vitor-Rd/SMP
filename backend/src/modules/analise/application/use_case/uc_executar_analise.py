@@ -10,8 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class ExecutarAnaliseUseCase:
-    """Tarefa do worker: roda o detector, monta o laudo e atualiza o store."""
-
     def __init__(
         self,
         foto_repository: IFotoRepository,
@@ -27,12 +25,6 @@ class ExecutarAnaliseUseCase:
     async def execute(self, job_id: str, inspecao_id: int) -> None:
         try:
             fotos = self.foto_repository.list_by_inspecao_id(inspecao_id)
-            logger.info(
-                "ExecutarAnaliseUseCase | job_id=%s inspecao_id=%s fotos=%d",
-                job_id,
-                inspecao_id,
-                len(fotos),
-            )
 
             deteccoes = self.detector.detect(fotos)
             salvas = self.deteccao_repository.replace_for_inspecao(inspecao_id, deteccoes)
@@ -43,14 +35,7 @@ class ExecutarAnaliseUseCase:
                 observacoes_gerais=None,
             )
             await self.job_store.set_completed(job_id, laudo.model_dump(mode="json"))
-
-            logger.info(
-                "Análise concluída | job_id=%s inspecao_id=%s deteccoes=%d",
-                job_id,
-                inspecao_id,
-                len(laudo.deteccoes),
-            )
-        except Exception as exc:  # noqa: BLE001 - falha do job deve virar estado, não derrubar o worker
+        except Exception as exc:  # noqa: BLE001
             logger.exception(
                 "Falha ao executar análise job_id=%s inspecao_id=%s",
                 job_id,
